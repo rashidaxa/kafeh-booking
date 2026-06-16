@@ -141,19 +141,38 @@
 
     const pickupEl = document.getElementById("kfbPickup");
     const dropoffEl = document.getElementById("kfbDropoff");
-    if (pickupEl && google.maps.places) {
-      pickupAutocomplete = new google.maps.places.Autocomplete(
-        pickupEl,
-        { fields: ["place_id", "geometry", "name", "formatted_address"] }
-      );
-      pickupAutocomplete.addListener("place_changed", onPlaceChanged);
+    if (pickupEl) {
+      attachAutocomplete(pickupEl, function (ac) { pickupAutocomplete = ac; });
     }
-    if (dropoffEl && google.maps.places) {
-      dropoffAutocomplete = new google.maps.places.Autocomplete(
-        dropoffEl,
-        { fields: ["place_id", "geometry", "name", "formatted_address"] }
-      );
-      dropoffAutocomplete.addListener("place_changed", onPlaceChanged);
+    if (dropoffEl) {
+      attachAutocomplete(dropoffEl, function (ac) { dropoffAutocomplete = ac; });
+    }
+  }
+
+  // Wraps google.maps.places.Autocomplete in a try/catch so a misconfigured
+  // API key (e.g. Places API not enabled, referrer blocked, quota exhausted)
+  // NEVER disables the underlying input. The field stays usable as a plain
+  // text input — the user just won't get the address-suggestion dropdown.
+  function attachAutocomplete(inputEl, onSuccess) {
+    // Always make sure the input is editable, even if we later attach
+    // Autocomplete to it (Autocomplete itself doesn't disable, but we
+    // belt-and-braces it).
+    inputEl.removeAttribute("disabled");
+    inputEl.removeAttribute("readonly");
+
+    if (typeof google === "undefined" || !google.maps || !google.maps.places) {
+      return; // SDK / Places not loaded — input remains a plain text field
+    }
+    try {
+      const ac = new google.maps.places.Autocomplete(inputEl, {
+        fields: ["place_id", "geometry", "name", "formatted_address"],
+      });
+      ac.addListener("place_changed", onPlaceChanged);
+      if (typeof onSuccess === "function") onSuccess(ac);
+    } catch (e) {
+      // Bad key, missing Places API, referrer not allowed, etc.
+      // Input stays a usable text field — just no autocomplete.
+      console.warn("[KafehBooking] Places Autocomplete unavailable:", e && e.message);
     }
   }
 
@@ -406,13 +425,7 @@
     e.preventDefault();
     addStopRow();
   });
-  $(document).on("change", "#kfbReturnDifferent", function () {
-    const $wrap = $("#kfbDropoffWrap");
-    if (!$wrap.length) return;
-    $wrap.toggleClass("is-shown", this.checked);
-    const $d = $wrap.find("input");
-    if ($d.length) $d.prop("required", this.checked);
-  });
+  $(document).on("change", "#kfbReturnDifferent", syncDropoffVisibility);
   $(document).on("change", "#kfbSortVehicles", renderVehicles);
 
   // -------- Reset --------
@@ -508,10 +521,25 @@
     renderStepper();
     renderVehicles();
     setMinDate();
+    // Sync the dropoff field's visibility with the "Return at a different
+    // location" checkbox on initial load (the HTML may have it checked
+    // by default, or the user may have changed it before jQuery was ready).
+    syncDropoffVisibility();
     // If Google Maps has already loaded (or its callback already fired
     // before jQuery was ready), kick the map init now. The hook is
     // idempotent so it's safe to call even when nothing happened.
     if (typeof __kfbMapHook === "function") __kfbMapHook();
+  }
+
+  // Make sure #kfbDropoffWrap's visibility + required state match the
+  // #kfbReturnDifferent checkbox. Called on init and on every change.
+  function syncDropoffVisibility() {
+    const $cb  = $("#kfbReturnDifferent");
+    const $wrap = $("#kfbDropoffWrap");
+    if (!$cb.length || !$wrap.length) return;
+    const checked = $cb.is(":checked");
+    $wrap.toggleClass("is-shown", checked);
+    $wrap.find("input").prop("required", checked);
   }
   $(init);
 
