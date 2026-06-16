@@ -266,6 +266,18 @@
   background: #fff; border: 1px solid var(--kfb-border);
   border-radius: var(--kfb-radius); padding: 18px;
   cursor: pointer; transition: all .2s; position: relative;
+  /* Stop the browser from dropping a text caret on the emoji / text
+     inside the card when the user clicks to select a vehicle. */
+  user-select: none;
+  -webkit-user-select: none;
+  caret-color: transparent;
+}
+.kfb-vehicle-card *,
+.kfb-vehicle-card *::before,
+.kfb-vehicle-card *::after {
+  user-select: none;
+  -webkit-user-select: none;
+  caret-color: transparent;
 }
 .kfb-vehicle-card:hover {
   border-color: #0a0a0a; transform: translateY(-2px);
