@@ -1,49 +1,16 @@
 /* ============================================================
    Kafeh Booking Widget — jQuery
    - 4-step wizard
-   - Google Maps: Places Autocomplete on pickup/drop-off/stops,
-     Directions service renders the route polyline and updates
-     distance/duration live.
    - Talks to your CI3 backend (window.KAFEH_API, default: same origin /api)
+   ------------------------------------------------------------
+   NOTE: The Google Maps / Places / Directions logic was moved
+   out of this file and into test-map.js (used by the local
+   test harness). The widget now only handles the wizard:
+   stepper, validation, form collection, stops, PayPal.
    ============================================================ */
 
 (function () {
   "use strict";
-
-  // -------- Google Maps callback stub --------
-  // The Google Maps SDK calls window.kfbInitMap as soon as it loads
-  // (&callback=kfbInitMap). It may load BEFORE this script finishes
-  // parsing (async/defer) or BEFORE jQuery is even available, so we
-  // install a safe stub at the very top. boot() later assigns a real
-  // implementation to __kfbMapHook that the stub can call. If the
-  // callback fires before the hook is ready, we remember it and replay
-  // once boot() has wired everything up.
-  let __kfbMapHook = null;
-  let __kfbMapCallbackFired = false;
-  window.kfbInitMap = function () {
-    __kfbMapCallbackFired = true;
-    if (typeof __kfbMapHook === "function") {
-      try { __kfbMapHook(); } catch (e) { console.error("[KafehBooking] initMap failed", e); }
-    }
-  };
-
-  // -------- Map style (declared early so initMap can use it safely) --------
-  const LIGHT_MAP_STYLE = [
-    { elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
-    { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#f5f5f5" }] },
-    { featureType: "administrative.land_parcel", elementType: "labels.text.fill", stylers: [{ color: "#bdbdbd" }] },
-    { featureType: "poi", elementType: "geometry", stylers: [{ color: "#eeeeee" }] },
-    { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-    { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-    { featureType: "road.arterial", elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-    { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#dadada" }] },
-    { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
-    { featureType: "transit.line", elementType: "geometry", stylers: [{ color: "#e5e5e5" }] },
-    { featureType: "transit.station", elementType: "geometry", stylers: [{ color: "#eeeeee" }] },
-    { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9c9c9" }] },
-  ];
 
   // -------- Boot the widget as soon as jQuery is available --------
   // Tolerates a load order where this script runs BEFORE jQuery is injected
@@ -119,66 +86,9 @@
     durationMins: 0,
   };
 
-  // -------- Map + Places (deferred) --------
-  let map, directionsService, directionsRenderer;
-  let pickupAutocomplete, dropoffAutocomplete;
+  // -------- Stops (plain text fields — autocomplete lives in test-map.js) --------
   const stopAutocompletes = [];
   let stopIndex = 0;
-
-  function initMap() {
-    if (typeof google === "undefined" || !google.maps) return;
-    const mapEl = document.getElementById("kfbMap");
-    if (!mapEl) return; // map div not in DOM yet
-    map = new google.maps.Map(mapEl, {
-      center: { lat: 40.7128, lng: -74.0060 },
-      zoom: 11,
-      styles: LIGHT_MAP_STYLE,
-    });
-    directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer({
-      map, suppressMarkers: true, polylineOptions: { strokeColor: "#0a0a0a", strokeWeight: 4 },
-    });
-
-    const pickupEl = document.getElementById("kfbPickup");
-    const dropoffEl = document.getElementById("kfbDropoff");
-    if (pickupEl) {
-      attachAutocomplete(pickupEl, function (ac) { pickupAutocomplete = ac; });
-    }
-    if (dropoffEl) {
-      attachAutocomplete(dropoffEl, function (ac) { dropoffAutocomplete = ac; });
-    }
-  }
-
-  // Wraps google.maps.places.Autocomplete in a try/catch so a misconfigured
-  // API key (e.g. Places API not enabled, referrer blocked, quota exhausted)
-  // NEVER disables the underlying input. The field stays usable as a plain
-  // text input — the user just won't get the address-suggestion dropdown.
-  function attachAutocomplete(inputEl, onSuccess) {
-    // Always make sure the input is editable, even if we later attach
-    // Autocomplete to it (Autocomplete itself doesn't disable, but we
-    // belt-and-braces it).
-    inputEl.removeAttribute("disabled");
-    inputEl.removeAttribute("readonly");
-
-    if (typeof google === "undefined" || !google.maps || !google.maps.places) {
-      return; // SDK / Places not loaded — input remains a plain text field
-    }
-    try {
-      const ac = new google.maps.places.Autocomplete(inputEl, {
-        fields: ["place_id", "geometry", "name", "formatted_address"],
-      });
-      ac.addListener("place_changed", onPlaceChanged);
-      if (typeof onSuccess === "function") onSuccess(ac);
-    } catch (e) {
-      // Bad key, missing Places API, referrer not allowed, etc.
-      // Input stays a usable text field — just no autocomplete.
-      console.warn("[KafehBooking] Places Autocomplete unavailable:", e && e.message);
-    }
-  }
-
-  function onPlaceChanged() {
-    updateRoute();
-  }
 
   function addStopRow() {
     if (stopIndex >= 3) { toast("Maximum 3 extra stops."); return; }
@@ -194,24 +104,14 @@
     );
     $stopsEl.append($row);
 
-    const input = $row.find("input")[0];
-    if (typeof google !== "undefined" && google.maps && google.maps.places) {
-      try {
-        const ac = new google.maps.places.Autocomplete(input, { fields: ["place_id", "geometry", "name"] });
-        ac.addListener("place_changed", updateRoute);
-        stopAutocompletes.push(ac);
-      } catch (e) { /* places not ready yet */ }
-    }
     $row.find(".kfb-remove-stop").on("click", function () {
       $row.remove();
       reindexStops();
-      updateRoute();
     });
     stopIndex++;
   }
 
-  // After a row is removed, renumber the visible badges AND clean up
-  // the autocomplete array so future removes target the right index.
+  // After a row is removed, renumber the visible badges.
   function reindexStops() {
     stopIndex = 0;
     stopAutocompletes.length = 0;
@@ -222,58 +122,13 @@
       $r.find(".kfb-stop-badge").text("Stop " + (i + 1));
       $r.find("input").attr("placeholder", "Stop address");
       $r.find(".kfb-remove-stop").attr("aria-label", "Remove stop " + (i + 1));
-      const input = $r.find("input")[0];
-      if (typeof google !== "undefined" && google.maps && google.maps.places) {
-        try {
-          const ac = new google.maps.places.Autocomplete(input, { fields: ["place_id", "geometry", "name"] });
-          ac.addListener("place_changed", updateRoute);
-          stopAutocompletes.push(ac);
-        } catch (e) { /* places not ready yet */ }
-      }
       stopIndex++;
     });
   }
 
-  function updateRoute() {
-    const pickupEl = document.getElementById("kfbPickup");
-    const dropoffEl = document.getElementById("kfbDropoff");
-    if (!pickupEl || !dropoffEl || typeof google === "undefined" || !google.maps) return;
-
-    const pickup = pickupEl.value;
-    const dropoff = dropoffEl.value;
-    if (!pickup || !dropoff) return;
-
-    const $stopsEl = $("#kfbStopsContainer");
-    const stops = $stopsEl.find('input[name="stop[]"]').map(function () { return { location: this.value }; }).get().filter(s => s.location);
-    const waypoints = stops.slice(0, -1).map(s => ({ location: s.location, stopover: true }));
-
-    directionsService.route({
-      origin: pickup,
-      destination: stops.length ? stops[stops.length - 1].location : dropoff,
-      waypoints: waypoints,
-      travelMode: google.maps.TravelMode.DRIVING,
-      unitSystem: google.maps.UnitSystem.IMPERIAL,
-    }, function (result, status) {
-      if (status !== "OK") return;
-      directionsRenderer.setDirections(result);
-
-      // Compute totals
-      let miles = 0, seconds = 0;
-      result.routes[0].legs.forEach(leg => {
-        miles += leg.distance.value * 0.000621371;
-        seconds += leg.duration.value;
-      });
-      state.distanceMiles = +miles.toFixed(1);
-      state.durationMins = Math.round(seconds / 60);
-
-      $("#kfbDistance").text(`${state.distanceMiles} mi`);
-      $("#kfbDuration").text(`${state.durationMins} min`);
-      $("#kfbRouteInfo").prop("hidden", false);
-
-      // Auto-update price if user is on step 2
-      if (state.currentStep === 2) renderVehicles();
-    });
-  }
+  // No-op kept for compatibility with any external caller. The actual
+  // route drawing + distance/time is owned by test-map.js.
+  function updateRoute() { /* delegated to test-map.js */ }
 
   // -------- Pricing --------
   function priceFor(v) {
@@ -501,21 +356,6 @@
     $("#kfbForm").find('[name="pickupDate"]').attr("min", today);
   }
 
-  // -------- Map init (callable from Google callback) --------
-  // Idempotent — safe to call before or after Google Maps SDK is ready.
-  let __kfbMapInited = false;
-  __kfbMapHook = function () {
-    if (typeof google === "undefined" || !google.maps) return;
-    if (__kfbMapInited) return;
-    __kfbMapInited = true;
-    initMap();
-  };
-  // If the Google Maps callback already fired while we were waiting for
-  // jQuery, replay it now that the hook is installed.
-  if (__kfbMapCallbackFired) {
-    try { __kfbMapHook(); } catch (e) { console.error("[KafehBooking] initMap failed", e); }
-  }
-
   // -------- Init --------
   function init() {
     renderStepper();
@@ -525,10 +365,8 @@
     // location" checkbox on initial load (the HTML may have it checked
     // by default, or the user may have changed it before jQuery was ready).
     syncDropoffVisibility();
-    // If Google Maps has already loaded (or its callback already fired
-    // before jQuery was ready), kick the map init now. The hook is
-    // idempotent so it's safe to call even when nothing happened.
-    if (typeof __kfbMapHook === "function") __kfbMapHook();
+    // Map init is handled by test-map.js — it owns the Google Maps
+    // callback (kfbTestInitMap) and the map / markers / route.
   }
 
   // Make sure #kfbDropoffWrap's visibility + required state match the

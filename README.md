@@ -9,17 +9,17 @@ A drop-in booking widget for any HTML/jQuery website, backed by a **CodeIgniter 
 ```
 kafeh-booking/
 ├── embed/                                 # Drop-in widget (paste into any site)
-│   ├── kafeh-booking.html                 # Reference markup (canonical source)
 │   ├── kafeh-booking.css                  # Light B&W theme
-│   └── kafeh-booking.js                   # jQuery wizard + Google Maps + PayPal
+│   └── kafeh-booking.js                   # jQuery wizard (stepper, validation, PayPal)
 │
 ├── vendor/                                # Local copies of vendor libs (offline test)
 │   └── jquery-3.7.1.min.js
 │
-├── test.html                              # Local test harness (open this in your browser)
+├── test.html                              # Local test harness — widget markup + map
 ├── test.css                               # Test harness styles
 ├── test-config.js                         # KAFEH_API + KAFEH_PAYPAL_CLIENT_ID globals
 ├── test-status.js                         # Tiny status panel filler
+├── test-map.js                            # Google Maps controller (markers, route, km/min)
 │
 ├── backend/                               # CodeIgniter 3 application
 │   ├── application/
@@ -47,7 +47,7 @@ Just open `test.html` in your browser. The page is wired up the same way a produ
 
 - Loads **jQuery** from `vendor/jquery-3.7.1.min.js` (local copy, no internet needed for this)
 - Loads **PayPal SDK** from `https://www.paypal.com/sdk/js?client-id=sb&...` (sandbox, free)
-- Loads **Google Maps** from `https://maps.googleapis.com/maps/api/js?key=...&libraries=places&callback=kfbInitMap` — **replace `YOUR_GOOGLE_MAPS_KEY` in `test.html`** with your own key
+- Loads **Google Maps** from `https://maps.googleapis.com/maps/api/js?key=...&libraries=places&callback=kfbTestInitMap` — **replace `YOUR_GOOGLE_MAPS_KEY` in `test.html`** with your own key
 - Sets `KAFEH_API` and `KAFEH_PAYPAL_CLIENT_ID` via `test-config.js`
 
 No build step, no server required. Works on `file://` as long as your browser allows CDN scripts (most do).
@@ -87,15 +87,17 @@ That's the only line that needs to change between local and production.
 
 ## 🧩 Embedding the widget in a production site
 
-`embed/kafeh-booking.html` is the canonical reference markup. All CSS lives in `embed/kafeh-booking.css` and all JS in `embed/kafeh-booking.js` — **no inline CSS or scripts**.
+> The canonical reference markup for the widget is currently living in **`test.html`** (the `<div class="kfb-widget">…</div>` block — lines 55 onwards). The `embed/` folder only holds the CSS and the wizard JS. When you're ready to split the widget HTML out into its own file, copy that block into `embed/kafeh-booking.html` and reference it from your host pages.
 
-To drop the widget into a host page, copy the markup from `embed/kafeh-booking.html` (the `<div class="kfb-widget">…</div>` block) into your page, then load the assets in this order:
+All CSS lives in `embed/kafeh-booking.css` and all wizard JS in `embed/kafeh-booking.js` — **no inline CSS or scripts**.
+
+To drop the widget into a host page, copy the markup from `test.html` (the `<div class="kfb-widget">…</div>` block) into your page, then load the assets in this order:
 
 ```html
 <!-- 1. Styles -->
 <link rel="stylesheet" href="/path/to/embed/kafeh-booking.css">
 
-<!-- 2. Widget markup (paste from embed/kafeh-booking.html) -->
+<!-- 2. Widget markup (paste from test.html's <div class="kfb-widget"> block) -->
 <div class="kfb-widget" id="kafehBookingWidget">
   …
 </div>
@@ -110,8 +112,8 @@ To drop the widget into a host page, copy the markup from `embed/kafeh-booking.h
   window.KAFEH_PAYPAL_CLIENT_ID = "YOUR_LIVE_PAYPAL_CLIENT_ID";
 </script>
 
-<!-- 5. Google Maps LAST so its kfbInitMap callback finds the widget ready -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&libraries=places&callback=kfbInitMap" async defer></script>
+<!-- 5. Google Maps LAST, with the same callback name the test harness uses -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&libraries=places&callback=kfbTestInitMap" async defer></script>
 
 <!-- 6. Widget script (after jQuery + Google Maps) -->
 <script src="/path/to/embed/kafeh-booking.js"></script>
@@ -123,7 +125,7 @@ To drop the widget into a host page, copy the markup from `embed/kafeh-booking.h
 
 - Loading jQuery
 - Loading the PayPal SDK with a valid `client-id`
-- Loading Google Maps with a valid `key` and `&libraries=places&callback=kfbInitMap`
+- Loading Google Maps with a valid `key` and `&libraries=places&callback=kfbTestInitMap`
 - Setting `KAFEH_API` and `KAFEH_PAYPAL_CLIENT_ID`
 
 ---

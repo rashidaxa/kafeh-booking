@@ -33,7 +33,7 @@
       This page loads the booking widget the same way a production host page
       would: vendor scripts first, then the widget CSS, then the widget
       markup, then the widget JS. Google Maps loads last so its
-      <code>kfbInitMap</code> callback finds the widget ready.
+      <code>kfbTestInitMap</code> callback (in <code>test-map.js</code>) finds the widget ready.
     </p>
   </section>
 
@@ -46,9 +46,11 @@
 
   <!--
     ============================================================
-    Widget markup — copy of embed/kafeh-booking.html (lines 17–246)
-    with the <link> and trailing <script> stripped, since those
-    are loaded separately above / below.
+    Widget markup — canonical source for the embed widget.
+    The <link rel="stylesheet"> and trailing <script> for the
+    widget are loaded separately above / below. The map is
+    wired up by test-map.js (loaded in the script block at the
+    bottom), not by the widget JS itself.
     ============================================================
   -->
   <div class="test-widget-host">
@@ -293,14 +295,17 @@
 <!--
   ============================================================
   Vendor scripts (loaded as separate <script src> files — no
-  inline JS). The widget JS runs after jQuery is available;
-  Google Maps loads last so its kfbInitMap callback finds the
-  widget ready.
+  inline JS). Load order:
+    1. embed/kafeh-booking.js   — wizard logic (stepper, validation, PayPal)
+    2. test-map.js              — Google Maps controller (markers, route, km/min)
+    3. PayPal SDK
+    4. Google Maps SDK LAST — its callback=kfbTestInitMap is owned by test-map.js
   ============================================================
 -->
 <script src="embed/kafeh-booking.js"></script>
+<script src="test-map.js"></script>
 <script src="https://www.paypal.com/sdk/js?client-id=sb&amp;currency=USD&amp;intent=capture" async></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAPGyjS5tbUkUIROmDzqj0ouDCEmf7kIVY&amp;libraries=places&amp;callback=kfbTestInitMap" async defer></script>
 <script src="test-status.js"></script>
 
 </body>
