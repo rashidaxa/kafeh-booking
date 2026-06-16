@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kafeh Booking — Local Test</title>
+
+  <!-- Test harness styles -->
+  <link rel="stylesheet" href="test.css">
+
+  <!-- Widget styles (external file, not inline) -->
+  <link rel="stylesheet" href="embed/kafeh-booking.css">
+
+  <!-- jQuery — required by the widget. Loaded from a local copy if available,
+       otherwise from the official CDN. Swap to a single src of your choice. -->
+  <script src="vendor/jquery-3.7.1.min.js"></script>
+  <script src="test-config.js"></script>
+</head>
+<body>
+
+<header class="test-header">
+  <div>
+    <h1>Kafeh Booking — Local Test</h1>
+    <p>Local harness for <code>embed/kafeh-booking.{html,css,js}</code></p>
+  </div>
+</header>
+
+<main class="test-main">
+
+  <section class="test-intro">
+    <h2>What you're looking at</h2>
+    <p>
+      This page loads the booking widget the same way a production host page
+      would: vendor scripts first, then the widget CSS, then the widget
+      markup, then the widget JS. Google Maps loads last so its
+      <code>kfbInitMap</code> callback finds the widget ready.
+    </p>
+  </section>
+
+  <ul class="test-checklist">
+    <li>jQuery loaded from <code>vendor/jquery-3.7.1.min.js</code> (fallback: <code>code.jquery.com</code>)</li>
+    <li>Backend URL: <code id="checkApi">—</code> (set in <code>test-config.js</code>)</li>
+    <li>PayPal client: <code id="checkPp">—</code> (set in <code>test-config.js</code>)</li>
+    <li>Google Maps: replace <code>YOUR_GOOGLE_MAPS_KEY</code> in this file's last <code>&lt;script&gt;</code> tag</li>
+  </ul>
+
+  <!--
+    ============================================================
+    Widget markup — copy of embed/kafeh-booking.html (lines 17–246)
+    with the <link> and trailing <script> stripped, since those
+    are loaded separately above / below.
+    ============================================================
+  -->
+  <div class="test-widget-host">
+    <div class="kfb-widget" id="kafehBookingWidget">
+      <div class="kfb-container">
+        <header class="kfb-header">
+          <div class="kfb-brand">
+            <span class="kfb-mark">K</span>
+            <div>
+              <h1>Kafeh</h1>
+              <p>Premium Chauffeur Service</p>
+            </div>
+          </div>
+          <a href="tel:+10000000000" class="kfb-phone">+1 (000) 000-0000</a>
+        </header>
+
+        <section class="kfb-hero">
+          <h2>Reserve Your Ride</h2>
+          <p>Four simple steps. Seamless luxury, end to end.</p>
+        </section>
+
+        <!-- Stepper -->
+        <nav class="kfb-stepper">
+          <ol class="kfb-stepper-list" id="kfbStepperList">
+            <li class="kfb-step is-active" data-step="1">
+              <span class="kfb-step-number">1</span>
+              <span class="kfb-step-label">Ride Info</span>
+            </li>
+            <li class="kfb-step" data-step="2">
+              <span class="kfb-step-number">2</span>
+              <span class="kfb-step-label">Select Vehicle</span>
+            </li>
+            <li class="kfb-step" data-step="3">
+              <span class="kfb-step-number">3</span>
+              <span class="kfb-step-label">Your Details</span>
+            </li>
+            <li class="kfb-step" data-step="4">
+              <span class="kfb-step-number">4</span>
+              <span class="kfb-step-label">Payment</span>
+            </li>
+          </ol>
+        </nav>
+
+        <form id="kfbForm" novalidate>
+
+          <!-- STEP 1: RIDE INFO -->
+          <section class="kfb-panel is-active" data-panel="1">
+            <h3 class="kfb-panel-title">Tell us about your trip</h3>
+            <p class="kfb-panel-sub">Service type, schedule, and locations.</p>
+
+            <fieldset class="kfb-fs">
+              <legend>Service Type</legend>
+              <div class="kfb-chips">
+                <label class="kfb-chip"><input type="radio" name="service" value="From Airport" required><span>From Airport</span></label>
+                <label class="kfb-chip"><input type="radio" name="service" value="To Airport"><span>To Airport</span></label>
+                <label class="kfb-chip"><input type="radio" name="service" value="Transfer"><span>Transfer</span></label>
+                <label class="kfb-chip"><input type="radio" name="service" value="Hourly"><span>Hourly / As Directed</span></label>
+                <label class="kfb-chip"><input type="radio" name="service" value="Wedding"><span>Wedding</span></label>
+                <label class="kfb-chip"><input type="radio" name="service" value="Tour"><span>Tour</span></label>
+              </div>
+            </fieldset>
+
+            <div class="kfb-grid kfb-grid-2">
+              <label class="kfb-field">
+                <span>Pick-Up Date</span>
+                <input type="date" name="pickupDate" required>
+              </label>
+              <label class="kfb-field">
+                <span>Pick-Up Time</span>
+                <input type="time" name="pickupTime" required>
+              </label>
+            </div>
+
+            <label class="kfb-field">
+              <span>Pick-Up Location</span>
+              <input type="text" name="pickup" id="kfbPickup" placeholder="Address, airport, or venue" required autocomplete="off">
+            </label>
+
+            <span class="kfb-stops-label">
+              Stops
+              <span class="kfb-stops-hint">(optional, up to 3)</span>
+            </span>
+            <div id="kfbStopsContainer"></div>
+            <button type="button" class="kfb-link-btn" id="kfbAddStopBtn">+ Add Stop</button>
+
+            <label class="kfb-check">
+              <input type="checkbox" id="kfbReturnDifferent">
+              <span>Return at a different location</span>
+            </label>
+
+            <label class="kfb-field" id="kfbDropoffWrap">
+              <span>Drop-Off Location</span>
+              <input type="text" name="dropoff" id="kfbDropoff" placeholder="Destination address" required autocomplete="off">
+            </label>
+
+            <div class="kfb-grid kfb-grid-3">
+              <label class="kfb-field">
+                <span>Passengers</span>
+                <input type="number" name="passengers" min="1" max="20" value="2" required>
+              </label>
+              <label class="kfb-field">
+                <span>Luggage</span>
+                <input type="number" name="luggage" min="0" max="20" value="2">
+              </label>
+              <label class="kfb-field">
+                <span>Child Seats</span>
+                <input type="number" name="childSeats" min="0" max="5" value="0">
+              </label>
+            </div>
+
+            <!-- Google Map -->
+            <div class="kfb-map-wrap">
+              <div class="kfb-map" id="kfbMap"></div>
+              <div class="kfb-route-info" id="kfbRouteInfo" hidden>
+                <span class="kfb-distance" id="kfbDistance">— mi</span>
+                <span class="kfb-duration" id="kfbDuration">— min</span>
+              </div>
+            </div>
+
+            <div class="kfb-actions">
+              <span></span>
+              <button type="button" class="kfb-btn kfb-btn-primary" data-next="2">Continue →</button>
+            </div>
+          </section>
+
+          <!-- STEP 2: SELECT VEHICLE -->
+          <section class="kfb-panel" data-panel="2">
+            <h3 class="kfb-panel-title">Choose your vehicle</h3>
+            <p class="kfb-panel-sub">All-inclusive pricing. No hidden fees.</p>
+
+            <div class="kfb-sort">
+              <label>Sort by
+                <select id="kfbSortVehicles">
+                  <option value="priceAsc">Price — Low to High</option>
+                  <option value="priceDesc">Price — High to Low</option>
+                  <option value="capacity">Passenger Capacity</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="kfb-vehicle-grid" id="kfbVehicleGrid"></div>
+
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-ghost" data-prev="1">← Back</button>
+              <button type="button" class="kfb-btn kfb-btn-primary" data-next="3">Continue →</button>
+            </div>
+          </section>
+
+          <!-- STEP 3: YOUR DETAILS -->
+          <section class="kfb-panel" data-panel="3">
+            <h3 class="kfb-panel-title">Your contact details</h3>
+            <p class="kfb-panel-sub">We'll send your confirmation and trip updates here.</p>
+
+            <div class="kfb-grid kfb-grid-2">
+              <label class="kfb-field"><span>First Name</span><input type="text" name="firstName" required></label>
+              <label class="kfb-field"><span>Last Name</span><input type="text" name="lastName" required></label>
+            </div>
+
+            <div class="kfb-grid kfb-grid-2">
+              <label class="kfb-field"><span>Phone</span><input type="tel" name="phone" placeholder="+1 555 000 0000" required></label>
+              <label class="kfb-field"><span>Email</span><input type="email" name="email" required></label>
+            </div>
+
+            <label class="kfb-field">
+              <span>Special Instructions (optional)</span>
+              <textarea name="notes" rows="3" placeholder="Flight number, gate, meet &amp; greet, etc."></textarea>
+            </label>
+
+            <label class="kfb-check kfb-check-block">
+              <input type="checkbox" name="terms" required>
+              <span>I agree to the <a href="#" data-kfb-link>Terms &amp; Conditions</a> and <a href="#" data-kfb-link>Privacy Policy</a>.</span>
+            </label>
+
+            <div class="kfb-summary" id="kfbSummary">
+              <h4>Trip Summary</h4>
+              <div class="kfb-row"><span>Route</span><b id="kfbSumRoute">—</b></div>
+              <div class="kfb-row"><span>Date / Time</span><b id="kfbSumWhen">—</b></div>
+              <div class="kfb-row"><span>Distance</span><b id="kfbSumDistance">—</b></div>
+              <div class="kfb-row"><span>Vehicle</span><b id="kfbSumVehicle">—</b></div>
+              <div class="kfb-row kfb-total"><span>Total</span><b id="kfbSumTotal">$0.00</b></div>
+            </div>
+
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-ghost" data-prev="2">← Back</button>
+              <button type="button" class="kfb-btn kfb-btn-primary" data-next="4">Review &amp; Pay →</button>
+            </div>
+          </section>
+
+          <!-- STEP 4: PAYMENT -->
+          <section class="kfb-panel" data-panel="4">
+            <h3 class="kfb-panel-title">Secure Payment</h3>
+            <p class="kfb-panel-sub">Pay securely with PayPal. You'll be redirected to complete your purchase.</p>
+
+            <div class="kfb-pay-summary" id="kfbPaySummary">
+              <h4>You're paying</h4>
+              <div class="kfb-amount" id="kfbPayAmount">$0.00</div>
+              <div class="kfb-row"><span>Booking ID</span><b id="kfbPayBookingId">—</b></div>
+              <div class="kfb-row"><span>Vehicle</span><b id="kfbPayVehicle">—</b></div>
+            </div>
+
+            <div class="kfb-pay-methods">
+              <div class="kfb-pay-method is-active"><span>🅿️</span> PayPal</div>
+              <div class="kfb-pay-method is-disabled" title="Coming soon"><span>💳</span> Credit Card</div>
+            </div>
+
+            <div id="kfbPaypalButton" class="kfb-paypal-host"></div>
+
+            <p class="kfb-pay-note">🔒 Payments are processed securely by PayPal.</p>
+
+            <div id="kfbPaymentStatus" class="kfb-payment-status" hidden>
+              <div class="kfb-spinner"></div>
+              <p>Processing your payment...</p>
+            </div>
+
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-ghost" data-prev="3">← Back</button>
+            </div>
+          </section>
+        </form>
+
+        <section class="kfb-success" id="kfbSuccess" hidden>
+          <div class="kfb-success-icon">✓</div>
+          <h3>Booking Confirmed!</h3>
+          <p>Thank you, <b id="kfbSuccessName">rider</b>. Confirmation sent to <b id="kfbSuccessEmail">—</b>.</p>
+          <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
+          <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
+        </section>
+
+        <footer class="kfb-footer">
+          <p>Powered by Kafeh Booking · <a href="#" data-kfb-link>Privacy</a> · <a href="#" data-kfb-link>Terms</a></p>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="test-footer">
+  Kafeh Booking · local test harness · <a href="README.md">README</a>
+</footer>
+
+<!--
+  ============================================================
+  Vendor scripts (loaded as separate <script src> files — no
+  inline JS). The widget JS runs after jQuery is available;
+  Google Maps loads last so its kfbInitMap callback finds the
+  widget ready.
+  ============================================================
+-->
+<script src="embed/kafeh-booking.js"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=sb&amp;currency=USD&amp;intent=capture" async></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
+<script src="test-status.js"></script>
+
+</body>
+</html>

@@ -62,8 +62,37 @@
       } else if (attempts > 200) { // ~10s
         clearInterval(timer);
         console.error("[KafehBooking] jQuery never loaded — widget disabled.");
+        showDependencyError(
+          "jQuery is required for the Kafeh booking widget to work. " +
+          "Include jQuery before the widget script in your page. " +
+          "See the project README for setup instructions."
+        );
       }
     }, 50);
+  }
+
+  // Show a visible, in-page error message when a required dependency is
+  // missing. Looks for the widget container; falls back to <body> so the
+  // error is always visible even if the widget HTML isn't in the DOM.
+  function showDependencyError(message) {
+    try {
+      var host = document.getElementById("kafehBookingWidget") || document.body;
+      if (!host) return;
+      var box = document.createElement("div");
+      box.setAttribute("role", "alert");
+      box.style.cssText = [
+        "max-width:680px", "margin:24px auto", "padding:16px 20px",
+        "border:1px solid #b91c1c", "border-radius:10px",
+        "background:#fef2f2", "color:#7f1d1d",
+        "font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif"
+      ].join(";");
+      box.innerHTML = '<strong style="display:block;margin-bottom:6px">Kafeh booking widget — setup error</strong>' +
+                      '<span>' + message + '</span>';
+      host.parentNode ? host.parentNode.insertBefore(box, host) : host.appendChild(box);
+    } catch (e) {
+      // Last resort — at least log it
+      console.error("[KafehBooking] dependency error:", message);
+    }
   }
 
   function boot($) {
@@ -368,6 +397,11 @@
   $(document).on("click", "[data-prev]", function () { showPanel(+$(this).data("prev")); });
 
   // -------- Stops & return-location (delegated) --------
+  // Suppress default on placeholder links (Terms/Privacy) — keeps the page
+  // from jumping to the top when the user clicks them.
+  $(document).on("click", "[data-kfb-link]", function (e) {
+    e.preventDefault();
+  });
   $(document).on("click", "#kfbAddStopBtn", function (e) {
     e.preventDefault();
     addStopRow();

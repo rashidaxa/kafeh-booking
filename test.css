@@ -1,0 +1,118 @@
+/* ============================================================
+   Kafeh Booking — Local test page styles
+   Styles only for the surrounding test harness, not the widget.
+   The widget itself is styled by embed/kafeh-booking.css.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #fafafa;
+  color: #111;
+  line-height: 1.5;
+}
+
+header.test-header {
+  background: #fff;
+  border-bottom: 1px solid #e5e5e7;
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+header.test-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+header.test-header p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #52525b;
+}
+header.test-header code {
+  background: #f4f4f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+main.test-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+}
+
+section.test-intro {
+  margin-bottom: 24px;
+}
+section.test-intro h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+section.test-intro p {
+  margin: 0;
+  color: #52525b;
+  font-size: 14px;
+}
+
+ul.test-checklist {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid #e5e5e7;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #3f3f46;
+}
+ul.test-checklist li {
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+ul.test-checklist li::before {
+  content: "•";
+  color: #a1a1aa;
+}
+ul.test-checklist code {
+  background: #f4f4f5;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+}
+
+div.test-widget-host {
+  /* Container that mirrors how the widget would be dropped into a real page */
+  background: transparent;
+}
+
+footer.test-footer {
+  text-align: center;
+  padding: 20px;
+  color: #a1a1aa;
+  font-size: 12px;
+}
+footer.test-footer a {
+  color: #52525b;
+  text-decoration: none;
+}
+footer.test-footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  header.test-header { padding: 14px 18px; }
+  main.test-main { padding: 20px 16px 40px; }
+  section.test-intro h2 { font-size: 18px; }
+}
