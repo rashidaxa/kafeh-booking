@@ -104,7 +104,8 @@
             <fieldset class="kfb-fs">
               <legend>Service Type</legend>
               <div class="kfb-chips">
-                <label class="kfb-chip"><input type="radio" name="service" value="From Airport" required><span>From Airport</span></label>
+                <label class="kfb-chip"><input type="radio" name="service" value="Point to Point" required checked><span>Point to Point</span></label>
+                <label class="kfb-chip"><input type="radio" name="service" value="From Airport"><span>From Airport</span></label>
                 <label class="kfb-chip"><input type="radio" name="service" value="To Airport"><span>To Airport</span></label>
                 <label class="kfb-chip"><input type="radio" name="service" value="Transfer"><span>Transfer</span></label>
                 <label class="kfb-chip"><input type="radio" name="service" value="Hourly"><span>Hourly / As Directed</span></label>
@@ -229,7 +230,30 @@
               <div class="kfb-row"><span>Route</span><b id="kfbSumRoute">—</b></div>
               <div class="kfb-row"><span>Date / Time</span><b id="kfbSumWhen">—</b></div>
               <div class="kfb-row"><span>Distance</span><b id="kfbSumDistance">—</b></div>
+              <div class="kfb-row"><span>Service Type</span><b id="kfbSumService">—</b></div>
+              <div class="kfb-row"><span>Service Region</span><b id="kfbSumRegion">—</b></div>
               <div class="kfb-row"><span>Vehicle</span><b id="kfbSumVehicle">—</b></div>
+
+              <div class="kfb-breakdown" id="kfbBreakdown" hidden>
+                <h5>Price Breakdown</h5>
+                <div class="kfb-row">
+                  <span>Base <em id="kfbSumBaseNote">—</em></span>
+                  <b id="kfbSumBase">—</b>
+                </div>
+                <div class="kfb-row">
+                  <span>Surcharge</span>
+                  <b id="kfbSumSurcharge">—</b>
+                </div>
+                <div class="kfb-row">
+                  <span>Gratuity</span>
+                  <b id="kfbSumGratuity">—</b>
+                </div>
+                <div class="kfb-row">
+                  <span>Hourly <em id="kfbSumHourlyNote">—</em></span>
+                  <b id="kfbSumHourly">—</b>
+                </div>
+              </div>
+
               <div class="kfb-row kfb-total"><span>Total</span><b id="kfbSumTotal">$0.00</b></div>
             </div>
 

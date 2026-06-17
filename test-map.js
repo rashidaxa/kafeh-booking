@@ -34,6 +34,18 @@
   let pickupAC = null;
   let dropoffAC = null;
 
+  // -------- Public route state --------
+  // Read by the booking widget (price calc, summary, etc).
+  // Initialised to zeros — every successful DirectionsService call below
+  // refreshes these so the embed widget always sees the latest values.
+  window.kfbRoute = {
+    distanceKm:    0,
+    distanceMiles: 0,
+    durationMins:  0,
+    stopCount:     0,
+    region:        "Worldwide", // "Chicago" | "America" | "Worldwide"
+  };
+
   // Each entry: { row, input, ac, marker }
   // row   = the .kfb-stop-row DOM node
   // input = the <input.kfb-stop-input> inside it
@@ -394,6 +406,29 @@
         var kmText   = km.toFixed(1) + " km";
         var timeText = minutes + " min";
 
+        // Determine service region from pickup + dropoff place objects.
+        var pickupPlace  = pickupAC  ? pickupAC.getPlace()  : null;
+        var dropoffPlace = dropoffAC ? dropoffAC.getPlace() : null;
+        var region = classifyRegion(pickupPlace, dropoffPlace);
+        var stopCount = waypoints.length;
+
+        // Publish to the global route state so the booking widget can
+        // read the latest distance / region without polling.
+        if (!window.kfbRoute) window.kfbRoute = {};
+        window.kfbRoute.distanceKm    = km;
+        window.kfbRoute.distanceMiles = km * 0.621371192;
+        window.kfbRoute.durationMins  = minutes;
+        window.kfbRoute.stopCount     = stopCount;
+        window.kfbRoute.region        = region;
+
+        // Notify any listeners (the embed widget uses this to re-render
+        // step 2 prices and the step 3 summary in real time).
+        try {
+          window.dispatchEvent(new CustomEvent("kfb:route-updated", {
+            detail: Object.assign({}, window.kfbRoute),
+          }));
+        } catch (e) { /* old browsers — fine, the embed widget polls */ }
+
         // Update the on-page badge if it's there
         var distEl = document.getElementById("kfbDistance");
         var durEl  = document.getElementById("kfbDuration");
@@ -406,11 +441,6 @@
         // can see that waypoints were actually taken into account, and
         // the service region so they know whether the trip is inside
         // Chicago, elsewhere in the USA, or worldwide.
-        var stopCount = waypoints.length;
-        var pickupPlace  = pickupAC  ? pickupAC.getPlace()  : null;
-        var dropoffPlace = dropoffAC ? dropoffAC.getPlace() : null;
-        var region = classifyRegion(pickupPlace, dropoffPlace);
-
         var line = "Best route (car / SUV): " + kmText + " · " + timeText;
         if (stopCount > 0) {
           line += " (via " + stopCount + " stop" + (stopCount > 1 ? "s" : "") + ")";
@@ -428,5 +458,6 @@
     getMap: function () { return map; },
     updateRoute: updateRoute,
     getStops: function () { return stopEntries.slice(); },
+    getRoute: function () { return Object.assign({}, window.kfbRoute || {}); },
   };
 })();

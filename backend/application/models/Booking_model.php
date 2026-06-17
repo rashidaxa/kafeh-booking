@@ -98,14 +98,52 @@ class Booking_model extends CI_Model
         ]);
     }
 
-    /** Get default sample fleet (you can replace with DB later). */
+    /** Get the enabled fleet from kfb_vehicles (DB-driven, replaces the old static list). */
     public function get_fleet()
     {
-        return [
-            ['id' => 'sedan',    'name' => 'Luxury Sedan',      'desc' => 'Mercedes E-Class / BMW 5',       'capacity' => 3,  'luggage' => 3,  'basePrice' => 95,  'perMile' => 3.5, 'emoji' => '🚘'],
-            ['id' => 'suv',      'name' => 'Premium SUV',       'desc' => 'Cadillac Escalade / Suburban',    'capacity' => 6,  'luggage' => 6,  'basePrice' => 145, 'perMile' => 4.5, 'emoji' => '🚙'],
-            ['id' => 'sprinter', 'name' => 'Luxury Sprinter',   'desc' => 'Executive van — groups up to 12', 'capacity' => 12, 'luggage' => 10, 'basePrice' => 220, 'perMile' => 5.5, 'emoji' => '🚐'],
-            ['id' => 'limo',     'name' => 'Stretch Limousine', 'desc' => 'Lincoln Stretch — VIP nights',    'capacity' => 10, 'luggage' => 6,  'basePrice' => 320, 'perMile' => 6.0, 'emoji' => '🏁'],
-        ];
+        $rows = $this->db
+            ->where('status', 1)
+            ->order_by('sort_order', 'ASC')
+            ->order_by('id', 'ASC')
+            ->get('kfb_vehicles')
+            ->result_array();
+        if (empty($rows)) return [];
+
+        return array_map(function ($row) {
+            return [
+                // Public identity (matches the embed widget's existing shape)
+                'id'        => $row['code'] ?: ('v' . $row['id']),
+                'name'      => $row['name'],
+                'desc'      => $row['description'] ?: '',
+                'capacity'  => (int)$row['max_passengers'],
+                'luggage'   => (int)($row['luggage_capacity'] ?? 0),
+                'emoji'     => $row['emoji'] ?: '🚖',
+                'image'     => $row['image'] ?: NULL,
+                'min_passengers' => (int)$row['min_passengers'],
+                'max_passengers' => (int)$row['max_passengers'],
+
+                // Region-scoped rates (used by the widget's priceFor()).
+                // Keys are <field>_<region> with region ∈ chicago/america/worldwide.
+                'hourly_chicago'   => (float)$row['hourly_chicago'],
+                'hourly_america'   => (float)$row['hourly_america'],
+                'hourly_worldwide' => (float)$row['hourly_worldwide'],
+
+                'per_km_chicago'   => (float)$row['per_km_chicago'],
+                'per_km_america'   => (float)$row['per_km_america'],
+                'per_km_worldwide' => (float)$row['per_km_worldwide'],
+
+                'surcharge_chicago'   => (float)$row['surcharge_chicago'],
+                'surcharge_america'   => (float)$row['surcharge_america'],
+                'surcharge_worldwide' => (float)$row['surcharge_worldwide'],
+
+                'gratuity_chicago'   => (float)$row['gratuity_chicago'],
+                'gratuity_america'   => (float)$row['gratuity_america'],
+                'gratuity_worldwide' => (float)$row['gratuity_worldwide'],
+
+                'waiting_chicago'   => (float)$row['waiting_chicago'],
+                'waiting_america'   => (float)$row['waiting_america'],
+                'waiting_worldwide' => (float)$row['waiting_worldwide'],
+            ];
+        }, $rows);
     }
 }

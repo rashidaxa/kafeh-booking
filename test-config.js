@@ -2,16 +2,24 @@
    Kafeh Booking — Local test configuration
    ------------------------------------------------------------
    This file sets the two globals the widget reads at boot time.
-   All references are to local files (file:// / relative paths)
-   until the backend is deployed. When the backend goes live,
-   update KAFEH_API to the real API base URL.
    ============================================================ */
 
-// Backend API base URL.
-//   - Local dev:  "http://localhost/kafeh-api"
+// Backend API base URL. The widget appends path segments (e.g. "/fleet",
+// "/reservation", "/paypal/create-order") to this string, so the value
+// must END at the API root — i.e. include the "/api" segment.
+//
+//   - WAMP (this repo at C:\wamp64\www\booking\):
+//       "http://localhost/booking/backend/api"
+//   - Other local dev (CI served at /kafeh-api):
+//       "http://localhost/kafeh-api"
 //   - Staging:    "https://staging-api.kafeh.com"
 //   - Production: "https://api.kafeh.com"
-window.KAFEH_API = "http://localhost/kafeh-api";
+window.KAFEH_API = "http://localhost/booking/backend/api";
+
+// Uploads directory that holds the vehicle images. The widget appends
+// `v.image` to this URL when rendering the vehicle card. Keep it in
+// sync with the directory served by your backend.
+window.KAFEH_UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
 
 // PayPal client ID. Use "sb" for the PayPal sandbox (no real charges).
 // When the backend is deployed, swap this for the live PayPal client ID

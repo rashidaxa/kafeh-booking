@@ -66,15 +66,33 @@
     "use strict";
   // -------- Config --------
   const API_BASE = (window.KAFEH_API || "/api").replace(/\/$/, "");
+  const UPLOADS_BASE = (window.KAFEH_UPLOADS || (API_BASE.replace(/\/api$/, "") + "/uploads/vehicles/"));
   const PAYPAL_CLIENT_ID = window.KAFEH_PAYPAL_CLIENT_ID || "sb";
 
-  // -------- Sample Fleet (fallback) --------
+  // -------- Sample Fleet (fallback if backend is unreachable) --------
   const DEFAULT_FLEET = [
-    { id: "sedan",    name: "Luxury Sedan",     desc: "Mercedes E-Class / BMW 5 — ideal for 1–3 passengers.",   emoji: "🚘", capacity: 3,  luggage: 3,  basePrice: 95,  perMile: 3.5 },
-    { id: "suv",      name: "Premium SUV",      desc: "Cadillac Escalade / Chevy Suburban — roomy & elegant.", emoji: "🚙", capacity: 6,  luggage: 6,  basePrice: 145, perMile: 4.5 },
-    { id: "sprinter", name: "Luxury Sprinter",  desc: "Executive van — perfect for groups up to 12.",          emoji: "🚐", capacity: 12, luggage: 10, basePrice: 220, perMile: 5.5 },
-    { id: "limo",     name: "Stretch Limousine",desc: "Lincoln Stretch — weddings, proms, VIP nights.",        emoji: "🏁", capacity: 10, luggage: 6,  basePrice: 320, perMile: 6.0 },
+    { id: "sedan",    name: "Luxury Sedan",     desc: "Mercedes E-Class / BMW 5 — ideal for 1–3 passengers.",   emoji: "🚘", capacity: 3,  luggage: 3 },
+    { id: "suv",      name: "Premium SUV",      desc: "Cadillac Escalade / Chevy Suburban — roomy & elegant.", emoji: "🚙", capacity: 6,  luggage: 6 },
+    { id: "sprinter", name: "Luxury Sprinter",  desc: "Executive van — perfect for groups up to 12.",          emoji: "🚐", capacity: 12, luggage: 10 },
+    { id: "limo",     name: "Stretch Limousine",desc: "Lincoln Stretch — weddings, proms, VIP nights.",        emoji: "🏁", capacity: 10, luggage: 6 },
   ];
+
+  // -------- Service-type helpers --------
+  // Hourly / As-Directed is the only service type that adds an
+  // hourly-rate component on top of the per-km base. All other
+  // service types (Point-to-Point, Wedding, Tour, From/To Airport,
+  // Transfer) use the same formula:
+  //
+  //   total = km × per_km_<region> + surcharge_<region> + gratuity_<region>
+  //
+  // (Hourly adds `+ hourly_<region> × hours` on top of that.)
+  const HOURLY_KEYS = ["hourly", "as directed", "as-directed", "hourly / as directed"];
+
+  function selectedServiceType() {
+    const raw = ($('input[name="service"]:checked').val() || "").toString().trim().toLowerCase();
+    return raw;
+  }
+  function isHourlyService() { return HOURLY_KEYS.indexOf(selectedServiceType()) !== -1; }
 
   // -------- State --------
   const state = {
@@ -82,8 +100,10 @@
     selectedVehicle: null,
     bookingId: null,
     fleet: DEFAULT_FLEET,
+    distanceKm: 0,
     distanceMiles: 0,
     durationMins: 0,
+    region: "Worldwide",
   };
 
   // -------- Stops (plain text fields — autocomplete lives in test-map.js) --------
@@ -126,20 +146,85 @@
     });
   }
 
+  // -------- Sync from test-map.js --------
+  // Read whatever the map controller published on window.kfbRoute.
+  function syncRouteFromMap() {
+    const r = window.kfbRoute || {};
+    state.distanceKm    = +(r.distanceKm    || 0);
+    state.distanceMiles = +(r.distanceMiles || 0);
+    state.durationMins  = +(r.durationMins  || 0);
+    state.region        = r.region || "Worldwide";
+  }
+  // Re-pick up route state whenever the map updates it, and re-render
+  // anything that depends on it (vehicle cards, summary).
+  window.addEventListener("kfb:route-updated", function () {
+    syncRouteFromMap();
+    renderVehicles();
+    renderSummary();
+  });
+
   // No-op kept for compatibility with any external caller. The actual
   // route drawing + distance/time is owned by test-map.js.
-  function updateRoute() { /* delegated to test-map.js */ }
+  function updateRoute() {
+    syncRouteFromMap();
+    renderVehicles();
+    renderSummary();
+  }
 
   // -------- Pricing --------
+  // Read the per-region numeric fields off the vehicle row and combine
+  // them with km + service-type to produce a price + breakdown.
+  //
+  //   All service types:
+  //     base     = km × per_km_<region>
+  //     + surcharge_<region>
+  //     + gratuity_<region>
+  //
+  //   Hourly / As-Directed additionally adds:
+  //     + hourly_<region> × hours (driving minutes / 60, floored at 1 h)
+  //
+  // Point-to-Point uses the same formula but doesn't add the hourly
+  // component (it's a flat km × rate trip).
+  function priceBreakdown(v) {
+    const km     = state.distanceKm || 0;
+    const region = (state.region || "Worldwide").toLowerCase();
+
+    const perKm      = +(v['per_km_'    + region] || 0);
+    const surcharge  = +(v['surcharge_' + region] || 0);
+    const gratuity   = +(v['gratuity_'  + region] || 0);
+    const hourlyRate = +(v['hourly_'    + region] || 0);
+
+    const base = km * perKm;
+
+    const hours = Math.max(1, (state.durationMins || 0) / 60);
+    const hourlyAdd = isHourlyService() ? (hourlyRate * hours) : 0;
+
+    const extras = surcharge + gratuity + hourlyAdd;
+    const total  = base + extras;
+
+    return {
+      km: km,
+      perKm: perKm,
+      base: base,
+      surcharge: surcharge,
+      gratuity: gratuity,
+      hourlyRate: hourlyRate,
+      hours: hours,
+      hourlyAdd: hourlyAdd,
+      extras: extras,
+      total: total,
+      region: region,
+      serviceType: selectedServiceType(),
+    };
+  }
+
   function priceFor(v) {
-    const $form = $("#kfbForm");
-    const pax = +($form.find('[name="passengers"]').val() || 1);
-    const lug = +($form.find('[name="luggage"]').val() || 0);
-    return +(v.basePrice + state.distanceMiles * v.perMile + pax * 5 + lug * 2 + 25).toFixed(2);
+    return +priceBreakdown(v).total.toFixed(2);
   }
 
   // -------- Vehicles --------
   function renderVehicles() {
+    syncRouteFromMap();
     const $grid = $("#kfbVehicleGrid");
     if (!$grid.length) return;
     const sortBy = $("#kfbSortVehicles").val();
@@ -148,30 +233,55 @@
     if (sortBy === "priceDesc") list.sort((a, b) => priceFor(b) - priceFor(a));
     if (sortBy === "capacity")  list.sort((a, b) => b.capacity - a.capacity);
 
+    const region = state.region || "Worldwide";
     $grid.empty();
+    if (!list.length) {
+      $grid.html('<p class="kfb-empty">No vehicles are currently available. Please check back later.</p>');
+      return;
+    }
     list.forEach(v => {
-      const price = priceFor(v);
+      const breakdown = priceBreakdown(v);
+      const price = breakdown.total;
       const selected = state.selectedVehicle && state.selectedVehicle.id === v.id;
+      const imgSrc = v.image
+        ? (v.image.indexOf("http") === 0 ? v.image : (UPLOADS_BASE + v.image))
+        : "";
+      const imgHtml = imgSrc
+        ? `<img src="${imgSrc}" alt="${escapeHtml(v.name)}" loading="lazy">`
+        : `<span class="kfb-vehicle-emoji">${escapeHtml(v.emoji || "🚖")}</span>`;
+
+      const rateText = breakdown.perKm > 0
+        ? `<small class="kfb-rate-line">$${breakdown.perKm.toFixed(2)}/km · ${region}</small>`
+        : "";
+
       const $card = $(`
         <div class="kfb-vehicle-card ${selected ? "is-selected" : ""}" data-id="${v.id}">
-          <div class="kfb-vehicle-image">${v.emoji || "🚖"}</div>
-          <h4 class="kfb-vehicle-name">${v.name}</h4>
-          <p class="kfb-vehicle-desc">${v.desc}</p>
+          <div class="kfb-vehicle-image">${imgHtml}</div>
+          <h4 class="kfb-vehicle-name">${escapeHtml(v.name)}</h4>
+          <p class="kfb-vehicle-desc">${escapeHtml(v.desc)}</p>
           <div class="kfb-vehicle-meta">
             <span>👥 ${v.capacity}</span>
             <span>🧳 ${v.luggage}</span>
           </div>
           <div class="kfb-vehicle-price">
             <b>$${price.toFixed(2)}</b>
-            <small>all-inclusive</small>
+            <small>${breakdown.km.toFixed(1)} km · ${region}</small>
+            ${rateText}
           </div>
         </div>`);
       $card.on("click", function () {
-        state.selectedVehicle = { ...v, price: priceFor(v) };
+        state.selectedVehicle = { ...v, price: priceFor(v), breakdown: priceBreakdown(v) };
         renderVehicles();
       });
       $grid.append($card);
     });
+  }
+
+  // Escape helper for safe rendering of user-controlled strings.
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   // -------- Stepper --------
@@ -240,14 +350,51 @@
 
   // -------- Summary --------
   function renderSummary() {
+    syncRouteFromMap();
     const d = collectForm();
     const route = d.pickup && d.dropoff ? `${d.pickup} → ${d.dropoff}` : "—";
     const when = d.pickupDate && d.pickupTime ? `${d.pickupDate} at ${d.pickupTime}` : "—";
+    const region = state.region || "Worldwide";
+
     $("#kfbSumRoute").text(route);
     $("#kfbSumWhen").text(when);
-    $("#kfbSumDistance").text(state.distanceMiles ? `${state.distanceMiles} mi · ${state.durationMins} min` : "—");
+    $("#kfbSumDistance").text(state.distanceKm
+      ? `${state.distanceKm.toFixed(1)} km · ${state.durationMins} min`
+      : "—");
+    $("#kfbSumRegion").text(region);
+    $("#kfbSumService").text(selectedServiceType() ? (d.service || "—") : "—");
     $("#kfbSumVehicle").text(state.selectedVehicle ? `${state.selectedVehicle.name} × ${d.passengers || 1}` : "—");
-    const total = state.selectedVehicle ? state.selectedVehicle.price : 0;
+
+    const v = state.selectedVehicle;
+    let breakdown = v && v.breakdown ? v.breakdown : null;
+    // Recompute on the fly in case service type / region changed since click
+    if (v) breakdown = priceBreakdown(v);
+
+    const $bd = $("#kfbBreakdown");
+    if (v && breakdown) {
+      $("#kfbSumBase").text(`$${breakdown.base.toFixed(2)}`);
+      $("#kfbSumBaseNote").text(`${breakdown.km.toFixed(1)} km × $${breakdown.perKm.toFixed(2)}/km`);
+      $("#kfbSumSurcharge").text(`$${breakdown.surcharge.toFixed(2)}`);
+      $("#kfbSumGratuity").text(`$${breakdown.gratuity.toFixed(2)}`);
+      $("#kfbSumHourly").text(`$${breakdown.hourlyAdd.toFixed(2)}`);
+      $("#kfbSumHourlyNote").text(breakdown.hourlyAdd > 0
+        ? `$${breakdown.hourlyRate.toFixed(2)}/hr × ${breakdown.hours.toFixed(1)} h`
+        : "");
+
+      // Hide rows whose value is 0 so the breakdown stays tidy.
+      const $surchargeRow = $("#kfbSumSurcharge").closest(".kfb-row");
+      const $gratuityRow  = $("#kfbSumGratuity").closest(".kfb-row");
+      const $hourlyRow    = $("#kfbSumHourly").closest(".kfb-row");
+      $surchargeRow.toggle(breakdown.surcharge > 0);
+      $gratuityRow.toggle(breakdown.gratuity > 0);
+      $hourlyRow.toggle(breakdown.hourlyAdd > 0);
+
+      $bd.prop("hidden", false);
+    } else {
+      $bd.prop("hidden", true);
+    }
+
+    const total = v ? breakdown.total : 0;
     $("#kfbSumTotal").text(`$${total.toFixed(2)}`);
     return total;
   }
@@ -270,21 +417,59 @@
   });
   $(document).on("click", "[data-prev]", function () { showPanel(+$(this).data("prev")); });
 
-  // -------- Stops & return-location (delegated) --------
-  // Suppress default on placeholder links (Terms/Privacy) — keeps the page
-  // from jumping to the top when the user clicks them.
-  $(document).on("click", "[data-kfb-link]", function (e) {
-    e.preventDefault();
+  // Service-type change → re-price everything.
+  $(document).on("change", 'input[name="service"]', function () {
+    renderVehicles();
+    renderSummary();
   });
-  $(document).on("click", "#kfbAddStopBtn", function (e) {
-    e.preventDefault();
-    addStopRow();
-  });
-  $(document).on("change", "#kfbReturnDifferent", syncDropoffVisibility);
-  $(document).on("change", "#kfbSortVehicles", renderVehicles);
 
-  // -------- Reset --------
-  $(document).on("click", "#kfbResetBtn", function () { window.location.reload(); });
+  // Passenger / luggage changes → re-price.
+  $(document).on("input change", '[name="passengers"],[name="luggage"],[name="childSeats"]', function () {
+    renderVehicles();
+    renderSummary();
+  });
+
+  // -------- Fleet loading (DB-driven via /api/fleet) --------
+  // Uses jQuery $.ajax so it integrates with whatever global jQuery
+  // the host page provides. Always updates state.fleet on success,
+  // and re-renders the vehicle grid (whether it loaded OK or not).
+  function loadFleet() {
+    const url = API_BASE + "/fleet";
+    console.log("[KafehBooking] loading fleet from", url);
+
+    return $.ajax({
+      url: url,
+      method: "GET",
+      dataType: "json",
+      cache: false,
+    })
+    .done(function (data) {
+      // /api/fleet returns either a bare array or { success, vehicles }
+      const list = Array.isArray(data)
+        ? data
+        : (data && Array.isArray(data.vehicles) ? data.vehicles : []);
+
+      if (list.length) {
+        state.fleet = list;
+        console.log("[KafehBooking] loaded " + list.length + " vehicle(s) from backend");
+      } else {
+        console.warn("[KafehBooking] /api/fleet returned an empty list — keeping fallback");
+      }
+    })
+    .fail(function (xhr, status, err) {
+      console.error(
+        "[KafehBooking] /api/fleet FAILED (" + status + " " + (xhr && xhr.status) + "):",
+        err || (xhr && xhr.responseText) || "no response body",
+        "— URL:", url
+      );
+      toast("Could not load vehicles from backend — using fallback list.");
+    })
+    .always(function () {
+      // Whether the call succeeded or failed, refresh the grid so the
+      // user sees whatever list we ended up with.
+      renderVehicles();
+    });
+  }
 
   // -------- Payment --------
   function preparePayment() {
@@ -356,15 +541,21 @@
     $("#kfbForm").find('[name="pickupDate"]').attr("min", today);
   }
 
+  // -------- Reset --------
+  $(document).on("click", "#kfbResetBtn", function () { window.location.reload(); });
+
   // -------- Init --------
   function init() {
     renderStepper();
-    renderVehicles();
+    renderVehicles(); // paint DEFAULT_FLEET first, so step 2 isn't empty
     setMinDate();
     // Sync the dropoff field's visibility with the "Return at a different
     // location" checkbox on initial load (the HTML may have it checked
     // by default, or the user may have changed it before jQuery was ready).
     syncDropoffVisibility();
+    // Pull the live fleet from the backend (DB-driven). When the call
+    // resolves or fails, loadFleet() itself re-renders the grid.
+    loadFleet();
     // Map init is handled by test-map.js — it owns the Google Maps
     // callback (kfbTestInitMap) and the map / markers / route.
   }
