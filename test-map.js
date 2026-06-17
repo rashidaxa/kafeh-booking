@@ -44,6 +44,16 @@
   // Letter labels for markers, in render order: A=pickup, B..=stops, last=dropoff
   const LABEL_POOL = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
+  // Chicago city-limits bounding box (approximate). Used as a fallback
+  // for region detection when a Places result's address_components
+  // does not include a `locality` of "Chicago".
+  const CHICAGO_BOUNDS = {
+    north: 42.023,
+    south: 41.644,
+    west: -87.940,
+    east: -87.524,
+  };
+
   // -------- Public callback: called by Google Maps when SDK ready --------
   window.kfbTestInitMap = function () {
     if (typeof google === "undefined" || !google.maps) {
@@ -90,7 +100,7 @@
     if (!el || !google.maps.places) return;
     try {
       pickupAC = new google.maps.places.Autocomplete(el, {
-        fields: ["place_id", "geometry", "name", "formatted_address"],
+        fields: ["place_id", "geometry", "name", "formatted_address", "address_components"],
       });
       pickupAC.addListener("place_changed", function () {
         var place = pickupAC.getPlace();
@@ -110,7 +120,7 @@
     if (!el || !google.maps.places) return;
     try {
       dropoffAC = new google.maps.places.Autocomplete(el, {
-        fields: ["place_id", "geometry", "name", "formatted_address"],
+        fields: ["place_id", "geometry", "name", "formatted_address", "address_components"],
       });
       dropoffAC.addListener("place_changed", function () {
         var place = dropoffAC.getPlace();
@@ -163,7 +173,7 @@
 
     try {
       var ac = new google.maps.places.Autocomplete(input, {
-        fields: ["place_id", "geometry", "name", "formatted_address"],
+        fields: ["place_id", "geometry", "name", "formatted_address", "address_components"],
       });
       ac.addListener("place_changed", function () {
         var place = ac.getPlace();
@@ -223,6 +233,81 @@
 
   function makeLabel(text) {
     return { text: text, color: "#fff", fontWeight: "700" };
+  }
+
+  // -------- Region detection (Chicago / America / Worldwide) --------
+  // Used after a route is computed to tell the user whether both
+  // endpoints sit inside the Chicago service area, elsewhere in the
+  // USA, or somewhere else in the world.
+  function getLatLng(loc) {
+    if (!loc) return null;
+    if (typeof loc.lat === "function") return { lat: loc.lat(), lng: loc.lng() };
+    if (typeof loc.lat === "number") return { lat: loc.lat, lng: loc.lng };
+    return null;
+  }
+
+  function isLatLngInChicago(latLng) {
+    if (!latLng) return false;
+    return (
+      latLng.lat >= CHICAGO_BOUNDS.south &&
+      latLng.lat <= CHICAGO_BOUNDS.north &&
+      latLng.lng >= CHICAGO_BOUNDS.west &&
+      latLng.lng <= CHICAGO_BOUNDS.east
+    );
+  }
+
+  // True if the place resolves to somewhere inside the city of Chicago,
+  // either by `locality === "Chicago"` in its address_components or by
+  // its geometry falling inside the Chicago bounding box.
+  function isPlaceInChicago(place) {
+    if (!place) return false;
+    if (Array.isArray(place.address_components)) {
+      for (var i = 0; i < place.address_components.length; i++) {
+        var comp = place.address_components[i];
+        if (
+          comp &&
+          Array.isArray(comp.types) &&
+          comp.types.indexOf("locality") !== -1 &&
+          (comp.long_name === "Chicago" || comp.short_name === "Chicago")
+        ) {
+          return true;
+        }
+      }
+    }
+    var ll = getLatLng(place.geometry && place.geometry.location);
+    return isLatLngInChicago(ll);
+  }
+
+  // True if the place's country component is the United States.
+  function isPlaceInUSA(place) {
+    if (!place || !Array.isArray(place.address_components)) return false;
+    for (var i = 0; i < place.address_components.length; i++) {
+      var comp = place.address_components[i];
+      if (
+        comp &&
+        Array.isArray(comp.types) &&
+        comp.types.indexOf("country") !== -1 &&
+        (comp.short_name === "US" || comp.long_name === "United States")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Combine pickup + dropoff into one of the three buckets the user
+  // asked for. Stops are intentionally NOT considered — only the two
+  // endpoints gate the service region per spec.
+  function classifyRegion(pickupPlace, dropoffPlace) {
+    var pickupInChicago  = isPlaceInChicago(pickupPlace);
+    var dropoffInChicago = isPlaceInChicago(dropoffPlace);
+    if (pickupInChicago && dropoffInChicago) return "Chicago";
+
+    var pickupInUSA  = isPlaceInUSA(pickupPlace);
+    var dropoffInUSA = isPlaceInUSA(dropoffPlace);
+    if (pickupInUSA && dropoffInUSA) return "America";
+
+    return "Worldwide";
   }
 
   // -------- Markers: pickup & dropoff --------
@@ -318,14 +403,22 @@
         if (info) info.hidden = false;
 
         // Log + alert, per spec. Include the stop count so the user
-        // can see that waypoints were actually taken into account.
+        // can see that waypoints were actually taken into account, and
+        // the service region so they know whether the trip is inside
+        // Chicago, elsewhere in the USA, or worldwide.
         var stopCount = waypoints.length;
+        var pickupPlace  = pickupAC  ? pickupAC.getPlace()  : null;
+        var dropoffPlace = dropoffAC ? dropoffAC.getPlace() : null;
+        var region = classifyRegion(pickupPlace, dropoffPlace);
+
         var line = "Best route (car / SUV): " + kmText + " · " + timeText;
         if (stopCount > 0) {
           line += " (via " + stopCount + " stop" + (stopCount > 1 ? "s" : "") + ")";
         }
-        console.log("[Kafeh Test]", line);
-        try { window.alert(line); } catch (e) { /* alert blocked — console is enough */ }
+        var regionLine = "Service region: " + region;
+
+        console.log("[Kafeh Test]", line, "—", regionLine);
+        try { window.alert(line + "\n" + regionLine); } catch (e) { /* alert blocked — console is enough */ }
       }
     );
   }
