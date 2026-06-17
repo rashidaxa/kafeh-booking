@@ -165,6 +165,92 @@
   border-color: #0a0a0a;
   box-shadow: 0 0 0 3px rgba(0,0,0,.06);
 }
+
+/* ----- Date / time pickers -----
+   Chrome / Edge tint native date + time inputs with the page's
+   accent-color when the picker is open or a value is filled. Force
+   the accent to the theme's black so the highlighted cells and
+   indicator icon match the rest of the widget instead of the default
+   blue. */
+.kfb-field input[type="date"],
+.kfb-field input[type="time"],
+.kfb-field input[type="datetime-local"] {
+  accent-color: #0a0a0a;
+  color-scheme: light;
+  background-color: #fff;
+  color: var(--kfb-text);
+  /* Stop Chrome's default blue caret inside the picker */
+  caret-color: var(--kfb-text);
+}
+/* Calendar / clock icon in WebKit + Blink */
+.kfb-field input[type="date"]::-webkit-calendar-picker-indicator,
+.kfb-field input[type="time"]::-webkit-calendar-picker-indicator,
+.kfb-field input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0);          /* keep the icon dark */
+  cursor: pointer;
+  opacity: .65;
+  background-color: transparent;
+}
+.kfb-field input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.kfb-field input[type="time"]::-webkit-calendar-picker-indicator:hover,
+.kfb-field input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+/* The editable text inside the picker (e.g. "MM/DD/YYYY") */
+.kfb-field input[type="date"]::-webkit-datetime-edit,
+.kfb-field input[type="time"]::-webkit-datetime-edit,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit {
+  color: var(--kfb-text);
+}
+/* Per-segment fields (MM / DD / YYYY / HH / MM) — Chrome tints the
+   focused one blue by default. Kill that. */
+.kfb-field input[type="date"]::-webkit-datetime-edit-day-field,
+.kfb-field input[type="date"]::-webkit-datetime-edit-month-field,
+.kfb-field input[type="date"]::-webkit-datetime-edit-year-field,
+.kfb-field input[type="time"]::-webkit-datetime-edit-hour-field,
+.kfb-field input[type="time"]::-webkit-datetime-edit-minute-field,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-day-field,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-month-field,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-year-field,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-hour-field,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-minute-field {
+  color: var(--kfb-text);
+  background-color: transparent;
+  padding: 0;
+}
+.kfb-field input[type="date"]::-webkit-datetime-edit-day-field:focus,
+.kfb-field input[type="date"]::-webkit-datetime-edit-month-field:focus,
+.kfb-field input[type="date"]::-webkit-datetime-edit-year-field:focus,
+.kfb-field input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+.kfb-field input[type="time"]::-webkit-datetime-edit-minute-field:focus,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-day-field:focus,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-month-field:focus,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-year-field:focus,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-hour-field:focus,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit-minute-field:focus {
+  background-color: rgba(0, 0, 0, 0.08);
+  color: var(--kfb-text);
+  outline: none;
+}
+/* Text-selection highlight inside the input (drag-highlight is blue
+   by default in Chrome). Make it theme-neutral. */
+.kfb-field input[type="date"]::selection,
+.kfb-field input[type="time"]::selection,
+.kfb-field input[type="datetime-local"]::selection,
+.kfb-field input[type="date"]::-webkit-datetime-edit::selection,
+.kfb-field input[type="time"]::-webkit-datetime-edit::selection,
+.kfb-field input[type="datetime-local"]::-webkit-datetime-edit::selection {
+  background-color: rgba(0, 0, 0, 0.15) !important;
+  color: var(--kfb-text) !important;
+}
+/* Chrome 119+ lets us style the picker popup itself via ::picker().
+   Limited browser support but harmless on older ones. */
+.kfb-field input[type="date"]::picker-icon,
+.kfb-field input[type="time"]::picker-icon,
+.kfb-field input[type="datetime-local"]::picker-icon {
+  color: var(--kfb-text);
+}
+
 .kfb-field.is-invalid input, .kfb-field.is-invalid textarea { border-color: var(--kfb-danger); }
 .kfb-fs.is-invalid { border-color: var(--kfb-danger); background: #fef2f2; }
 .kfb-fs.is-invalid legend { color: var(--kfb-danger); }
