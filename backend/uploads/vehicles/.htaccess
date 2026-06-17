@@ -1,0 +1,13 @@
+# Allow direct access to uploaded vehicle images.
+# Disable PHP / script execution inside this folder for safety.
+<FilesMatch "\.(php|phtml|php3|php4|php5|phar|cgi|pl|py|jsp|asp|sh)$">
+    Require all denied
+</FilesMatch>
+Options -Indexes -ExecCGI
+
+<IfModule !authz_core_module>
+    <FilesMatch "\.(php|phtml|php3|php4|php5|phar|cgi|pl|py|jsp|asp|sh)$">
+        Deny from all
+    </FilesMatch>
+    Options -Indexes -ExecCGI
+</IfModule>

@@ -23,14 +23,26 @@ kafeh-booking/
 │
 ├── backend/                               # CodeIgniter 3 application
 │   ├── application/
-│   │   ├── controllers/Api.php            # REST endpoints
-│   │   ├── models/Booking_model.php       # DB layer
+│   │   ├── controllers/
+│   │   │   ├── Api.php                    # Public REST endpoints
+│   │   │   ├── Auth.php                   # Admin login / logout / setup
+│   │   │   ├── Admin.php                  # Admin pages (dashboard, vehicles)
+│   │   │   └── Admin_api.php              # Admin CRUD JSON endpoints
+│   │   ├── models/
+│   │   │   ├── Booking_model.php          # Bookings / stops / payments
+│   │   │   ├── Admin_model.php            # Admin login (bcrypt)
+│   │   │   └── Vehicle_model.php          # Vehicle CRUD + image upload
 │   │   ├── libraries/Paypal.php           # PayPal Orders v2 wrapper
+│   │   ├── views/admin/                   # Admin portal UI
 │   │   └── config/
 │   │       ├── paypal.php                 # PayPal credentials
 │   │       ├── kafeh.php                  # Top-level config
-│   │       └── routes_kafeh.php           # Add to your routes.php
+│   │       ├── routes_kafeh.php           # Public REST routes
+│   │       └── routes_admin.php           # Admin portal routes
+│   ├── assets/admin/                      # Admin CSS + JS
+│   ├── uploads/vehicles/                  # Uploaded vehicle images
 │   ├── sql/kfb_schema.sql                 # MySQL schema
+│   ├── create_admin.php                   # CLI: create an admin user
 │   └── .env.example
 │
 ├── .env.example
@@ -198,10 +210,83 @@ Response:
 | What | Where |
 |------|-------|
 | Theme colors | CSS vars in `kafeh-booking.css` (prefixed `--kfb-`) |
-| Vehicle list | `Booking_model::get_fleet()` in PHP, `state.fleet` in JS |
+| Vehicle list | Admin portal → **Vehicles** (DB-driven via `kfb_vehicles`) |
 | Pricing formula | `priceFor(v)` in `kafeh-booking.js` |
 | Allowed origins | `Api.php::__construct` → `$allowed_origins` |
 | Email confirmations | `kafeh.php` config + `_send_confirmation()` in controller |
+
+---
+
+## 🛡️ Admin portal (vehicle management)
+
+The backend ships with a session-based admin portal for managing the fleet shown in step 2 of the booking widget.
+
+### Quick start
+
+1. Import the schema (creates `kfb_admins` and `kfb_vehicles`):
+
+   ```bash
+   mysql -u root -p kafeh < backend/sql/kfb_schema.sql
+   ```
+
+2. Make sure `backend/uploads/vehicles/` is writable by the web server.
+
+3. Create the first admin — pick **one** of the two paths:
+
+   ```bash
+   # CLI (from inside backend/)
+   php create_admin.php admin 'Sup3rSecret!' "Kafeh Admin" admin@kafeh.com
+   ```
+
+   **OR** open the URL `/admin/setup` once in your browser and submit the form.
+
+4. Open `/admin/login` and sign in.
+
+### Pages
+
+| URL | Purpose |
+|-----|---------|
+| `/admin` | Dashboard with vehicle stats |
+| `/admin/vehicles` | List + create / edit forms |
+| `/admin/vehicles/:id` | Direct link to edit a specific vehicle |
+| `/admin/api/vehicles` | JSON list / create / update / delete / toggle |
+| `/admin/api/me` | Current logged-in admin (for AJAX) |
+
+### Vehicle fields
+
+Each vehicle row supports:
+
+- **General** — name, code (slug used by the widget), emoji, description, sort order, enabled/disabled toggle
+- **Passenger limits** — minimum and maximum passengers, luggage capacity
+- **Hourly rates** — one column per region (Chicago / America / Worldwide)
+- **Per-kilometer rates** — same three regions
+- **Surcharges** — same three regions
+- **Gratuity** — same three regions
+- **Waiting time (per minute)** — same three regions
+- **Image** — uploaded JPG / JPEG / PNG / WEBP, max 5 MB, with live preview
+
+### Validation
+
+All rates must be positive numerics. `max_passengers` must be ≥ `min_passengers`. Image uploads are restricted to the allowed MIME types and size cap. The same rules are enforced both in the AJAX client (`admin.js`) and the server (`Vehicle_model::validate()`), so the API is safe to call directly.
+
+### JSON API (admin)
+
+```bash
+# List (returns every row, enabled + disabled)
+curl -b cookies.txt http://localhost/kafeh-api/admin/api/vehicles
+
+# Create
+curl -b cookies.txt -F "name=Luxury Sedan" -F "min_passengers=1" \
+     -F "max_passengers=3" -F "hourly_chicago=95" \
+     -F "image=@/path/to/photo.jpg" \
+     http://localhost/kafeh-api/admin/api/vehicles
+
+# Toggle enabled/disabled
+curl -b cookies.txt -X POST \
+     http://localhost/kafeh-api/admin/api/vehicles/4/toggle
+```
+
+All admin endpoints require an authenticated session (cookie-based).
 
 ---
 
