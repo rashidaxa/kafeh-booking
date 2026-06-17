@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kafeh Booking — Local Test</title>
+  <title>A1 Limousine — Local Test</title>
 
   <!-- Test harness styles -->
   <link rel="stylesheet" href="test.css">
@@ -20,47 +20,20 @@
 
 <header class="test-header">
   <div>
-    <h1>Kafeh Booking — Local Test</h1>
-    <p>Local harness for <code>embed/kafeh-booking.{html,css,js}</code></p>
+    <h1>A1 Limousine — Local Test</h1>
+    <!-- <p>Local harness for <code>embed/kafeh-booking.{html,css,js}</code></p> -->
   </div>
 </header>
 
 <main class="test-main">
-
-  <section class="test-intro">
-    <h2>What you're looking at</h2>
-    <p>
-      This page loads the booking widget the same way a production host page
-      would: vendor scripts first, then the widget CSS, then the widget
-      markup, then the widget JS. Google Maps loads last so its
-      <code>kfbTestInitMap</code> callback (in <code>test-map.js</code>) finds the widget ready.
-    </p>
-  </section>
-
-  <ul class="test-checklist">
-    <li>jQuery loaded from <code>vendor/jquery-3.7.1.min.js</code> (fallback: <code>code.jquery.com</code>)</li>
-    <li>Backend URL: <code id="checkApi">—</code> (set in <code>test-config.js</code>)</li>
-    <li>PayPal client: <code id="checkPp">—</code> (set in <code>test-config.js</code>)</li>
-    <li>Google Maps: replace <code>YOUR_GOOGLE_MAPS_KEY</code> in this file's last <code>&lt;script&gt;</code> tag</li>
-  </ul>
-
-  <!--
-    ============================================================
-    Widget markup — canonical source for the embed widget.
-    The <link rel="stylesheet"> and trailing <script> for the
-    widget are loaded separately above / below. The map is
-    wired up by test-map.js (loaded in the script block at the
-    bottom), not by the widget JS itself.
-    ============================================================
-  -->
   <div class="test-widget-host">
     <div class="kfb-widget" id="kafehBookingWidget">
       <div class="kfb-container">
         <header class="kfb-header">
           <div class="kfb-brand">
-            <span class="kfb-mark">K</span>
+            <span class="kfb-mark">A</span>
             <div>
-              <h1>Kafeh</h1>
+              <h1>A1 Limousine</h1>
               <p>Premium Chauffeur Service</p>
             </div>
           </div>
@@ -98,9 +71,6 @@
 
           <!-- STEP 1: RIDE INFO -->
           <section class="kfb-panel is-active" data-panel="1">
-            <h3 class="kfb-panel-title">Tell us about your trip</h3>
-            <p class="kfb-panel-sub">Service type, schedule, and locations.</p>
-
             <fieldset class="kfb-fs">
               <legend>Service Type</legend>
               <div class="kfb-chips">
@@ -304,7 +274,7 @@
         </section>
 
         <footer class="kfb-footer">
-          <p>Powered by Kafeh Booking · <a href="#" data-kfb-link>Privacy</a> · <a href="#" data-kfb-link>Terms</a></p>
+          <p>Powered by A1limousine.com · <a href="#" data-kfb-link>Privacy</a> · <a href="#" data-kfb-link>Terms</a></p>
         </footer>
       </div>
     </div>
@@ -313,7 +283,7 @@
 </main>
 
 <footer class="test-footer">
-  Kafeh Booking · local test harness · <a href="README.md">README</a>
+  A1 Limousine · local test harness
 </footer>
 
 <!--
