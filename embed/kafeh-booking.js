@@ -227,11 +227,32 @@
     syncRouteFromMap();
     const $grid = $("#kfbVehicleGrid");
     if (!$grid.length) return;
-    const sortBy = $("#kfbSortVehicles").val();
+    const sortBy = $("#kfbSortVehicles").val() || "priceAsc";
+
+    // Defensive copy of each vehicle's passenger capacity so a vehicle
+    // missing/zero capacity doesn't break the comparator.
+    const capOf = (v) => {
+      const n = parseInt(v && (v.capacity ?? v.max_passengers ?? v.passengers), 10);
+      return Number.isFinite(n) ? n : 0;
+    };
+
     let list = state.fleet.slice();
     if (sortBy === "priceAsc")  list.sort((a, b) => priceFor(a) - priceFor(b));
     if (sortBy === "priceDesc") list.sort((a, b) => priceFor(b) - priceFor(a));
-    if (sortBy === "capacity")  list.sort((a, b) => b.capacity - a.capacity);
+    if (sortBy === "capacity") {
+      // Primary: highest passenger capacity first.
+      // Tiebreaker: vehicle id (stable, predictable order).
+      list.sort((a, b) => {
+        const diff = capOf(b) - capOf(a);
+        if (diff !== 0) return diff;
+        return String(a.id).localeCompare(String(b.id));
+      });
+    }
+
+    if (window.console && console.debug) {
+      console.debug("[KafehBooking] renderVehicles sortBy=" + sortBy,
+        list.map(v => v.id + "(" + capOf(v) + ")").join(", "));
+    }
 
     const region = state.region || "Worldwide";
     $grid.empty();
@@ -427,6 +448,13 @@
   $(document).on("input change", '[name="passengers"],[name="luggage"],[name="childSeats"]', function () {
     renderVehicles();
     renderSummary();
+  });
+
+  // Vehicle sort dropdown → re-render the grid in the new order.
+  // (The sort logic lives inside renderVehicles(); this just makes
+  // sure changing the dropdown actually triggers a re-render.)
+  $(document).on("change", "#kfbSortVehicles", function () {
+    renderVehicles();
   });
 
   // -------- Fleet loading (DB-driven via /api/fleet) --------
