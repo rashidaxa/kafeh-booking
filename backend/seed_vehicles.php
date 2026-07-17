@@ -64,6 +64,11 @@ $vehicles = [
         'waiting_chicago'   => 0.75,
         'waiting_america'   => 1.00,
         'waiting_worldwide' => 1.50,
+
+        // Child-seat surcharge (flat fee per child seat)
+        'child_seat_chicago'   => 10.00,
+        'child_seat_america'   => 12.00,
+        'child_seat_worldwide' => 15.00,
     ],
     [
         'code'    => 'suv',
@@ -95,6 +100,10 @@ $vehicles = [
         'waiting_chicago'   => 1.00,
         'waiting_america'   => 1.25,
         'waiting_worldwide' => 1.75,
+
+        'child_seat_chicago'   => 10.00,
+        'child_seat_america'   => 12.00,
+        'child_seat_worldwide' => 15.00,
     ],
     [
         'code'    => 'sprinter',
@@ -126,6 +135,10 @@ $vehicles = [
         'waiting_chicago'   => 1.25,
         'waiting_america'   => 1.50,
         'waiting_worldwide' => 2.00,
+
+        'child_seat_chicago'   => 10.00,
+        'child_seat_america'   => 12.00,
+        'child_seat_worldwide' => 15.00,
     ],
     [
         'code'    => 'limo',
@@ -157,6 +170,10 @@ $vehicles = [
         'waiting_chicago'   => 1.50,
         'waiting_america'   => 1.75,
         'waiting_worldwide' => 2.50,
+
+        'child_seat_chicago'   => 10.00,
+        'child_seat_america'   => 12.00,
+        'child_seat_worldwide' => 15.00,
     ],
 ];
 

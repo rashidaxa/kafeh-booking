@@ -7,11 +7,12 @@ $regions = [
     'worldwide' => 'Worldwide',
 ];
 $rate_groups = [
-    'hourly'    => 'Hourly rates',
-    'per_km'    => 'Per-kilometer rates',
-    'surcharge' => 'Surcharge amounts',
-    'gratuity'  => 'Gratuity amounts',
-    'waiting'   => 'Waiting time (per minute)',
+    'hourly'       => 'Hourly rates',
+    'per_km'       => 'Per-kilometer rates',
+    'surcharge'    => 'Surcharge amounts',
+    'gratuity'     => 'Gratuity amounts',
+    'waiting'      => 'Waiting time (per minute)',
+    'child_seat'   => 'Child-seat surcharge (flat fee per child seat)',
 ];
 ?>
 

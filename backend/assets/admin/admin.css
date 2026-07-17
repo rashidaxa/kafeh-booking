@@ -349,14 +349,25 @@ body.kfb-admin {
 @media (max-width: 540px) { .kfb-fieldset { grid-template-columns: 1fr; } }
 
 .kfb-money { position: relative; }
-.kfb-money-prefix {
+.kfb-money-prefix,
+.kfb-money-suffix {
   position: absolute;
   left: 10px; top: 50%; transform: translateY(-50%);
   color: var(--kfb-text-muted);
   font-size: 13px;
   pointer-events: none;
 }
+.kfb-money-suffix { left: auto; right: 10px; }
 .kfb-money input { padding-left: 30px; }
+.kfb-money .kfb-money-suffix + input,
+.kfb-money input:has(+ .kfb-money-suffix) { padding-left: 12px; padding-right: 28px; }
+
+/* Promo code text-input special case: % sits on the right when type is percent,
+   left when type is fixed. Default CSS above handles fixed ($) — the JS toggles
+   a class for the percent layout. */
+.kfb-money .kfb-money-prefix:not(.kfb-money-suffix) ~ input { padding-left: 30px; padding-right: 12px; }
+
+.kfb-text-warn { color: #b45309; font-weight: 600; }
 
 .kfb-form-actions {
   grid-column: 1 / -1;

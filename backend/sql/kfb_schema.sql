@@ -15,17 +15,26 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `service_type`    VARCHAR(50)  NULL,
   `pickup_date`     DATE         NULL,
   `pickup_time`     TIME         NULL,
+  `pickup_loc_type` VARCHAR(20)  NULL COMMENT 'Search All | Address | Airport | Landmark',
+  `dropoff_loc_type`VARCHAR(20)  NULL,
   `pickup`          VARCHAR(255) NULL,
   `dropoff`         VARCHAR(255) NULL,
+  `airline`         VARCHAR(100) NULL COMMENT 'When pickup loc type = Airport',
+  `flight_number`   VARCHAR(20)  NULL,
+  `arrival_time`    TIME         NULL,
+  `pickup_point`    VARCHAR(50)  NULL COMMENT 'Baggage claim / Curbside / Gate / Arrivals hall',
   `passengers`      TINYINT      NOT NULL DEFAULT 1,
   `luggage`         TINYINT      NOT NULL DEFAULT 0,
   `child_seats`     TINYINT      NOT NULL DEFAULT 0,
+  `child_seats_breakdown` VARCHAR(255) NULL COMMENT 'JSON {type: qty, ...} of child seats',
   `notes`           TEXT         NULL,
   `vehicle_id`      VARCHAR(50)  NULL,
   `vehicle_name`    VARCHAR(100) NULL,
   `distance_miles`  DECIMAL(8,2) NOT NULL DEFAULT 0,
   `duration_mins`   INT          NOT NULL DEFAULT 0,
   `amount`          DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `discount_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `promo_code`      VARCHAR(40)  NULL,
   `currency`        CHAR(3)      NOT NULL DEFAULT 'USD',
   `first_name`      VARCHAR(100) NULL,
   `last_name`       VARCHAR(100) NULL,
@@ -40,7 +49,8 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   INDEX `idx_email`   (`email`),
   INDEX `idx_status`  (`status`),
   INDEX `idx_paypal`  (`paypal_order_id`),
-  INDEX `idx_date`    (`pickup_date`)
+  INDEX `idx_date`    (`pickup_date`),
+  INDEX `idx_promo_code` (`promo_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------- Stops -----------------
@@ -129,6 +139,11 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   `waiting_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `waiting_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
+  -- Child-seat surcharge (flat fee per child seat, per service region)
+  `child_seat_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `child_seat_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `child_seat_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+
   -- Image (filename only — actual file lives in /uploads/vehicles/)
   `image`           VARCHAR(255) NULL,
 
@@ -138,4 +153,24 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   INDEX `idx_status`     (`status`),
   INDEX `idx_sort`       (`sort_order`),
   INDEX `idx_code`       (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Promo codes (v3) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_promo_codes` (
+  `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `code`           VARCHAR(40)  NOT NULL,
+  `description`    VARCHAR(255) NULL,
+  `discount_type`  ENUM('percent','fixed') NOT NULL DEFAULT 'percent',
+  `discount_value` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `min_amount`     DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Subtotal must be >= this to apply',
+  `max_uses`       INT          NOT NULL DEFAULT 0 COMMENT '0 = unlimited',
+  `used_count`     INT          NOT NULL DEFAULT 0,
+  `starts_at`      DATE         NULL,
+  `expires_at`     DATE         NULL,
+  `status`         TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '0=disabled, 1=enabled',
+  `created_at`     DATETIME     NOT NULL,
+  `updated_at`     DATETIME     NULL,
+  UNIQUE KEY `uniq_code` (`code`),
+  KEY `idx_status`  (`status`),
+  KEY `idx_expires` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

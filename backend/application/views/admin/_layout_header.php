@@ -21,6 +21,7 @@ $admin      = isset($admin) ? $admin : NULL;
   <nav class="kfb-nav">
     <a href="<?= site_url('admin') ?>"          class="<?= $page_title === 'Dashboard' ? 'is-active' : '' ?>">Dashboard</a>
     <a href="<?= site_url('admin/vehicles') ?>" class="<?= $page_title === 'Vehicles' || $page_title === 'Edit Vehicle' ? 'is-active' : '' ?>">Vehicles</a>
+    <a href="<?= site_url('admin/promos') ?>"   class="<?= $page_title === 'Promo Codes' || $page_title === 'Edit Promo Code' ? 'is-active' : '' ?>">Promo Codes</a>
   </nav>
   <div class="kfb-sidebar-foot">
     <?php if ($admin): ?>

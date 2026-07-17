@@ -107,13 +107,35 @@
   }
 
   // -------- Autocomplete: pickup --------
+  // Filter the autocomplete predictions by the active "Location Type" button.
+  // If no filter is requested (or the type is "Search All"), we omit the
+  // `types` field entirely so all categories are returned.
+  function buildAutocompleteOptions(group) {
+    var fields = ["place_id", "geometry", "name", "formatted_address", "address_components"];
+    var typeFilter = getLocationTypeFilter(group);
+    if (typeFilter) {
+      return { fields: fields, types: typeFilter };
+    }
+    return { fields: fields };
+  }
+  function getLocationTypeFilter(group) {
+    var btn = document.querySelector('.kfb-loc-type-btn.is-active[data-group="' + group + '"]');
+    if (!btn) return null;
+    var v = btn.getAttribute("data-value");
+    switch (v) {
+      case "Airport":    return ["airport"];
+      case "Address":    return ["geocode"];
+      case "Landmark":   return ["establishment"];
+      case "Search All":
+      default:           return null;
+    }
+  }
+
   function attachPickupAutocomplete() {
     var el = document.getElementById("kfbPickup");
     if (!el || !google.maps.places) return;
     try {
-      pickupAC = new google.maps.places.Autocomplete(el, {
-        fields: ["place_id", "geometry", "name", "formatted_address", "address_components"],
-      });
+      pickupAC = new google.maps.places.Autocomplete(el, buildAutocompleteOptions("pickup"));
       pickupAC.addListener("place_changed", function () {
         var place = pickupAC.getPlace();
         if (place && place.geometry && place.geometry.location) {
@@ -131,9 +153,7 @@
     var el = document.getElementById("kfbDropoff");
     if (!el || !google.maps.places) return;
     try {
-      dropoffAC = new google.maps.places.Autocomplete(el, {
-        fields: ["place_id", "geometry", "name", "formatted_address", "address_components"],
-      });
+      dropoffAC = new google.maps.places.Autocomplete(el, buildAutocompleteOptions("dropoff"));
       dropoffAC.addListener("place_changed", function () {
         var place = dropoffAC.getPlace();
         if (place && place.geometry && place.geometry.location) {
@@ -145,6 +165,28 @@
       console.warn("[Kafeh Test] dropoff autocomplete unavailable:", e && e.message);
     }
   }
+
+  // -------- Re-attach autocomplete when location type changes --------
+  // The widget dispatches "kfb:loc-type-changed" with detail.group in
+  // {"pickup","dropoff"} when the user clicks a location-type button.
+  // We tear down the old autocomplete and rebuild it with the new
+  // type filter so the dropdown only shows matching results.
+  function reattachForGroup(group) {
+    if (!google.maps.places) return;
+    if (group === "pickup" && pickupAC) {
+      try { google.maps.event.clearInstanceListeners(pickupAC); } catch (e) {}
+      pickupAC = null;
+      attachPickupAutocomplete();
+    } else if (group === "dropoff" && dropoffAC) {
+      try { google.maps.event.clearInstanceListeners(dropoffAC); } catch (e) {}
+      dropoffAC = null;
+      attachDropoffAutocomplete();
+    }
+  }
+  window.addEventListener("kfb:loc-type-changed", function (e) {
+    var group = e && e.detail && e.detail.group;
+    if (group) reattachForGroup(group);
+  });
 
   // -------- Stops: watch the container for added / removed rows --------
   // The embed widget's "+ Add Stop" button dynamically inserts

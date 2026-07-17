@@ -21,30 +21,57 @@ class Booking_model extends CI_Model
     {
         $booking_id = 'KFB-' . strtoupper(base_convert((string)(microtime(true) * 1000), 10, 36));
 
+        // Normalize child seat breakdown if it's an array → JSON
+        $childSeats = (int)($data['childSeats'] ?? 0);
+        $childSeatsBreakdown = NULL;
+        if (!empty($data['childSeatsBreakdown']) && is_array($data['childSeatsBreakdown'])) {
+            $clean = [];
+            foreach ($data['childSeatsBreakdown'] as $type => $qty) {
+                $qty = (int)$qty;
+                if ($qty > 0) $clean[substr((string)$type, 0, 40)] = $qty;
+            }
+            if (!empty($clean)) {
+                $childSeatsBreakdown = json_encode($clean, JSON_UNESCAPED_UNICODE);
+                // recount total from the breakdown if provided
+                $childSeats = array_sum($clean);
+            }
+        } elseif (!empty($data['childSeatsBreakdown']) && is_string($data['childSeatsBreakdown'])) {
+            $childSeatsBreakdown = $data['childSeatsBreakdown'];
+        }
+
         $this->db->insert('kfb_bookings', [
-            'booking_id'     => $booking_id,
-            'service_type'   => $data['service'] ?? NULL,
-            'pickup_date'    => $data['pickupDate'] ?? NULL,
-            'pickup_time'    => $data['pickupTime'] ?? NULL,
-            'pickup'         => $data['pickup'] ?? NULL,
-            'dropoff'        => $data['dropoff'] ?? NULL,
-            'passengers'     => (int)($data['passengers'] ?? 1),
-            'luggage'        => (int)($data['luggage'] ?? 0),
-            'child_seats'    => (int)($data['childSeats'] ?? 0),
-            'notes'          => $data['notes'] ?? NULL,
-            'vehicle_id'     => $data['vehicle_id'] ?? NULL,
-            'vehicle_name'   => $data['vehicle_name'] ?? NULL,
-            'distance_miles' => (float)($data['distanceMiles'] ?? 0),
-            'duration_mins'  => (int)($data['durationMins'] ?? 0),
-            'amount'         => (float)($data['amount'] ?? 0),
-            'currency'       => 'USD',
-            'first_name'     => $data['firstName'] ?? NULL,
-            'last_name'      => $data['lastName'] ?? NULL,
-            'email'          => $data['email'] ?? NULL,
-            'phone'          => $data['phone'] ?? NULL,
-            'status'         => 'pending',
-            'created_at'     => date('Y-m-d H:i:s'),
-            'ip_address'     => $this->input->ip_address(),
+            'booking_id'            => $booking_id,
+            'service_type'          => $data['service'] ?? NULL,
+            'pickup_date'           => $data['pickupDate'] ?? NULL,
+            'pickup_time'           => $data['pickupTime'] ?? NULL,
+            'pickup_loc_type'       => $data['pickupType'] ?? $data['pickup_loc_type'] ?? NULL,
+            'dropoff_loc_type'      => $data['dropoffType'] ?? $data['dropoff_loc_type'] ?? NULL,
+            'pickup'                => $data['pickup'] ?? NULL,
+            'dropoff'               => $data['dropoff'] ?? NULL,
+            'airline'               => !empty($data['airline']) ? trim($data['airline']) : NULL,
+            'flight_number'         => !empty($data['flightNumber']) ? strtoupper(trim($data['flightNumber'])) : NULL,
+            'arrival_time'          => !empty($data['arrivalTime']) ? $data['arrivalTime'] : NULL,
+            'pickup_point'          => !empty($data['pickupPoint']) ? $data['pickupPoint'] : NULL,
+            'passengers'            => (int)($data['passengers'] ?? 1),
+            'luggage'               => (int)($data['luggage'] ?? 0),
+            'child_seats'           => $childSeats,
+            'child_seats_breakdown' => $childSeatsBreakdown,
+            'notes'                 => $data['notes'] ?? NULL,
+            'vehicle_id'            => $data['vehicle_id'] ?? NULL,
+            'vehicle_name'          => $data['vehicle_name'] ?? NULL,
+            'distance_miles'        => (float)($data['distanceMiles'] ?? 0),
+            'duration_mins'         => (int)($data['durationMins'] ?? 0),
+            'amount'                => (float)($data['amount'] ?? 0),
+            'discount_amount'       => (float)($data['discountAmount'] ?? 0),
+            'promo_code'            => !empty($data['promoCode']) ? strtoupper(trim($data['promoCode'])) : NULL,
+            'currency'              => 'USD',
+            'first_name'            => $data['firstName'] ?? NULL,
+            'last_name'             => $data['lastName'] ?? NULL,
+            'email'                 => $data['email'] ?? NULL,
+            'phone'                 => $data['phone'] ?? NULL,
+            'status'                => 'pending',
+            'created_at'            => date('Y-m-d H:i:s'),
+            'ip_address'            => $this->input->ip_address(),
         ]);
 
         // Stops
@@ -143,6 +170,10 @@ class Booking_model extends CI_Model
                 'waiting_chicago'   => (float)$row['waiting_chicago'],
                 'waiting_america'   => (float)$row['waiting_america'],
                 'waiting_worldwide' => (float)$row['waiting_worldwide'],
+
+                'child_seat_chicago'   => (float)($row['child_seat_chicago']   ?? 0),
+                'child_seat_america'   => (float)($row['child_seat_america']   ?? 0),
+                'child_seat_worldwide' => (float)($row['child_seat_worldwide'] ?? 0),
             ];
         }, $rows);
     }

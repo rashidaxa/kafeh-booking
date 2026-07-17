@@ -25,7 +25,7 @@ class Admin_api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model']);
         $this->load->library('session');
         $this->load->helper('url');
         $this->_set_cors_headers();
@@ -151,6 +151,68 @@ class Admin_api extends CI_Controller
         $this->_json(['success' => TRUE, 'vehicle' => $row]);
     }
 
+    // ----------------- Promo codes -----------------
+
+    /** GET /admin/api/promos */
+    public function promos_index()
+    {
+        $this->_require_login();
+        $this->_json(['success' => TRUE, 'promos' => $this->Promo_model->list_all()]);
+    }
+
+    /** POST /admin/api/promos */
+    public function promos_create()
+    {
+        $this->_require_login();
+        $payload = $this->_collect_payload();
+
+        $errors = $this->Promo_model->validate_form($payload, TRUE);
+        if (!empty($errors)) {
+            return $this->_error('Validation failed', 422, ['fields' => $errors]);
+        }
+        $id = $this->Promo_model->create($payload);
+        if (!$id) return $this->_error('Could not create promo code', 500, ['db' => $this->db->error()]);
+        $this->_json(['success' => TRUE, 'promo' => $this->Promo_model->get($id)], 201);
+    }
+
+    /** POST /admin/api/promos/:id */
+    public function promos_update($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $existing = $this->Promo_model->get($id);
+        if (!$existing) return $this->_error('Promo code not found', 404);
+
+        $payload = $this->_collect_payload();
+        $errors = $this->Promo_model->validate_form($payload, FALSE, $existing);
+        if (!empty($errors)) {
+            return $this->_error('Validation failed', 422, ['fields' => $errors]);
+        }
+        $ok = $this->Promo_model->update($id, $payload);
+        if (!$ok) return $this->_error('Could not update promo code', 500);
+        $this->_json(['success' => TRUE, 'promo' => $this->Promo_model->get($id)]);
+    }
+
+    /** POST /admin/api/promos/:id/delete */
+    public function promos_delete($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $ok = $this->Promo_model->delete($id);
+        if (!$ok) return $this->_error('Could not delete promo code', 500);
+        $this->_json(['success' => TRUE, 'id' => (int)$id]);
+    }
+
+    /** POST /admin/api/promos/:id/toggle */
+    public function promos_toggle($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $ok = $this->Promo_model->toggle_status($id);
+        if (!$ok) return $this->_error('Could not toggle promo code', 500);
+        $this->_json(['success' => TRUE, 'promo' => $this->Promo_model->get($id)]);
+    }
+
     // ----------------- helpers -----------------
 
     /** Combine POST fields and JSON body so the API works for both forms and fetch(). */
@@ -162,14 +224,16 @@ class Admin_api extends CI_Controller
             $json = json_decode($raw, TRUE);
             if (is_array($json)) $payload = $json;
         }
-        // Normalize checkbox → 0/1
-        if (isset($payload['status'])) {
-            $payload['status'] = ((int)$payload['status'] || $payload['status'] === 'on') ? 1 : 0;
-        } else {
-            // missing checkbox means "disabled" on form submits
-            if ($this->input->method() === 'post' && $this->input->post() !== NULL) {
+        // Normalize checkbox → 0/1 (only if a form post actually happened)
+        if ($this->input->method() === 'post' && $this->input->post() !== NULL) {
+            if (isset($payload['status'])) {
+                $payload['status'] = ((int)$payload['status'] || $payload['status'] === 'on') ? 1 : 0;
+            } else {
                 $payload['status'] = 0;
             }
+        } elseif (isset($payload['status'])) {
+            // JSON / fetch path
+            $payload['status'] = ((int)$payload['status'] || $payload['status'] === 'on' || $payload['status'] === TRUE) ? 1 : 0;
         }
         return $payload;
     }

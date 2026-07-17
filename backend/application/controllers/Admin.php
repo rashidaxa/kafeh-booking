@@ -20,7 +20,7 @@ class Admin extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model']);
         $this->load->library('session');
         $this->load->helper(['url', 'form']);
         $this->_require_login();
@@ -85,6 +85,50 @@ class Admin extends CI_Controller
         ];
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/vehicles', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    // ----------------- Promo codes -----------------
+
+    /** GET /admin/promos — list + create/edit form */
+    public function promos()
+    {
+        $data = [
+            'page_title' => 'Promo Codes',
+            'admin'      => $this->_current_admin(),
+            'promos'     => $this->Promo_model->list_all(),
+            'editing'    => NULL,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/promos', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** GET /admin/promos/new — blank create form */
+    public function promo_new()
+    {
+        return $this->promos();
+    }
+
+    /** GET /admin/promos/:id — pre-filled edit form */
+    public function promo_edit($id = NULL)
+    {
+        if (!$id) return redirect('admin/promos');
+        $promo = $this->Promo_model->get($id);
+        if (!$promo) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Promo code not found.']);
+            return redirect('admin/promos');
+        }
+        $data = [
+            'page_title' => 'Edit Promo Code',
+            'admin'      => $this->_current_admin(),
+            'promos'     => $this->Promo_model->list_all(),
+            'editing'    => $promo,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/promos', $data);
         $this->load->view('admin/_layout_footer', $data);
     }
 

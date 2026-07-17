@@ -204,6 +204,7 @@ class Vehicle_model extends CI_Model
             'surcharge_chicago', 'surcharge_america', 'surcharge_worldwide',
             'gratuity_chicago', 'gratuity_america', 'gratuity_worldwide',
             'waiting_chicago', 'waiting_america', 'waiting_worldwide',
+            'child_seat_chicago', 'child_seat_america', 'child_seat_worldwide',
         ];
         foreach ($rate_fields as $f) {
             $v = $data[$f] ?? NULL;
@@ -400,6 +401,10 @@ class Vehicle_model extends CI_Model
             'waiting_chicago'   => (float)($data['waiting_chicago']   ?? 0),
             'waiting_america'   => (float)($data['waiting_america']   ?? 0),
             'waiting_worldwide' => (float)($data['waiting_worldwide'] ?? 0),
+
+            'child_seat_chicago'   => (float)($data['child_seat_chicago']   ?? 0),
+            'child_seat_america'   => (float)($data['child_seat_america']   ?? 0),
+            'child_seat_worldwide' => (float)($data['child_seat_worldwide'] ?? 0),
         ];
 
         if ($uploaded_image_name) {

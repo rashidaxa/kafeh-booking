@@ -23,7 +23,7 @@ class Api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('Booking_model');
+        $this->load->model(['Booking_model', 'Promo_model']);
         $this->load->library('paypal');
         $this->_set_cors_headers();
     }
@@ -51,7 +51,7 @@ class Api extends CI_Controller
         $raw = $this->_read_json();
         if (!$raw) return $this->_error('Invalid JSON body', 400);
 
-        $required = ['service', 'pickupDate', 'pickupTime', 'pickup', 'dropoff',
+        $required = ['service', 'pickupDate', 'pickupTime', 'pickup',
                      'passengers', 'vehicle_id', 'amount',
                      'firstName', 'lastName', 'email', 'phone'];
         foreach ($required as $field) {
@@ -59,6 +59,8 @@ class Api extends CI_Controller
                 return $this->_error("Missing field: $field", 422);
             }
         }
+        // dropoff can be missing if "return at same location" — fall back to pickup
+        if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
         if (!filter_var($raw['email'], FILTER_VALIDATE_EMAIL)) {
             return $this->_error('Invalid email address', 422);
         }
@@ -149,6 +151,11 @@ class Api extends CI_Controller
                 $orderId
             );
 
+            // Bump promo usage counter on successful payment
+            if ($success && !empty($booking['promo_code'])) {
+                $this->Promo_model->record_booking_use($booking['promo_code']);
+            }
+
             // Optional: send confirmation email / SMS
             if ($success && $this->config->item('send_confirmation_email', 'kafeh')) {
                 $this->_send_confirmation($booking, $result);
@@ -161,6 +168,22 @@ class Api extends CI_Controller
             'bookingId'    => $bookingId,
             'paypalOrderId'=> $orderId,
         ]);
+    }
+
+    /**
+     * GET /api/promo/validate?code=XYZ&amount=189.50
+     * Returns { ok, code, discount, final, reason, description } so the
+     * embed widget can display the discount before sending the booking.
+     */
+    public function promo_validate()
+    {
+        $code   = trim((string)($this->input->get('code') ?? ''));
+        $amount = (float)($this->input->get('amount') ?? 0);
+        if ($code === '') {
+            return $this->_error('Promo code is required', 422);
+        }
+        $result = $this->Promo_model->validate($code, $amount);
+        $this->_json(array_merge(['success' => TRUE], $result));
     }
 
     // ----------------- helpers -----------------
@@ -178,8 +201,11 @@ class Api extends CI_Controller
             "From:       {$booking['pickup']}\n" .
             "To:         {$booking['dropoff']}\n" .
             "Vehicle:    {$booking['vehicle_name']}\n" .
-            "Amount:     \${$booking['amount']}\n\n" .
-            "Thank you for choosing Kafeh.\n";
+            "Amount:     \${$booking['amount']}\n" .
+            (!empty($booking['promo_code'])
+                ? "Promo:      {$booking['promo_code']} (-\${$booking['discount_amount']})\n"
+                : "") .
+            "\nThank you for choosing Kafeh.\n";
         $headers = "From: no-reply@kafeh.com\r\n";
 
         // Best-effort. If your server doesn't have mail() configured, swap for SMTP.

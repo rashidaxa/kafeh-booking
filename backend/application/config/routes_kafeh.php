@@ -14,3 +14,4 @@ $route['api/reservation']            = 'api/reservation_create';
 $route['api/reservation/(:any)']     = 'api/reservation_get/$1';
 $route['api/paypal/create-order']    = 'api/paypal_create_order';
 $route['api/paypal/capture-order/(:any)'] = 'api/paypal_capture_order/$1';
+$route['api/promo/validate']         = 'api/promo_validate';

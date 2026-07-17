@@ -43,6 +43,87 @@
     });
   }
 
+  // -------- Promo list → click loads row into form --------
+  $$("#kfbPromoList .kfb-list-item").forEach(function (item) {
+    item.addEventListener("click", function () {
+      var id = item.getAttribute("data-id");
+      if (!id) return;
+      window.location.href = BASE + "index.php/admin/promos/" + encodeURIComponent(id);
+    });
+  });
+
+  // -------- "New promo" button --------
+  var newPromoBtn = $("#kfbNewPromo");
+  if (newPromoBtn) {
+    newPromoBtn.addEventListener("click", function () {
+      window.location.href = BASE + "index.php/admin/promos";
+    });
+  }
+
+  // -------- Promo form: live swap of discount value unit (% vs $) --------
+  // Default layout (percent): unit sits on the RIGHT of the input.
+  // For fixed ($): unit sits on the LEFT.
+  var promoTypeSel = $("select[name='discount_type']");
+  var discountUnit = $("#kfbDiscountUnit");
+  var discountInput = $("input[name='discount_value']");
+  if (promoTypeSel && discountUnit) {
+    var updateUnit = function () {
+      var isPercent = promoTypeSel.value === "percent";
+      discountUnit.textContent = isPercent ? "%" : "$";
+      // percent → right side (default); fixed → left side
+      if (isPercent) {
+        discountUnit.classList.add("kfb-money-suffix");
+      } else {
+        discountUnit.classList.remove("kfb-money-suffix");
+      }
+      if (discountInput) {
+        discountInput.setAttribute("max", isPercent ? "100" : "");
+      }
+    };
+    promoTypeSel.addEventListener("change", updateUnit);
+    updateUnit();
+  }
+
+  // -------- Promo code: auto-uppercase on type --------
+  var codeInput = $("input[name='code']");
+  if (codeInput) {
+    codeInput.addEventListener("input", function () {
+      var pos = codeInput.selectionStart;
+      codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "");
+      try { codeInput.setSelectionRange(pos, pos); } catch (e) { /* ignore */ }
+    });
+  }
+
+  // -------- Promo delete button --------
+  var delBtn = $("#kfbDeletePromo");
+  if (delBtn) {
+    delBtn.addEventListener("click", function () {
+      if (!window.KFB || !window.KFB.confirm) {
+        if (!confirm("Delete this promo code?")) return;
+        return doPromoDelete();
+      }
+      window.KFB.confirm("Delete this promo code? Existing bookings keep the code on their receipt, but it will no longer be valid for new bookings.").then(function (ok) {
+        if (ok) doPromoDelete();
+      });
+    });
+  }
+  function doPromoDelete() {
+    if (!delBtn) return;
+    var endpoint = delBtn.getAttribute("data-endpoint");
+    if (!endpoint) return;
+    var fd = new FormData();
+    fetch(endpoint, { method: "POST", body: fd, credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.success) {
+          window.location.href = BASE + "index.php/admin/promos";
+        } else {
+          alert((j && j.error) || "Delete failed.");
+        }
+      })
+      .catch(function (err) { alert("Network error: " + err); });
+  }
+
   // -------- Vehicle form (create / update via fetch + FormData) --------
   var form = $("#kfbVehicleForm");
   var errBox = $("#kfbFormErrors");
@@ -147,6 +228,7 @@
       "surcharge_chicago","surcharge_america","surcharge_worldwide",
       "gratuity_chicago","gratuity_america","gratuity_worldwide",
       "waiting_chicago","waiting_america","waiting_worldwide",
+      "child_seat_chicago","child_seat_america","child_seat_worldwide",
     ];
     rateNames.forEach(function (n) {
       var el = form.elements[n];

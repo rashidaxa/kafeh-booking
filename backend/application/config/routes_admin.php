@@ -49,6 +49,9 @@ $route['admin']                                = 'admin/index';
 $route['admin/vehicles']                       = 'admin/vehicles';
 $route['admin/vehicles/new']                   = 'admin/vehicle_new';
 $route['admin/vehicles/(:num)']                = 'admin/vehicle_edit/$1';
+$route['admin/promos']                         = 'admin/promos';
+$route['admin/promos/new']                     = 'admin/promo_new';
+$route['admin/promos/(:num)']                  = 'admin/promo_edit/$1';
 
 // ---- JSON API ----
 $route['admin/api/me']                         = 'admin_api/me';
@@ -57,3 +60,8 @@ $route['admin/api/vehicles/save']              = 'admin_api/vehicles_create';
 $route['admin/api/vehicles/(:num)/save']       = 'admin_api/vehicles_update/$1';
 $route['admin/api/vehicles/(:num)/delete']     = 'admin_api/vehicles_delete/$1';
 $route['admin/api/vehicles/(:num)/toggle']     = 'admin_api/vehicles_toggle/$1';
+$route['admin/api/promos']                     = 'admin_api/promos_index';
+$route['admin/api/promos/save']                = 'admin_api/promos_create';
+$route['admin/api/promos/(:num)/save']         = 'admin_api/promos_update/$1';
+$route['admin/api/promos/(:num)/delete']       = 'admin_api/promos_delete/$1';
+$route['admin/api/promos/(:num)/toggle']       = 'admin_api/promos_toggle/$1';
