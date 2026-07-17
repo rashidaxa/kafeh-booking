@@ -52,7 +52,7 @@ html, body { margin: 0; padding: 0; }
 }
 
 /* ===================== STEPPER (top) ===================== */
-.kfb-stepper {
+nav.kfb-stepper {
   padding: 28px 20px 18px;
   margin: 0 0 24px;
   width: 100%;
@@ -301,7 +301,7 @@ html, body { margin: 0; padding: 0; }
 .kfb-remove-stop:hover { color: var(--kfb-error); }
 
 /* ===================== STEPPERS (− 1 +) — FIXED ALIGNMENT ===================== */
-.kfb-stepper {
+div.kfb-stepper {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
   align-items: stretch;
@@ -313,16 +313,16 @@ html, body { margin: 0; padding: 0; }
   width: 100%;
   max-width: 100%;
 }
-.kfb-stepper > button {
+div.kfb-stepper > button {
   background: #fff; border: 0; cursor: pointer;
   font-size: 18px; font-weight: 700; color: var(--kfb-text); line-height: 1;
   padding: 0;
   display: grid; place-items: center;
   transition: background-color .12s;
 }
-.kfb-stepper > button:hover { background: var(--kfb-card); }
-.kfb-stepper > button:focus { outline: 2px solid #93c5fd; outline-offset: -2px; }
-.kfb-stepper > .kfb-stepper-out {
+div.kfb-stepper > button:hover { background: var(--kfb-card); }
+div.kfb-stepper > button:focus { outline: 2px solid #93c5fd; outline-offset: -2px; }
+div.kfb-stepper > .kfb-stepper-out {
   border: 0 !important;
   background: #fff !important;
   text-align: center; font-weight: 700; font-size: 16px;
@@ -333,9 +333,9 @@ html, body { margin: 0; padding: 0; }
   height: auto;
   border-radius: 0;
 }
-.kfb-stepper > .kfb-stepper-out::-webkit-outer-spin-button,
-.kfb-stepper > .kfb-stepper-out::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
+div.kfb-stepper > .kfb-stepper-out::-webkit-outer-spin-button,
+div.kfb-stepper > .kfb-stepper-out::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 
 /* ===================== CHILD SEATS ===================== */
 .kfb-cs-row {
@@ -558,7 +558,7 @@ html, body { margin: 0; padding: 0; }
 }
 
 @media (max-width: 720px) {
-  .kfb-stepper { padding: 18px 10px 12px; }
+  nav.kfb-stepper { padding: 18px 10px 12px; }
   .kfb-stepper-list::before { top: 16px; }
   .kfb-step-number { width: 32px; height: 32px; font-size: 13px; }
   .kfb-step-label { font-size: 10px; }
@@ -576,7 +576,7 @@ html, body { margin: 0; padding: 0; }
 }
 
 @media (max-width: 420px) {
-  .kfb-stepper { padding: 14px 6px 10px; }
+  nav.kfb-stepper { padding: 14px 6px 10px; }
   .kfb-step-label { display: none; }
   .kfb-stepper-list::before { top: 14px; left: 16.66%; right: 16.66%; }
   .kfb-step-number { width: 28px; height: 28px; font-size: 12px; }
