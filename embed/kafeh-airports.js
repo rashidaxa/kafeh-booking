@@ -1,131 +1,15 @@
 /* ============================================================
-   Kafeh Booking — Major Airports & Airlines catalog
+   Kafeh Booking — Airlines catalog
    ------------------------------------------------------------
-   Static lists used by the V3 widget when the user picks
-   "Airport" as the location type. Both are reasonable defaults
-   for an international chauffeur service; replace with a
-   backend-driven catalog if you need a different coverage area.
+   Used by the V3 widget to populate the <datalist> behind the
+   Airline fields (pickup and dropoff). Replaces the previous
+   static airports catalog — airport selection is now handled
+   by Google Places autocomplete on the text input.
 
-   Globals:
-     window.KAFEH_AIRPORTS  — array of { code, name, city, country }
-     window.KAFEH_AIRLINES  — array of { code, name }
+   Global: window.KAFEH_AIRLINES — array of { code, name }
    ============================================================ */
 (function () {
   "use strict";
-
-  // Major international airports (IATA code, name, city, country)
-  window.KAFEH_AIRPORTS = [
-    // ── North America ────────────────────────────────────────────
-    { code: "ATL", name: "Hartsfield-Jackson Atlanta International Airport",  city: "Atlanta",        country: "USA" },
-    { code: "BOS", name: "Boston Logan International Airport",                 city: "Boston",         country: "USA" },
-    { code: "BWI", name: "Baltimore/Washington International Airport",        city: "Baltimore",      country: "USA" },
-    { code: "DCA", name: "Ronald Reagan Washington National Airport",          city: "Washington",     country: "USA" },
-    { code: "DEN", name: "Denver International Airport",                        city: "Denver",         country: "USA" },
-    { code: "DFW", name: "Dallas/Fort Worth International Airport",            city: "Dallas",         country: "USA" },
-    { code: "EWR", name: "Newark Liberty International Airport",                city: "Newark",         country: "USA" },
-    { code: "FLL", name: "Fort Lauderdale-Hollywood International Airport",   city: "Fort Lauderdale",country: "USA" },
-    { code: "HNL", name: "Daniel K. Inouye International Airport",             city: "Honolulu",       country: "USA" },
-    { code: "IAD", name: "Washington Dulles International Airport",            city: "Washington",     country: "USA" },
-    { code: "IAH", name: "George Bush Intercontinental Airport",               city: "Houston",        country: "USA" },
-    { code: "JFK", name: "John F. Kennedy International Airport",               city: "New York",       country: "USA" },
-    { code: "LAS", name: "Harry Reid International Airport",                    city: "Las Vegas",      country: "USA" },
-    { code: "LAX", name: "Los Angeles International Airport",                   city: "Los Angeles",    country: "USA" },
-    { code: "LGA", name: "LaGuardia Airport",                                   city: "New York",       country: "USA" },
-    { code: "MCO", name: "Orlando International Airport",                       city: "Orlando",        country: "USA" },
-    { code: "MIA", name: "Miami International Airport",                         city: "Miami",          country: "USA" },
-    { code: "MSP", name: "Minneapolis-Saint Paul International Airport",      city: "Minneapolis",    country: "USA" },
-    { code: "ORD", name: "O'Hare International Airport",                        city: "Chicago",        country: "USA" },
-    { code: "PDX", name: "Portland International Airport",                      city: "Portland",       country: "USA" },
-    { code: "PHL", name: "Philadelphia International Airport",                  city: "Philadelphia",   country: "USA" },
-    { code: "PHX", name: "Phoenix Sky Harbor International Airport",           city: "Phoenix",        country: "USA" },
-    { code: "PIT", name: "Pittsburgh International Airport",                    city: "Pittsburgh",     country: "USA" },
-    { code: "SAN", name: "San Diego International Airport",                     city: "San Diego",      country: "USA" },
-    { code: "SEA", name: "Seattle-Tacoma International Airport",                city: "Seattle",        country: "USA" },
-    { code: "SFO", name: "San Francisco International Airport",                 city: "San Francisco",  country: "USA" },
-    { code: "SJC", name: "Norman Y. Mineta San José International Airport",    city: "San Jose",       country: "USA" },
-    { code: "SLC", name: "Salt Lake City International Airport",               city: "Salt Lake City", country: "USA" },
-    { code: "TPA", name: "Tampa International Airport",                         city: "Tampa",          country: "USA" },
-    { code: "YYZ", name: "Toronto Pearson International Airport",               city: "Toronto",        country: "Canada" },
-    { code: "YVR", name: "Vancouver International Airport",                     city: "Vancouver",      country: "Canada" },
-    { code: "YUL", name: "Montréal-Pierre Elliott Trudeau International Airport", city: "Montréal",   country: "Canada" },
-    { code: "MEX", name: "Mexico City International Airport",                   city: "Mexico City",    country: "Mexico" },
-
-    // ── Europe ──────────────────────────────────────────────────
-    { code: "LHR", name: "London Heathrow Airport",                            city: "London",         country: "UK" },
-    { code: "LGW", name: "London Gatwick Airport",                             city: "London",         country: "UK" },
-    { code: "STN", name: "London Stansted Airport",                            city: "London",         country: "UK" },
-    { code: "MAN", name: "Manchester Airport",                                 city: "Manchester",     country: "UK" },
-    { code: "CDG", name: "Charles de Gaulle Airport",                          city: "Paris",          country: "France" },
-    { code: "ORY", name: "Paris Orly Airport",                                 city: "Paris",          country: "France" },
-    { code: "NCE", name: "Nice Côte d'Azur Airport",                           city: "Nice",           country: "France" },
-    { code: "FRA", name: "Frankfurt Airport",                                  city: "Frankfurt",      country: "Germany" },
-    { code: "MUC", name: "Munich Airport",                                     city: "Munich",         country: "Germany" },
-    { code: "BER", name: "Berlin Brandenburg Airport",                         city: "Berlin",         country: "Germany" },
-    { code: "AMS", name: "Amsterdam Schiphol Airport",                         city: "Amsterdam",      country: "Netherlands" },
-    { code: "MAD", name: "Madrid-Barajas Airport",                             city: "Madrid",         country: "Spain" },
-    { code: "BCN", name: "Barcelona–El Prat Airport",                          city: "Barcelona",      country: "Spain" },
-    { code: "FCO", name: "Rome Fiumicino Airport",                             city: "Rome",           country: "Italy" },
-    { code: "MXP", name: "Milan Malpensa Airport",                             city: "Milan",          country: "Italy" },
-    { code: "VCE", name: "Venice Marco Polo Airport",                          city: "Venice",         country: "Italy" },
-    { code: "ZRH", name: "Zürich Airport",                                     city: "Zürich",         country: "Switzerland" },
-    { code: "GVA", name: "Geneva Airport",                                     city: "Geneva",         country: "Switzerland" },
-    { code: "VIE", name: "Vienna International Airport",                       city: "Vienna",         country: "Austria" },
-    { code: "CPH", name: "Copenhagen Airport",                                 city: "Copenhagen",     country: "Denmark" },
-    { code: "ARN", name: "Stockholm Arlanda Airport",                          city: "Stockholm",      country: "Sweden" },
-    { code: "OSL", name: "Oslo Gardermoen Airport",                            city: "Oslo",           country: "Norway" },
-    { code: "HEL", name: "Helsinki-Vantaa Airport",                            city: "Helsinki",       country: "Finland" },
-    { code: "DUB", name: "Dublin Airport",                                     city: "Dublin",         country: "Ireland" },
-    { code: "LIS", name: "Lisbon Humberto Delgado Airport",                    city: "Lisbon",         country: "Portugal" },
-    { code: "ATH", name: "Athens International Airport",                       city: "Athens",         country: "Greece" },
-    { code: "IST", name: "Istanbul Airport",                                   city: "Istanbul",       country: "Turkey" },
-
-    // ── Middle East ─────────────────────────────────────────────
-    { code: "DXB", name: "Dubai International Airport",                        city: "Dubai",          country: "UAE" },
-    { code: "AUH", name: "Abu Dhabi International Airport",                    city: "Abu Dhabi",      country: "UAE" },
-    { code: "DOH", name: "Hamad International Airport",                        city: "Doha",           country: "Qatar" },
-    { code: "RUH", name: "King Khalid International Airport",                   city: "Riyadh",         country: "Saudi Arabia" },
-    { code: "JED", name: "King Abdulaziz International Airport",                city: "Jeddah",         country: "Saudi Arabia" },
-    { code: "TLV", name: "Ben Gurion Airport",                                 city: "Tel Aviv",       country: "Israel" },
-
-    // ── South & Southeast Asia ───────────────────────────────────
-    { code: "BOM", name: "Chhatrapati Shivaji Maharaj International Airport",  city: "Mumbai",         country: "India" },
-    { code: "DEL", name: "Indira Gandhi International Airport",                city: "New Delhi",      country: "India" },
-    { code: "BLR", name: "Kempegowda International Airport",                   city: "Bengaluru",      country: "India" },
-    { code: "MAA", name: "Chennai International Airport",                      city: "Chennai",        country: "India" },
-    { code: "CCU", name: "Netaji Subhas Chandra Bose International Airport",   city: "Kolkata",        country: "India" },
-    { code: "HYD", name: "Rajiv Gandhi International Airport",                 city: "Hyderabad",      country: "India" },
-    { code: "SIN", name: "Singapore Changi Airport",                           city: "Singapore",      country: "Singapore" },
-    { code: "KUL", name: "Kuala Lumpur International Airport",                 city: "Kuala Lumpur",   country: "Malaysia" },
-    { code: "BKK", name: "Suvarnabhumi Airport",                               city: "Bangkok",        country: "Thailand" },
-    { code: "HKG", name: "Hong Kong International Airport",                     city: "Hong Kong",      country: "Hong Kong" },
-    { code: "TPE", name: "Taiwan Taoyuan International Airport",               city: "Taipei",         country: "Taiwan" },
-    { code: "MNL", name: "Ninoy Aquino International Airport",                 city: "Manila",         country: "Philippines" },
-    { code: "CGK", name: "Soekarno-Hatta International Airport",               city: "Jakarta",        country: "Indonesia" },
-
-    // ── East Asia ───────────────────────────────────────────────
-    { code: "HND", name: "Tokyo Haneda Airport",                               city: "Tokyo",          country: "Japan" },
-    { code: "NRT", name: "Tokyo Narita International Airport",                 city: "Tokyo",          country: "Japan" },
-    { code: "KIX", name: "Kansai International Airport",                       city: "Osaka",          country: "Japan" },
-    { code: "ICN", name: "Incheon International Airport",                      city: "Seoul",          country: "South Korea" },
-    { code: "PEK", name: "Beijing Capital International Airport",              city: "Beijing",        country: "China" },
-    { code: "PKX", name: "Beijing Daxing International Airport",               city: "Beijing",        country: "China" },
-    { code: "PVG", name: "Shanghai Pudong International Airport",              city: "Shanghai",       country: "China" },
-    { code: "CAN", name: "Guangzhou Baiyun International Airport",             city: "Guangzhou",      country: "China" },
-
-    // ── Oceania ─────────────────────────────────────────────────
-    { code: "SYD", name: "Sydney Kingsford Smith Airport",                     city: "Sydney",         country: "Australia" },
-    { code: "MEL", name: "Melbourne Airport",                                  city: "Melbourne",      country: "Australia" },
-    { code: "AKL", name: "Auckland Airport",                                  city: "Auckland",       country: "New Zealand" },
-
-    // ── Africa ──────────────────────────────────────────────────
-    { code: "JNB", name: "O.R. Tambo International Airport",                   city: "Johannesburg",   country: "South Africa" },
-    { code: "CPT", name: "Cape Town International Airport",                    city: "Cape Town",      country: "South Africa" },
-    { code: "CAI", name: "Cairo International Airport",                        city: "Cairo",          country: "Egypt" },
-
-    // ── South America ───────────────────────────────────────────
-    { code: "GRU", name: "São Paulo–Guarulhos International Airport",          city: "São Paulo",      country: "Brazil" },
-    { code: "EZE", name: "Ministro Pistarini International Airport",           city: "Buenos Aires",   country: "Argentina" },
-  ];
 
   // Major airlines (IATA code, name)
   window.KAFEH_AIRLINES = [

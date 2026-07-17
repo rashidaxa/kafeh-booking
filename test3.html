@@ -109,14 +109,6 @@
                     <span class="kfb-pickup-label">Pick-Up Location</span>
                     <input type="text" name="pickup" id="kfbPickup" placeholder="Enter location" required autocomplete="off">
                   </label>
-                  <!-- Airport SELECT (replaces the text input when Airport is selected) -->
-                  <label class="kfb-field" id="kfbPickupAirportWrap" hidden>
-                    <span class="kfb-pickup-label">Airport</span>
-                    <select name="pickupAirport" id="kfbPickupAirport" required>
-                      <option value="">Select an airport…</option>
-                    </select>
-                    <input type="hidden" name="pickup" id="kfbPickupAirportHidden">
-                  </label>
                   <!-- Airport-only extras -->
                   <div class="kfb-airport-extras" data-group="pickup" hidden>
                     <div class="kfb-field-row-3">
@@ -172,13 +164,33 @@
                     <span>Drop-Off Location</span>
                     <input type="text" name="dropoff" id="kfbDropoff" placeholder="Enter location" required autocomplete="off">
                   </label>
-                  <label class="kfb-field kfb-dropoff" id="kfbDropoffAirportWrap" hidden>
-                    <span>Drop-Off Airport</span>
-                    <select name="dropoffAirport" id="kfbDropoffAirport" required>
-                      <option value="">Select an airport…</option>
-                    </select>
-                    <input type="hidden" name="dropoffHidden" id="kfbDropoffAirportHidden">
-                  </label>
+                  <!-- Dropoff airport-only extras -->
+                  <div class="kfb-airport-extras" data-group="dropoff" hidden>
+                    <div class="kfb-field-row-3">
+                      <label class="kfb-field">
+                        <span>Airline</span>
+                        <input type="text" name="dropoffAirline" list="kfbAirlinesListDropoff" placeholder="Select or type airline">
+                        <datalist id="kfbAirlinesListDropoff"></datalist>
+                      </label>
+                      <label class="kfb-field">
+                        <span>Flight #</span>
+                        <input type="text" name="dropoffFlightNumber" placeholder="e.g. AA1234">
+                      </label>
+                      <label class="kfb-field">
+                        <span>Departure Time</span>
+                        <input type="time" name="dropoffArrivalTime">
+                      </label>
+                    </div>
+                    <label class="kfb-field" style="margin-top:8px">
+                      <span>Drop-Off Point</span>
+                      <select name="dropoffPickupPoint">
+                        <option value="Departure curb">Departure curb</option>
+                        <option value="Terminal entrance">Terminal entrance</option>
+                        <option value="Check-in counter">Check-in counter</option>
+                        <option value="Departure hall">Departure hall</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
 
                 <!-- People & bags -->

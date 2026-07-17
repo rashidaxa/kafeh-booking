@@ -187,22 +187,13 @@
       if (!$('input[name="pickupDate"]').val()) missing.push("Pickup date");
       if (!$('input[name="pickupTime"]').val()) missing.push("Pickup time");
 
-      // Pickup: text input OR airport SELECT
       var pickupType = getLocType("pickup");
-      if (pickupType === "Airport") {
-        if (!$('select[name="pickupAirport"]').val()) missing.push("Pickup airport");
-      } else {
-        if (!$('input[name="pickup"]').val().trim()) missing.push("Pickup location");
-      }
+      if (!$('input[name="pickup"]').val().trim()) missing.push("Pickup location");
 
-      // Dropoff: text input OR airport SELECT, only if "return at different" is on
+      // Dropoff: only if "return at different" is on
+      var dropoffType = getLocType("dropoff");
       if ($("#kfbReturnDifferent").is(":checked")) {
-        var dropoffType = getLocType("dropoff");
-        if (dropoffType === "Airport") {
-          if (!$('select[name="dropoffAirport"]').val()) missing.push("Drop-off airport");
-        } else {
-          if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off location");
-        }
+        if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off location");
       }
 
       if (!$('input[name="passengers"]').val() || parseInt($('input[name="passengers"]').val(), 10) < 1) {
@@ -214,13 +205,18 @@
         if (!$('input[name="flightNumber"]').val().trim()) missing.push("Flight #");
         if (!$('input[name="arrivalTime"]').val()) missing.push("Arrival Time");
       }
+      // If dropoff is Airport AND "return at different" is on, require dropoff airline/flight/time
+      if ($("#kfbReturnDifferent").is(":checked") && dropoffType === "Airport") {
+        if (!$('input[name="dropoffAirline"]').val().trim()) missing.push("Drop-off Airline");
+        if (!$('input[name="dropoffFlightNumber"]').val().trim()) missing.push("Drop-off Flight #");
+        if (!$('input[name="dropoffArrivalTime"]').val()) missing.push("Drop-off Departure Time");
+      }
       if (missing.length) {
         toast("Please fill: " + missing.join(", "));
         var first = null;
         if (!$('input[name="pickupDate"]').val()) first = $('input[name="pickupDate"]');
         else if (!$('input[name="pickupTime"]').val()) first = $('input[name="pickupTime"]');
-        else if (pickupType === "Airport" && !$('select[name="pickupAirport"]').val()) first = $('select[name="pickupAirport"]');
-        else if (pickupType !== "Airport" && !$('input[name="pickup"]').val().trim()) first = $('input[name="pickup"]');
+        else if (!$('input[name="pickup"]').val().trim()) first = $('input[name="pickup"]');
         if (first) first.focus();
         return false;
       }
@@ -256,22 +252,14 @@
         var $hidden = $('input[name="' + hiddenName + '"]');
         if ($hidden.length) $hidden.val(value);
 
-        // Toggle the right field for this group:
-        //   - Text input (default) for Search All / Address / Landmark
-        //   - SELECT dropdown (replaces text input) for Airport
-        toggleLocField(group, value);
-
-        // Show / hide airport extras (airline / flight # / etc.)
+        // Show / hide airport extras (airline / flight # / arrival time)
         var airportBlock = $('.kfb-airport-extras[data-group="' + group + '"]');
-        if (value === "Airport") airportBlock.show(); else airportBlock.hide();
-
-        // When switching AWAY from Airport, clear the airport's hidden pickup text
-        // so the form doesn't accidentally submit the airport code as the pickup
-        if (group === "pickup" && value !== "Airport") {
-          $("#kfbPickupAirportHidden").val("");
-        }
-        if (group === "dropoff" && value !== "Airport") {
-          $("#kfbDropoffAirportHidden").val("");
+        if (value === "Airport") {
+          airportBlock.show();
+          airportBlock.find("input, select").prop("disabled", false);
+        } else {
+          airportBlock.hide();
+          airportBlock.find("input, select").prop("disabled", true);
         }
 
         // Notify test-map.js to re-attach autocomplete with the new type filter
@@ -281,109 +269,20 @@
       });
     }
 
-    // Show / hide the right input/select pair for a location-type group.
-    function toggleLocField(group, value) {
-      if (group === "pickup") {
-        if (value === "Airport") {
-          $("#kfbPickupWrap").attr("hidden", true).find("input").prop("required", false);
-          $("#kfbPickupAirportWrap").removeAttr("hidden").find("select").prop("required", true);
-        } else {
-          $("#kfbPickupAirportWrap").attr("hidden", true).find("select").prop("required", false);
-          $("#kfbPickupWrap").removeAttr("hidden").find("input").prop("required", true);
-        }
-      } else if (group === "dropoff") {
-        if (value === "Airport") {
-          $("#kfbDropoffWrap").attr("hidden", true).find("input").prop("required", false);
-          $("#kfbDropoffAirportWrap").removeAttr("hidden").find("select").prop("required", true);
-        } else {
-          $("#kfbDropoffAirportWrap").attr("hidden", true).find("select").prop("required", false);
-          $("#kfbDropoffWrap").removeAttr("hidden").find("input").prop("required", true);
-        }
-      }
-    }
-
-    // -------- Populate airport SELECTs + airline datalist from the catalog --------
-    function populateAirportsAndAirlines() {
-      var airports = (window.KAFEH_AIRPORTS || []);
+    // -------- Populate the airline datalists from the catalog --------
+    function populateAirlines() {
       var airlines = (window.KAFEH_AIRLINES || []);
-      // Airport SELECTs (grouped by region for readability)
-      var $selects = $("#kfbPickupAirport, #kfbDropoffAirport");
-      if ($selects.length) {
-        // Group by region: North America, Europe, Asia, Oceania, Africa, S.America, Middle East
-        var groups = {
-          "North America": [], Europe: [], "South & Southeast Asia": [],
-          "East Asia": [], Oceania: [], Africa: [], "South America": [],
-          "Middle East": []
-        };
-        var regionOf = function (c) {
-          if (["USA","Canada","Mexico"].indexOf(c) >= 0) return "North America";
-          if (["UK","France","Germany","Netherlands","Spain","Italy","Switzerland","Austria","Denmark","Sweden","Norway","Finland","Ireland","Portugal","Greece","Turkey"].indexOf(c) >= 0) return "Europe";
-          if (["UAE","Qatar","Saudi Arabia","Israel"].indexOf(c) >= 0) return "Middle East";
-          if (["India","Singapore","Malaysia","Thailand","Hong Kong","Taiwan","Philippines","Indonesia"].indexOf(c) >= 0) return "South & Southeast Asia";
-          if (["Japan","South Korea","China"].indexOf(c) >= 0) return "East Asia";
-          if (["Australia","New Zealand"].indexOf(c) >= 0) return "Oceania";
-          if (["South Africa","Egypt"].indexOf(c) >= 0) return "Africa";
-          if (["Brazil","Argentina"].indexOf(c) >= 0) return "South America";
-          return "Other";
-        };
-        airports.forEach(function (a) {
-          var r = regionOf(a.country);
-          if (!groups[r]) groups[r] = [];
-          groups[r].push(a);
-        });
-        $selects.each(function () {
-          var $s = $(this);
-          // Reset (keep the placeholder option)
-          $s.find("option:not(:first)").remove();
-          Object.keys(groups).forEach(function (region) {
-            if (!groups[region] || !groups[region].length) return;
-            var $og = $("<optgroup></optgroup>").attr("label", region);
-            groups[region].forEach(function (a) {
-              $("<option></option>")
-                .attr("value", a.code + " — " + a.name + " (" + a.city + ", " + a.country + ")")
-                .attr("data-code", a.code)
-                .text(a.code + " — " + a.city + " (" + a.country + ")")
-                .appendTo($og);
-            });
-            $og.appendTo($s);
-          });
-        });
-
-        // Mirror selection to the hidden pickup text field so the rest of the
-        // widget (map, route, etc.) can read it from #kfbPickup like before.
-        $selects.on("change", function () {
-          var $s = $(this);
-          var val = $s.val();
-          // If the matching hidden field exists, mirror the value into it
-          if ($s.attr("id") === "kfbPickupAirport") {
-            $("#kfbPickupAirportHidden").val(val);
-            // Drop a marker at the airport's geocoded location (test-map.js can
-            // expose a helper, but most users will pick the airport via the
-            // Google Places autocomplete on the original #kfbPickup — so we
-            // only trigger the route update).
-            if (val && typeof window.kfbUpdatePickup === "function") {
-              window.kfbUpdatePickup(val);
-            }
-          } else if ($s.attr("id") === "kfbDropoffAirport") {
-            $("#kfbDropoffAirportHidden").val(val);
-            if (val && typeof window.kfbUpdateDropoff === "function") {
-              window.kfbUpdateDropoff(val);
-            }
-          }
-        });
-      }
-
-      // Airline datalist
-      var $list = $("#kfbAirlinesList");
-      if ($list.length) {
-        $list.empty();
-        airlines.forEach(function (a) {
+      var $lists = $("#kfbAirlinesList, #kfbAirlinesListDropoff");
+      if (!$lists.length) return;
+      $lists.each(function () { $(this).empty(); });
+      airlines.forEach(function (a) {
+        $lists.each(function () {
           $("<option></option>")
             .attr("value", a.name)
             .text(a.name + " (" + a.code + ")")
-            .appendTo($list);
+            .appendTo($(this));
         });
-      }
+      });
     }
 
     // -------- Stops --------
@@ -631,16 +530,10 @@
       );
       $("#kfbSumService").text(selectedServiceType() || "—");
       $("#kfbSumDistance").text(fmtKm(state.distanceKm) + " km · " + fmtMins(state.durationMins) + " min");
-      $("#kfbSumPickup").text(
-        getLocType("pickup") === "Airport"
-          ? ($("#kfbPickupAirportHidden").val() || $('select[name="pickupAirport"]').val() || "—")
-          : ($('input[name="pickup"]').val() || "—")
-      );
+      $("#kfbSumPickup").text($('input[name="pickup"]').val() || "—");
       $("#kfbSumDropoff").text(
         $('#kfbReturnDifferent').is(":checked")
-          ? (getLocType("dropoff") === "Airport"
-              ? ($("#kfbDropoffAirportHidden").val() || $('select[name="dropoffAirport"]').val() || "—")
-              : ($('input[name="dropoff"]').val() || "—"))
+          ? ($('input[name="dropoff"]').val() || "—")
           : "Same as pickup"
       );
 
@@ -786,18 +679,11 @@
         if (state.childSeats[k] > 0) childBreakdown[k] = state.childSeats[k];
       });
 
-      // When airport is selected, the actual pickup value lives in the
-      // SELECT's hidden mirror (#kfbPickupAirportHidden). Otherwise it's
-      // the regular text input.
       var pickupType = getLocType("pickup");
-      var pickupValue = pickupType === "Airport"
-        ? ($("#kfbPickupAirportHidden").val() || $('select[name="pickupAirport"]').val() || "")
-        : $('input[name="pickup"]').val();
+      var pickupValue = $('input[name="pickup"]').val();
       var dropoffType = getLocType("dropoff");
       var dropoffValue = $('#kfbReturnDifferent').is(":checked")
-        ? (dropoffType === "Airport"
-            ? ($("#kfbDropoffAirportHidden").val() || $('select[name="dropoffAirport"]').val() || "")
-            : $('input[name="dropoff"]').val())
+        ? $('input[name="dropoff"]').val()
         : pickupValue;
 
       var payload = {
@@ -812,6 +698,10 @@
         pickupPoint:     $('select[name="pickupPoint"]').val()  || null,
         dropoff:         dropoffValue,
         dropoffType:     $('#kfbReturnDifferent').is(":checked") ? dropoffType : pickupType,
+        dropoffAirline:        $('input[name="dropoffAirline"]').val()       || null,
+        dropoffFlightNumber:   $('input[name="dropoffFlightNumber"]').val()  || null,
+        dropoffArrivalTime:    $('input[name="dropoffArrivalTime"]').val()   || null,
+        dropoffPickupPoint:    $('select[name="dropoffPickupPoint"]').val()  || null,
         stops:           stops,
         passengers:      parseInt($('input[name="passengers"]').val(), 10) || 1,
         luggage:         parseInt($('input[name="bags"]').val(), 10) || 0,
@@ -968,7 +858,7 @@
       wireLocationType();
       wireStops();
       wireChildSeats();
-      populateAirportsAndAirlines();
+      populateAirlines();
       makeStepper("#kfbStepperPassengers");
       makeStepper("#kfbStepperBags");
 

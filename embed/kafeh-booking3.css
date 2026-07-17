@@ -204,7 +204,7 @@ nav.kfb-stepper {
   background: var(--kfb-accent); color: #fff;
   border-color: var(--kfb-accent);
 }
-.kfb-loc-type-btn:focus { outline: 2px solid #93c5fd; outline-offset: 2px; }
+/* .kfb-loc-type-btn:focus { outline: 2px solid #93c5fd; outline-offset: 2px; } */
 
 /* ===================== FIELDS ===================== */
 .kfb-field { display: block; margin-bottom: 10px; }
@@ -244,27 +244,6 @@ nav.kfb-stepper {
 .kfb-airport-extras { display: none; margin-top: 12px; }
 .kfb-airport-extras[hidden] { display: none; }
 .kfb-airport-extras .kfb-field-row-3 { margin-top: 4px; }
-
-/* ===================== AIRPORT SELECT (when Location Type = Airport) ===================== */
-/* Replaces the Pickup text input. Grouped by region. */
-.kfb-field select[name="pickupAirport"],
-.kfb-field select[name="dropoffAirport"] {
-  font-size: 14px;
-  padding: 10px 12px;
-  background-color: #fff;
-  cursor: pointer;
-}
-.kfb-field select[name="pickupAirport"] optgroup,
-.kfb-field select[name="dropoffAirport"] optgroup {
-  font-weight: 700;
-  color: var(--kfb-text-soft);
-  background: var(--kfb-card-2);
-}
-.kfb-field select[name="pickupAirport"] option,
-.kfb-field select[name="dropoffAirport"] option {
-  padding: 6px 8px;
-  font-weight: 400;
-}
 
 /* ===================== STOPS ===================== */
 .kfb-stops-head { display: flex; align-items: center; justify-content: space-between; }
