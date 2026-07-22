@@ -62,7 +62,9 @@ $promos  = isset($promos) ? $promos : [];
 
     <form id="kfbPromoForm" class="kfb-form kfb-form--grid"
           action="<?= $is_edit ? site_url('admin/api/promos/' . (int)$editing['id'] . '/save') : site_url('admin/api/promos/save') ?>"
-          method="post">
+          method="post"
+          onsubmit="return false;"
+          target="_self">
 
       <input type="hidden" name="id" value="<?= $is_edit ? (int)$editing['id'] : '' ?>">
 
@@ -73,7 +75,7 @@ $promos  = isset($promos) ? $promos : [];
         <label class="kfb-field kfb-field--full">
           <span>Code <em>*</em> <small class="kfb-hint">customers enter this at checkout</small></span>
           <input type="text" name="code" required maxlength="40" pattern="[A-Za-z0-9_\-]+"
-                 placeholder="e.g. KAFE10"
+                 placeholder="e.g. NEWYEAR27"
                  value="<?= $is_edit ? htmlspecialchars($editing['code']) : '' ?>"
                  style="text-transform: uppercase; font-family: ui-monospace, monospace;">
         </label>

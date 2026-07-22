@@ -69,7 +69,7 @@
   // -------- Public callback: called by Google Maps when SDK ready --------
   window.kfbTestInitMap = function () {
     if (typeof google === "undefined" || !google.maps) {
-      console.warn("[Kafeh Test] Google Maps SDK did not load — map disabled.");
+      console.warn("[BookingMap] Google Maps SDK did not load — map disabled.");
       return;
     }
     boot();
@@ -78,7 +78,7 @@
   function boot() {
     var mapEl = document.getElementById("kfbMap");
     if (!mapEl) {
-      console.warn("[Kafeh Test] #kfbMap not found in DOM — map disabled.");
+      console.warn("[BookingMap] #kfbMap not found in DOM — map disabled.");
       return;
     }
 
@@ -144,7 +144,7 @@
         updateRoute();
       });
     } catch (e) {
-      console.warn("[Kafeh Test] pickup autocomplete unavailable:", e && e.message);
+      console.warn("[BookingMap] pickup autocomplete unavailable:", e && e.message);
     }
   }
 
@@ -162,30 +162,39 @@
         updateRoute();
       });
     } catch (e) {
-      console.warn("[Kafeh Test] dropoff autocomplete unavailable:", e && e.message);
+      console.warn("[BookingMap] dropoff autocomplete unavailable:", e && e.message);
     }
   }
 
-  // -------- Re-attach autocomplete when location type changes --------
+  // -------- Update autocomplete filter when location type changes --------
   // The widget dispatches "kfb:loc-type-changed" with detail.group in
   // {"pickup","dropoff"} when the user clicks a location-type button.
-  // We tear down the old autocomplete and rebuild it with the new
-  // type filter so the dropdown only shows matching results.
-  function reattachForGroup(group) {
+  // Instead of tearing down and recreating the Autocomplete (which
+  // leaks DOM listeners and can leave two instances fighting on the
+  // same input), we just call .setOptions() on the existing instance
+  // with the new `types` filter — the dropdown re-renders live.
+  //
+  // Type mapping:
+  //   Airport    → ["airport"]      (only airports)
+  //   Address    → ["geocode"]      (only street addresses)
+  //   Landmark   → ["establishment"] (only businesses / points of interest)
+  //   Search All → omitted          (no filter, all categories)
+  function updateAutocompleteForGroup(group) {
     if (!google.maps.places) return;
-    if (group === "pickup" && pickupAC) {
-      try { google.maps.event.clearInstanceListeners(pickupAC); } catch (e) {}
-      pickupAC = null;
-      attachPickupAutocomplete();
-    } else if (group === "dropoff" && dropoffAC) {
-      try { google.maps.event.clearInstanceListeners(dropoffAC); } catch (e) {}
-      dropoffAC = null;
-      attachDropoffAutocomplete();
+    var typeFilter = getLocationTypeFilter(group);
+    var options = {
+      fields: ["place_id", "geometry", "name", "formatted_address", "address_components"]
+    };
+    if (typeFilter) options.types = typeFilter;
+
+    var ac = (group === "pickup") ? pickupAC : (group === "dropoff") ? dropoffAC : null;
+    if (ac && typeof ac.setOptions === "function") {
+      ac.setOptions(options);
     }
   }
   window.addEventListener("kfb:loc-type-changed", function (e) {
     var group = e && e.detail && e.detail.group;
-    if (group) reattachForGroup(group);
+    if (group) updateAutocompleteForGroup(group);
   });
 
   // -------- Stops: watch the container for added / removed rows --------
@@ -239,7 +248,7 @@
       });
       stopEntries.push({ row: stopRow, input: input, ac: ac, marker: null });
     } catch (e) {
-      console.warn("[Kafeh Test] stop autocomplete unavailable:", e && e.message);
+      console.warn("[BookingMap] stop autocomplete unavailable:", e && e.message);
     }
 
     // Manual edit → just redraw the route (marker will appear once a
@@ -433,7 +442,7 @@
       },
       function (result, status) {
         if (status !== "OK") {
-          console.warn("[Kafeh Test] directions request failed:", status);
+          console.warn("[BookingMap] directions request failed:", status);
           return;
         }
         directionsRenderer.setDirections(result);
@@ -489,7 +498,7 @@
         }
         var regionLine = "Service region: " + region;
 
-        console.log("[Kafeh Test]", line, "—", regionLine);
+        console.log("[BookingMap]", line, "—", regionLine);
         try { window.alert(line + "\n" + regionLine); } catch (e) { /* alert blocked — console is enough */ }
       }
     );

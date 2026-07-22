@@ -92,7 +92,7 @@ class Api extends CI_Controller
 
         $amount    = $raw['amount'] ?? NULL;
         $bookingId = $raw['bookingId'] ?? NULL;
-        $description = $raw['description'] ?? 'Kafeh booking';
+        $description = $raw['description'] ?? 'Chauffeur booking';
 
         if (!$amount || !$bookingId) {
             return $this->_error('amount and bookingId are required', 422);
@@ -101,7 +101,7 @@ class Api extends CI_Controller
         try {
             $order = $this->paypal->createOrder($amount, $bookingId, $description);
         } catch (Exception $e) {
-            log_message('error', '[Kafeh] createOrder: ' . $e->getMessage());
+            log_message('error', '[Booking] createOrder: ' . $e->getMessage());
             return $this->_error('PayPal create-order failed', 502, ['detail' => $e->getMessage()]);
         }
 
@@ -128,7 +128,7 @@ class Api extends CI_Controller
         try {
             $result = $this->paypal->captureOrder($orderId);
         } catch (Exception $e) {
-            log_message('error', '[Kafeh] captureOrder: ' . $e->getMessage());
+            log_message('error', '[Booking] captureOrder: ' . $e->getMessage());
             return $this->_error('PayPal capture failed', 502, ['detail' => $e->getMessage()]);
         }
 
@@ -191,7 +191,7 @@ class Api extends CI_Controller
     protected function _send_confirmation($booking, $paypalResult)
     {
         $to      = $booking['email'];
-        $subject = 'Kafeh Booking ' . $booking['booking_id'] . ' Confirmed';
+        $subject = 'Booking ' . $booking['booking_id'] . ' Confirmed';
         $body    =
             "Hi {$booking['first_name']},\n\n" .
             "Your booking is confirmed.\n\n" .
@@ -205,8 +205,8 @@ class Api extends CI_Controller
             (!empty($booking['promo_code'])
                 ? "Promo:      {$booking['promo_code']} (-\${$booking['discount_amount']})\n"
                 : "") .
-            "\nThank you for choosing Kafeh.\n";
-        $headers = "From: no-reply@kafeh.com\r\n";
+            "\nThank you for choosing our chauffeur service.\n";
+        $headers = "From: no-reply@bookings.local\r\n";
 
         // Best-effort. If your server doesn't have mail() configured, swap for SMTP.
         @mail($to, $subject, $body, $headers);

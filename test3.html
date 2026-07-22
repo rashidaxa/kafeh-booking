@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A1 Limousine — Local Test (V3 — Empire CLS Style)</title>
+  <title>A1 Limousine</title>
 
   <!-- Test harness styles -->
   <link rel="stylesheet" href="test.css">
@@ -27,7 +27,7 @@
 
 <header class="test-header">
   <div>
-    <h1>A1 Limousine — Local Test <span class="test-variant">· V3 / EMPIRE CLS STYLE</span></h1>
+    <h1>A1 Limousine</span></h1>
   </div>
 </header>
 
@@ -272,7 +272,7 @@
                 <div class="kfb-promo">
                   <label class="kfb-promo-label" for="kfbPromoInput">Got a code? Apply it to your total.</label>
                   <div class="kfb-promo-row">
-                    <input type="text" id="kfbPromoInput" class="kfb-promo-input" maxlength="40" autocomplete="off" placeholder="KAFE10">
+                    <input type="text" id="kfbPromoInput" class="kfb-promo-input" maxlength="40" autocomplete="off" placeholder="Enter promo code">
                     <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbPromoApply">Apply</button>
                   </div>
                   <div class="kfb-promo-status" id="kfbPromoStatus"></div>
@@ -344,10 +344,10 @@
                 <div class="kfb-srow"><span>Vehicle</span><b id="kfbSumVehicle">—</b></div>
 
                 <div class="kfb-sbreakdown" id="kfbBreakdown" hidden>
-                  <div class="kfb-srow"><span>Base</span><b id="kfbSumBase">—</b></div>
+                  <div class="kfb-srow"><span>Base <em class="kfb-faint" id="kfbSumBaseNote">—</em></span><b id="kfbSumBase">—</b></div>
                   <div class="kfb-srow"><span>Surcharge</span><b id="kfbSumSurcharge">—</b></div>
                   <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
-                  <div class="kfb-srow"><span>Hourly</span><b id="kfbSumHourly">—</b></div>
+                  <div class="kfb-srow" id="kfbSumHourlyRow"><span>Hourly</span><b id="kfbSumHourly">—</b></div>
                   <div class="kfb-srow"><span>Child Seats</span><b id="kfbSumChildSeats">—</b></div>
                   <div class="kfb-srow"><span>Discount</span><b id="kfbSumDiscount">—</b></div>
                 </div>
@@ -363,7 +363,7 @@
 </main>
 
 <footer class="test-footer">
-  A1 Limousine · local test harness · <b>V3 EMPIRE CLS STYLE</b>
+  A1 Limousine</b>
 </footer>
 
 <!--

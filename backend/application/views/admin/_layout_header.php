@@ -6,17 +6,19 @@ $admin      = isset($admin) ? $admin : NULL;
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= htmlspecialchars($page_title) ?> · Kafeh Admin</title>
+<title><?= htmlspecialchars($page_title) ?> · Admin Portal</title>
 <link rel="stylesheet" href="<?= base_url('assets/admin/admin.css') ?>">
 </head>
 <body class="kfb-admin">
 <aside class="kfb-sidebar">
   <div class="kfb-brand">
-    <span class="kfb-brand-mark">K</span>
-    <div class="kfb-brand-text">
-      <strong>Kafeh</strong>
-      <small>Admin Portal</small>
-    </div>
+    <a href="<?= site_url('admin') ?>" class="kfb-brand-link" title="Go to dashboard">
+      <span class="kfb-brand-mark">A</span>
+      <div class="kfb-brand-text">
+        <strong>Admin</strong>
+        <small>Admin Portal</small>
+      </div>
+    </a>
   </div>
   <nav class="kfb-nav">
     <a href="<?= site_url('admin') ?>"          class="<?= $page_title === 'Dashboard' ? 'is-active' : '' ?>">Dashboard</a>

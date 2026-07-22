@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Create first admin · Kafeh</title>
+<title>Create first admin · Admin Portal</title>
 <link rel="stylesheet" href="<?= base_url('assets/admin/admin.css') ?>">
 </head>
 <body class="kfb-auth">
 <div class="kfb-auth-card">
   <div class="kfb-auth-brand">
-    <span class="kfb-brand-mark">K</span>
+    <span class="kfb-brand-mark">A</span>
     <div>
-      <strong>Kafeh</strong>
+      <strong>Admin</strong>
       <small>First-time setup</small>
     </div>
   </div>

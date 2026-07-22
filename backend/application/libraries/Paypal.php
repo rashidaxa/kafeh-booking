@@ -80,7 +80,7 @@ class Paypal {
             'intent'         => 'CAPTURE',
             'purchase_units' => [[
                 'reference_id' => $referenceId,
-                'description'  => $description ?: 'Kafeh booking ' . $referenceId,
+                'description'  => $description ?: 'Chauffeur booking ' . $referenceId,
                 'amount'       => [
                     'currency_code' => 'USD',
                     'value'         => number_format((float)$amount, 2, '.', ''),

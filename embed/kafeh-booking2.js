@@ -549,7 +549,7 @@
               body: JSON.stringify({
                 amount: total.toFixed(2),
                 bookingId: state.bookingId,
-                description: `Kafeh booking ${state.bookingId} — ${state.selectedVehicle.name}`,
+                description: `Chauffeur booking ${state.bookingId} — ${state.selectedVehicle.name}`,
                 customer: {
                   firstName: $form.find('[name="firstName"]').val(),
                   lastName:  $form.find('[name="lastName"]').val(),

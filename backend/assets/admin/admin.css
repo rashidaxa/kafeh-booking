@@ -82,6 +82,16 @@ body.kfb-admin {
   padding: 0 20px 18px;
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
+.kfb-brand-link {
+  display: flex; align-items: center; gap: 10px;
+  color: inherit; text-decoration: none;
+  border-radius: 8px;
+  transition: background-color .15s ease;
+  padding: 4px 6px;
+  margin: -4px -6px;
+}
+.kfb-brand-link:hover { background: rgba(255,255,255,.06); }
+.kfb-brand-link:hover strong { color: #fff; }
 .kfb-brand-mark {
   width: 36px; height: 36px;
   background: var(--kfb-primary);

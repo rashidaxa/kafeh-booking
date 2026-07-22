@@ -30,7 +30,7 @@
         clearInterval(timer);
         console.error("[KafehBooking] jQuery never loaded — widget disabled.");
         showDependencyError(
-          "jQuery is required for the Kafeh booking widget to work. " +
+          "jQuery is required for the booking widget to work. " +
           "Include jQuery before the widget script in your page. " +
           "See the project README for setup instructions."
         );
@@ -53,7 +53,7 @@
         "background:#fef2f2", "color:#7f1d1d",
         "font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif"
       ].join(";");
-      box.innerHTML = '<strong style="display:block;margin-bottom:6px">Kafeh booking widget — setup error</strong>' +
+      box.innerHTML = '<strong style="display:block;margin-bottom:6px">Booking widget — setup error</strong>' +
                       '<span>' + message + '</span>';
       host.parentNode ? host.parentNode.insertBefore(box, host) : host.appendChild(box);
     } catch (e) {
@@ -522,7 +522,7 @@
           body: JSON.stringify({
             amount: total.toFixed(2),
             bookingId: state.bookingId,
-            description: `Kafeh booking ${state.bookingId} — ${state.selectedVehicle.name}`,
+            description: `Chauffeur booking ${state.bookingId} — ${state.selectedVehicle.name}`,
             customer: {
               firstName: $form.find('[name="firstName"]').val(),
               lastName:  $form.find('[name="lastName"]').val(),

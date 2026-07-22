@@ -95,33 +95,57 @@
   }
 
   // -------- Promo delete button --------
+  // Uses a custom confirm modal that returns a Promise<boolean>.
+  // Falls back to the native confirm() if the modal helper isn't loaded.
   var delBtn = $("#kfbDeletePromo");
   if (delBtn) {
-    delBtn.addEventListener("click", function () {
-      if (!window.KFB || !window.KFB.confirm) {
-        if (!confirm("Delete this promo code?")) return;
-        return doPromoDelete();
+    delBtn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var proceed = function () {
+        doPromoDelete();
+      };
+      var msg = "Delete this promo code? Existing bookings keep the code on their receipt, but it will no longer be valid for new bookings.";
+      if (window.KFB && typeof window.KFB.confirm === "function") {
+        Promise.resolve(window.KFB.confirm(msg)).then(function (ok) {
+          if (ok) proceed();
+        });
+      } else if (!window.confirm(msg)) {
+        return; // user cancelled
+      } else {
+        proceed();
       }
-      window.KFB.confirm("Delete this promo code? Existing bookings keep the code on their receipt, but it will no longer be valid for new bookings.").then(function (ok) {
-        if (ok) doPromoDelete();
-      });
     });
   }
   function doPromoDelete() {
     if (!delBtn) return;
     var endpoint = delBtn.getAttribute("data-endpoint");
-    if (!endpoint) return;
+    if (!endpoint) {
+      alert("Delete endpoint not configured — missing data-endpoint attribute on the delete button.");
+      return;
+    }
+    // Disable the button while the request is in flight so the user
+    // can't double-click and fire two delete requests.
+    delBtn.disabled = true;
+    var oldLabel = delBtn.textContent;
+    delBtn.textContent = "Deleting…";
+
     var fd = new FormData();
     fetch(endpoint, { method: "POST", body: fd, credentials: "same-origin" })
-      .then(function (r) { return r.json(); })
+      .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
       .then(function (j) {
         if (j && j.success) {
           window.location.href = BASE + "index.php/admin/promos";
         } else {
           alert((j && j.error) || "Delete failed.");
+          delBtn.disabled = false;
+          delBtn.textContent = oldLabel;
         }
       })
-      .catch(function (err) { alert("Network error: " + err); });
+      .catch(function (err) {
+        alert("Network error: " + (err && err.message ? err.message : err));
+        delBtn.disabled = false;
+        delBtn.textContent = oldLabel;
+      });
   }
 
   // -------- Vehicle form (create / update via fetch + FormData) --------
@@ -157,6 +181,79 @@
         if (res.body && res.body.success) {
           // Reload page so the list reflects the change
           window.location.href = BASE + "index.php/admin/vehicles";
+        } else if (res.body && res.body.fields) {
+          showErrors(res.body.fields);
+        } else {
+          showErrors({ _all: (res.body && res.body.error) || "Save failed." });
+        }
+      })
+      .catch(function (err) {
+        showErrors({ _all: "Network error: " + (err && err.message ? err.message : err) });
+      })
+      .finally(function () {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldLabel; }
+      });
+    });
+  }
+
+  // -------- Promo form (create / update via fetch + FormData) --------
+  // Same pattern as the vehicle form — prevents the browser from
+  // navigating to the API endpoint and showing raw JSON, and
+  // reloads the list page on success.
+  var promoForm = $("#kfbPromoForm");
+  if (promoForm) {
+    promoForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearErrors();
+
+      // Client-side validation pass
+      var codeEl = promoForm.elements["code"];
+      var codeVal = (codeEl && codeEl.value || "").trim().toUpperCase();
+      var typeEl = promoForm.elements["discount_type"];
+      var valEl  = promoForm.elements["discount_value"];
+      var minEl  = promoForm.elements["min_amount"];
+      var maxEl  = promoForm.elements["max_uses"];
+      var clientErrors = {};
+      if (!codeVal) clientErrors["code"] = "Code is required.";
+      else if (!/^[A-Z0-9_\-]+$/.test(codeVal)) clientErrors["code"] = "Use uppercase letters, numbers, dash, underscore only.";
+      if (valEl && (valEl.value === "" || isNaN(parseFloat(valEl.value)) || parseFloat(valEl.value) < 0)) {
+        clientErrors["discount_value"] = "Discount value must be a positive number.";
+      }
+      if (typeEl && typeEl.value === "percent" && valEl && parseFloat(valEl.value) > 100) {
+        clientErrors["discount_value"] = "Percent discount cannot exceed 100.";
+      }
+      if (minEl && minEl.value !== "" && (isNaN(parseFloat(minEl.value)) || parseFloat(minEl.value) < 0)) {
+        clientErrors["min_amount"] = "Min amount must be zero or positive.";
+      }
+      if (maxEl && maxEl.value !== "" && (isNaN(parseInt(maxEl.value, 10)) || parseInt(maxEl.value, 10) < 0)) {
+        clientErrors["max_uses"] = "Max uses must be zero (unlimited) or a positive integer.";
+      }
+      if (Object.keys(clientErrors).length) {
+        showErrors(clientErrors);
+        return;
+      }
+
+      var data = new FormData(promoForm);
+      // Normalize the code to uppercase before sending
+      if (data.has("code")) data.set("code", codeVal);
+
+      var submitBtn = promoForm.querySelector('button[type="submit"]');
+      var oldLabel = submitBtn ? submitBtn.textContent : null;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
+
+      fetch(promoForm.action, {
+        method: "POST",
+        body: data,
+        credentials: "same-origin",
+      })
+      .then(function (r) {
+        return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; })
+          .then(function (j) { return { status: r.status, body: j }; });
+      })
+      .then(function (res) {
+        if (res.body && res.body.success) {
+          // Reload the promos list so the new/updated row shows up
+          window.location.href = BASE + "index.php/admin/promos";
         } else if (res.body && res.body.fields) {
           showErrors(res.body.fields);
         } else {
@@ -241,7 +338,10 @@
     return errors;
   }
 
-  // -------- Confirm modal for destructive actions (kept for future use) --------
+  // -------- Confirm modal for destructive actions --------
+  // Returns a Promise that resolves with true (confirm) or false (cancel).
+  // The backdrop element is removed inside the click handler so it's
+  // always in scope and we never leak DOM nodes.
   window.KFB = window.KFB || {};
   window.KFB.confirm = function (message) {
     return new Promise(function (resolve) {
@@ -257,15 +357,26 @@
           '</div>' +
         '</div>';
       document.body.appendChild(backdrop);
+
+      var done = function (result) {
+        backdrop.remove();
+        resolve(result);
+      };
+
       backdrop.addEventListener("click", function (e) {
         var act = e.target && e.target.getAttribute("data-act");
-        if (act === "yes") resolve(true);
-        else if (act === "no") resolve(false);
-        else if (e.target === backdrop) resolve(false);
+        if (act === "yes") done(true);
+        else if (act === "no") done(false);
+        else if (e.target === backdrop) done(false);
       });
-    }).then(function (ok) {
-      backdrop.remove();
-      return ok;
+
+      // Also dismiss on Escape key
+      document.addEventListener("keydown", function escHandler(e) {
+        if (e.key === "Escape") {
+          document.removeEventListener("keydown", escHandler);
+          done(false);
+        }
+      });
     });
   };
 })();

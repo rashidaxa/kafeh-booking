@@ -27,7 +27,7 @@
       } else if (attempts > 200) {
         clearInterval(timer);
         showDependencyError(
-          "jQuery is required for the Kafeh booking widget to work. " +
+          "jQuery is required for the booking widget to work. " +
           "Include jQuery before the widget script in your page. " +
           "See the project README for setup instructions."
         );
@@ -47,11 +47,11 @@
         "background:#fef2f2;color:#7f1d1d;" +
         "font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
       box.innerHTML =
-        '<strong style="display:block;margin-bottom:6px">Kafeh booking widget — setup error</strong>' +
+        '<strong style="display:block;margin-bottom:6px">Booking widget — setup error</strong>' +
         '<span>' + message + '</span>';
       host.parentNode ? host.parentNode.insertBefore(box, host) : host.appendChild(box);
     } catch (e) {
-      console.error("[KafehBooking] dependency error:", message);
+      console.error("[BookingWidget] dependency error:", message);
     }
   }
 
@@ -402,31 +402,51 @@
     // ============================================================
     // PRICING
     // ============================================================
-    // total = km × per_km_<region>
-    //       + surcharge_<region> + gratuity_<region>
-    //       + (hourly_<region> × hours) IF service is hourly
-    //       + (child_seat_<region> × childSeats)
-    //       - promoDiscount
+    // For POINT-TO-POINT style services (Transfer, From/To Airport, etc.):
+    //   total = km × per_km_<region>
+    //         + surcharge_<region> + gratuity_<region>
+    //         + (child_seat_<region> × childSeats)
+    //         - promoDiscount
+    //
+    // For HOURLY / As-Directed service:
+    //   total = hourly_<region> × hours         ← replaces km × per_km
+    //         + surcharge_<region> + gratuity_<region>
+    //         + (child_seat_<region> × childSeats)
+    //         - promoDiscount
+    //
+    // (Hourly is a flat time-based rate — we don't double-charge the
+    //  per-km on top of it. The hourly amount IS the base.)
     function priceBreakdown(v) {
       syncRouteFromMap();
-      var km = state.distanceKm || 0;
+      var km     = state.distanceKm || 0;
       var region = (state.region || "Worldwide").toLowerCase();
-      var perKm       = +(v['per_km_'    + region] || 0);
-      var surcharge   = +(v['surcharge_' + region] || 0);
-      var gratuity    = +(v['gratuity_'  + region] || 0);
-      var hourlyRate  = +(v['hourly_'    + region] || 0);
-      var childSeatR  = +(v['child_seat_' + region] || 0);
+      var perKm      = +(v['per_km_'    + region] || 0);
+      var surcharge  = +(v['surcharge_' + region] || 0);
+      var gratuity   = +(v['gratuity_'  + region] || 0);
+      var hourlyRate = +(v['hourly_'    + region] || 0);
+      var childSeatR = +(v['child_seat_' + region] || 0);
 
-      var base = km * perKm;
+      // Minimum billable time is 1 hour even if the route is short.
       var hours = Math.max(1, (state.durationMins || 0) / 60);
-      var hourlyAdd = isHourlyService() ? (hourlyRate * hours) : 0;
       var childCount = totalChildSeats();
-      var childAdd = childCount * childSeatR;
+      var childAdd  = childCount * childSeatR;
 
-      var extras = surcharge + gratuity + hourlyAdd + childAdd;
+      // Branch on service type — hourly replaces km-based, not stacks.
+      var base, hourlyAdd, baseLabel;
+      if (isHourlyService()) {
+        base      = hourlyRate * hours;
+        hourlyAdd = 0;            // already in base
+        baseLabel = "Hourly (" + hours.toFixed(1) + "h × $" + hourlyRate.toFixed(2) + ")";
+      } else {
+        base      = km * perKm;
+        hourlyAdd = 0;            // no hourly for non-hourly services
+        baseLabel = "Base (" + km.toFixed(1) + " km × $" + perKm.toFixed(2) + ")";
+      }
+
+      var extras   = surcharge + gratuity + childAdd;
       var subtotal = base + extras;
       var discount = (state.promo && state.promo.ok) ? +(state.promo.discount || 0) : 0;
-      var total = Math.max(0, subtotal - discount);
+      var total    = Math.max(0, subtotal - discount);
 
       return {
         km: km, perKm: perKm, base: base,
@@ -435,6 +455,7 @@
         childSeatRate: childSeatR, childCount: childCount, childAdd: childAdd,
         subtotal: subtotal, discount: discount, total: total,
         region: region, serviceType: selectedServiceType(),
+        baseLabel: baseLabel,
       };
     }
     function priceFor(v) { return +priceBreakdown(v).total.toFixed(2); }
@@ -501,7 +522,11 @@
               '<h4 class="kfb-vehicle-name">' + escapeHtml(v.name) + '</h4>' +
               '<p class="kfb-vehicle-desc">' + escapeHtml(v.desc || v.description || "") + '</p>' +
             '</div>' +
-            '<div class="kfb-vehicle-price"><b>' + fmtMoney(price) + '</b><small>' + fmtKm(bd.km) + ' km · ' + region + '</small></div>' +
+            '<div class="kfb-vehicle-price"><b>' + fmtMoney(price) + '</b><small>' +
+              (isHourlyService()
+                ? bd.hours.toFixed(1) + 'h · ' + region
+                : fmtKm(bd.km) + ' km · ' + region
+              ) + '</small></div>' +
           '</div>'
         );
         $card.on("click", function () {
@@ -556,10 +581,28 @@
         $("#kfbSumVehicle").text(state.selectedVehicle.name || state.selectedVehicle.id);
         var bd = state.selectedVehicle.breakdown || priceBreakdown(state.selectedVehicle);
         $("#kfbBreakdown").show();
+        // Base row: show the amount + a small "how we got there" note.
+        //   - Hourly: "(2.0h × $95.00)"
+        //   - Non-hourly: "(18.4 km × $2.50)"
         $("#kfbSumBase").text(fmtMoney(bd.base));
+        var $baseNote = $("#kfbSumBaseNote");
+        if ($baseNote.length) {
+          $baseNote.text(isHourlyService()
+            ? "(" + bd.hours.toFixed(1) + "h × $" + bd.hourlyRate.toFixed(2) + ")"
+            : "(" + bd.km.toFixed(1) + " km × $" + bd.perKm.toFixed(2) + ")"
+          );
+        }
         $("#kfbSumSurcharge").text(fmtMoney(bd.surcharge));
         $("#kfbSumGratuity").text(fmtMoney(bd.gratuity));
-        $("#kfbSumHourly").text(bd.hourlyAdd > 0 ? fmtMoney(bd.hourlyAdd) : "—");
+        // For hourly service, the hourly amount is already the "Base" line
+        // — the separate Hourly line is hidden. For non-hourly, the hourly
+        // line stays as "—" since the customer didn't book hourly.
+        if (isHourlyService()) {
+          $("#kfbSumHourlyRow").hide();
+        } else {
+          $("#kfbSumHourlyRow").show();
+          $("#kfbSumHourly").text("—");
+        }
         $("#kfbSumChildSeats").text(bd.childAdd > 0 ? fmtMoney(bd.childAdd) : "—");
         $("#kfbSumDiscount").text(
           bd.discount > 0
@@ -741,7 +784,7 @@
         data: JSON.stringify({
           amount:    v.breakdown.total.toFixed(2),
           bookingId: state.bookingId,
-          description: "Kafeh booking " + state.bookingId + " — " + v.name,
+          description: "Chauffeur booking " + state.bookingId + " — " + v.name,
           customer:  { name: $('input[name="firstName"]').val(), email: $('input[name="email"]').val() },
           ride:      { from: $('input[name="pickup"]').val(), to: $('input[name="dropoff"]').val() },
           vehicle:   { id: v.id, name: v.name },
