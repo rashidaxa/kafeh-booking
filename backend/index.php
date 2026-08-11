@@ -57,6 +57,31 @@
 
 /*
  *---------------------------------------------------------------
+ * LOAD .env (optional, local dev secrets — see .env.example)
+ *---------------------------------------------------------------
+ *
+ * Minimal loader: reads KEY=value lines from backend/.env (gitignored)
+ * into getenv(), so application/config/*.php can do
+ * getenv('STRIPE_SECRET_KEY') ?: 'placeholder' without a real value
+ * ever needing to live in a tracked file.
+ */
+	$kfb_env_file = __DIR__ . '/.env';
+	if (is_file($kfb_env_file)) {
+		foreach (file($kfb_env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $kfb_env_line) {
+			$kfb_env_line = trim($kfb_env_line);
+			if ($kfb_env_line === '' || $kfb_env_line[0] === '#' || strpos($kfb_env_line, '=') === FALSE) continue;
+			list($kfb_env_key, $kfb_env_value) = explode('=', $kfb_env_line, 2);
+			$kfb_env_key = trim($kfb_env_key);
+			$kfb_env_value = trim($kfb_env_value);
+			if ($kfb_env_key !== '' && getenv($kfb_env_key) === FALSE) {
+				putenv($kfb_env_key . '=' . $kfb_env_value);
+			}
+		}
+		unset($kfb_env_file, $kfb_env_line, $kfb_env_key, $kfb_env_value);
+	}
+
+/*
+ *---------------------------------------------------------------
  * ERROR REPORTING
  *---------------------------------------------------------------
  *

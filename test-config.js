@@ -5,7 +5,7 @@
    ============================================================ */
 
 // Backend API base URL. The widget appends path segments (e.g. "/fleet",
-// "/reservation", "/paypal/create-order") to this string, so the value
+// "/reservation", "/stripe/create-intent") to this string, so the value
 // must END at the API root — i.e. include the "/api" segment.
 //
 //   - WAMP (this repo at C:\wamp64\www\booking\):
@@ -21,7 +21,7 @@ window.KAFEH_API = "http://localhost/booking/backend/api";
 // sync with the directory served by your backend.
 window.KAFEH_UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
 
-// PayPal client ID. Use "sb" for the PayPal sandbox (no real charges).
-// When the backend is deployed, swap this for the live PayPal client ID
-// issued for the production merchant account.
-window.KAFEH_PAYPAL_CLIENT_ID = "sb";
+// Stripe PUBLISHABLE key — safe to expose client-side (unlike the secret
+// key, which only ever lives server-side in backend/.env). This is a
+// test-mode key; swap for the live publishable key in production.
+window.KAFEH_STRIPE_PUBLISHABLE_KEY = "pk_test_51U3J4CFYCaJMPL4jSGwInMT5E44BKMKkCLUVw7yH556AuQvQswVdgUMCfIRnGWayQ0frtnqFXp9O31Nn871IErCz00MDpBMZUE";

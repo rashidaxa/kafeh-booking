@@ -64,8 +64,24 @@
     // -------- Config --------
     var API_BASE      = (window.KAFEH_API || "/api").replace(/\/$/, "");
     var UPLOADS_BASE  = (window.KAFEH_UPLOADS || (API_BASE.replace(/\/api$/, "") + "/uploads/vehicles/"));
-    var PAYPAL_CLIENT = window.KAFEH_PAYPAL_CLIENT_ID || "sb";
+    var STRIPE_KEY    = window.KAFEH_STRIPE_PUBLISHABLE_KEY || "";
     var HOURLY_KEYS   = ["hourly", "as directed", "as-directed", "hourly / as directed"];
+
+    // -------- Stripe.js — card element (mounted once, reused across submits) --------
+    // Stripe.js loads from a <script> tag in <head>, which should finish
+    // before this script runs (it's earlier in document order, both
+    // synchronous) — but we still poll/retry rather than assume it, the
+    // same way the old PayPal integration waited for its SDK.
+    var stripe = null;
+    var stripeElements = null;
+    var stripeCard = null;
+    function initStripe() {
+      if (stripe) return true;
+      if (!STRIPE_KEY || typeof Stripe !== "function") return false;
+      stripe = Stripe(STRIPE_KEY);
+      stripeElements = stripe.elements();
+      return true;
+    }
 
     // -------- Child seat catalog (simplified to 3 types per spec v4) --------
     var CHILD_SEAT_TYPES = [
@@ -100,11 +116,19 @@
       isReturnTrip: false,   // toggles pickup/dropoff swap
       returnDate: null,      // for return trip
       returnTime: null,      // for return trip
+      returnPickupTypeDetail: "Curbside",   // return leg's pickup point (when original dropoff = Airport)
+      returnTailNumber: "",
+      returnDropoffTypeDetail: "Curbside",  // return leg's drop-off point (when original pickup = Airport)
+      returnDropoffTailNumber: "",
       pickupTypeDetail: "Curbside", // Curbside | Meet & Greet | Private Terminal (FBO)
       tailNumber: "",         // for FBO / private terminal pickups
+      dropoffTypeDetail: "Curbside", // Curbside | Meet & Greet | Private Terminal (FBO)
+      dropoffTailNumber: "",  // for FBO / private terminal dropoffs
       signatureData: null,   // base64 PNG of customer signature (>$500)
       minFareApplied: 0,     // 0 if subtotal > min, else the min amount
       meetGreetFee: 0,       // added to total if pickup type = Meet & Greet
+      dropoffMeetGreetFee: 0, // added to total if dropoff type = Meet & Greet
+      settings: { meetGreetChicago: 65, meetGreetElsewhere: 95 }, // fetched from /api/settings
     };
 
     // -------- Helpers --------
@@ -221,6 +245,24 @@
         if (!$('input[name="dropoffFlightNumber"]').val().trim()) missing.push("Drop-off Flight #");
         if (!$('input[name="dropoffArrivalTime"]').val()) missing.push("Drop-off Departure Time");
       }
+      // Return trip: date/time always required, plus the swapped leg's
+      // airline/flight/time whenever the corresponding original location is an airport.
+      if (state.isReturnTrip) {
+        if (!$('input[name="returnDate"]').val()) missing.push("Return date");
+        if (!$('input[name="returnTime"]').val()) missing.push("Return time");
+        var returnDifferent = $("#kfbReturnDifferent").is(":checked");
+        var returnPickupIsAirport = (returnDifferent ? dropoffType : pickupType) === "Airport";
+        if (returnPickupIsAirport) {
+          if (!$('input[name="returnAirline"]').val().trim()) missing.push("Return Pickup Airline");
+          if (!$('input[name="returnFlightNumber"]').val().trim()) missing.push("Return Pickup Flight #");
+          if (!$('input[name="returnArrivalTime"]').val()) missing.push("Return Pickup Arrival Time");
+        }
+        if (pickupType === "Airport") {
+          if (!$('input[name="returnDropoffAirline"]').val().trim()) missing.push("Return Drop-off Airline");
+          if (!$('input[name="returnDropoffFlightNumber"]').val().trim()) missing.push("Return Drop-off Flight #");
+          if (!$('input[name="returnDropoffArrivalTime"]').val()) missing.push("Return Drop-off Departure Time");
+        }
+      }
       if (missing.length) {
         toast("Please fill: " + missing.join(", "));
         var first = null;
@@ -276,13 +318,15 @@
         window.dispatchEvent(new CustomEvent("kfb:loc-type-changed", {
           detail: { group: group, value: value }
         }));
+
+        updateReturnTripAirportBlocks();
       });
     }
 
     // -------- Populate the airline datalists from the catalog --------
     function populateAirlines() {
       var airlines = (window.KAFEH_AIRLINES || []);
-      var $lists = $("#kfbAirlinesList, #kfbAirlinesListDropoff");
+      var $lists = $("#kfbAirlinesList, #kfbAirlinesListDropoff, #kfbAirlinesListReturnPickup, #kfbAirlinesListReturnDropoff");
       if (!$lists.length) return;
       $lists.each(function () { $(this).empty(); });
       airlines.forEach(function (a) {
@@ -358,7 +402,7 @@
       });
       state.childSeats = breakdown;
       if (typeof renderVehicles === "function") renderVehicles();
-      if (typeof renderSideSummary === "function") renderSideSummary();
+      if (typeof recalcSelectedVehicle === "function") recalcSelectedVehicle();
     }
 
     // -------- Child seats: add row with [type dropdown] [− 1 +] [trash] --------
@@ -406,7 +450,7 @@
     window.addEventListener("kfb:route-updated", function () {
       syncRouteFromMap();
       if (typeof renderVehicles === "function") renderVehicles();
-      if (typeof renderSideSummary === "function") renderSideSummary();
+      if (typeof recalcSelectedVehicle === "function") recalcSelectedVehicle();
     });
 
     // ============================================================
@@ -436,8 +480,9 @@
       var hourlyRate = +(v['hourly_'    + region] || 0);
       var childSeatR = +(v['child_seat_' + region] || 0);
       var minFare      = +(v.min_fare || 0);
-      var meetChicago  = +(v.meet_greet_chicago   || 65);
-      var meetOther    = +(v.meet_greet_elsewhere || 95);
+      // Meet & Greet fee is a global setting (not per-vehicle) as of v5.
+      var meetChicago  = +(state.settings.meetGreetChicago   || 65);
+      var meetOther    = +(state.settings.meetGreetElsewhere || 95);
 
       // Minimum billable time is 1 hour even if the route is short.
       var hours = Math.max(1, (state.durationMins || 0) / 60);
@@ -467,12 +512,24 @@
         state.meetGreetFee = 0;
       }
 
+      // Same surcharge for the drop-off side, only when returning at a
+      // different location (otherwise dropoff mirrors pickup and would
+      // double-charge the same stop).
+      var dropoffMeetGreetFee = 0;
+      if ($("#kfbReturnDifferent").is(":checked") &&
+          state.dropoffTypeDetail === "Meet & Greet" && getLocType("dropoff") === "Airport") {
+        dropoffMeetGreetFee = (region === "chicago") ? meetChicago : meetOther;
+        state.dropoffMeetGreetFee = dropoffMeetGreetFee;
+      } else {
+        state.dropoffMeetGreetFee = 0;
+      }
+
       // Add-ons: flat amounts already carry unit_price; percent add-ons
       // apply to the running subtotal. For simplicity we treat everything
       // as flat (the backend uses the configured per-region price).
       var addonsTotal = totalAddons();
 
-      var extras   = surcharge + gratuity + childAdd + meetGreetFee + addonsTotal;
+      var extras   = surcharge + gratuity + childAdd + meetGreetFee + dropoffMeetGreetFee + addonsTotal;
       var subtotal = base + extras;
       var discount = (state.promo && state.promo.ok) ? +(state.promo.discount || 0) : 0;
       var afterDiscount = Math.max(0, subtotal - discount);
@@ -494,6 +551,7 @@
         hourlyRate: hourlyRate, hours: hours, hourlyAdd: hourlyAdd,
         childSeatRate: childSeatR, childCount: childCount, childAdd: childAdd,
         meetGreetFee: meetGreetFee,
+        dropoffMeetGreetFee: dropoffMeetGreetFee,
         addonsTotal: addonsTotal,
         minFare: minFare, minFareApplied: minFareApplied,
         subtotal: subtotal, discount: discount, total: total,
@@ -522,6 +580,26 @@
         }
       })
       .fail(function () { /* keep default fleet, do not break the page */ });
+    }
+
+    /**
+     * Fetch global settings (currently just the Meet & Greet fee) from the
+     * backend. Falls back to the defaults already in state.settings.
+     */
+    function loadSettings() {
+      $.ajax({
+        url: API_BASE + "/settings",
+        dataType: "json",
+        timeout: 5000,
+      })
+      .done(function (res) {
+        if (!res) return;
+        state.settings = {
+          meetGreetChicago:   +(res.meet_greet_chicago   ?? state.settings.meetGreetChicago),
+          meetGreetElsewhere: +(res.meet_greet_elsewhere ?? state.settings.meetGreetElsewhere),
+        };
+      })
+      .fail(function () { /* keep default settings, do not break the page */ });
     }
 
     /**
@@ -583,6 +661,7 @@
             '<div class="kfb-addon-price">' + priceLabel + '</div>' +
           '</label>'
         );
+        $row.toggleClass("is-selected", qty > 0);
         $list.append($row);
 
         var $cb    = $row.find(".kfb-addon-cb");
@@ -590,6 +669,7 @@
         var $qtyIn = $row.find(".kfb-addon-qty-input");
 
         $cb.on("change", function () {
+          $row.toggleClass("is-selected", $cb.is(":checked"));
           if ($cb.is(":checked")) {
             $qty.removeAttr("hidden");
             $qtyIn.val(Math.max(parseInt($qtyIn.val(), 10) || 1, 1));
@@ -598,14 +678,14 @@
             $qty.attr("hidden", true);
             removeAddonFromCart(a.id);
           }
-          renderSideSummary();
+          recalcSelectedVehicle();
         });
         $qtyIn.on("input", function () {
           var n = Math.max(parseInt($qtyIn.val(), 10) || 1, 1);
           if (n !== parseInt($qtyIn.val(), 10)) $qtyIn.val(n);
           if ($cb.is(":checked")) {
             updateAddonQuantity(a.id, n);
-            renderSideSummary();
+            recalcSelectedVehicle();
           }
         });
         $row.find(".kfb-qty-plus").on("click",  function () { $qtyIn.val(parseInt($qtyIn.val(), 10) + 1).trigger("input"); });
@@ -647,6 +727,20 @@
     }
     function totalAddons() {
       return +state.addons.reduce(function (s, a) { return s + (a.line_total || 0); }, 0).toFixed(2);
+    }
+
+    // Recompute the selected vehicle's cached price/breakdown and refresh the
+    // summary. Must be called after anything that changes the price inputs
+    // (add-ons, pickup/dropoff point, etc.) — renderSideSummary() alone reuses
+    // the stale cached breakdown and won't pick up the change.
+    function recalcSelectedVehicle() {
+      if (state.selectedVehicle) {
+        state.selectedVehicle = $.extend({}, state.selectedVehicle, {
+          price: priceFor(state.selectedVehicle),
+          breakdown: priceBreakdown(state.selectedVehicle),
+        });
+        renderSideSummary();
+      }
     }
 
     function renderVehicles() {
@@ -783,12 +877,30 @@
             $meetGreetRow.hide();
           }
         }
-        // Add-ons total
+        // Meet & Greet fee — drop-off side (only shows when applied)
+        var $dropoffMeetGreetRow = $("#kfbSumDropoffMeetGreetRow");
+        if ($dropoffMeetGreetRow.length) {
+          if (bd.dropoffMeetGreetFee > 0) {
+            $dropoffMeetGreetRow.show();
+            $("#kfbSumDropoffMeetGreet").text(fmtMoney(bd.dropoffMeetGreetFee));
+          } else {
+            $dropoffMeetGreetRow.hide();
+          }
+        }
+        // Add-ons — itemized: each selected add-on's name + amount, plus the total.
         var $addonsRow = $("#kfbSumAddonsRow");
         if ($addonsRow.length) {
-          if (bd.addonsTotal > 0) {
+          if (state.addons && state.addons.length) {
             $addonsRow.show();
-            $("#kfbSumAddons").text(fmtMoney(bd.addonsTotal));
+            var addonLines = state.addons.map(function (a) {
+              var label = escapeHtml(a.name) + (a.quantity > 1 ? " × " + a.quantity : "");
+              return '<div class="kfb-addon-line"><span>' + label + '</span><b>' + fmtMoney(a.line_total) + '</b></div>';
+            }).join("");
+            // Only show a separate total once there's more than one line to sum.
+            if (state.addons.length > 1) {
+              addonLines += '<div class="kfb-addon-line kfb-addon-line--total"><span>Total</span><b>' + fmtMoney(bd.addonsTotal) + '</b></div>';
+            }
+            $("#kfbSumAddons").html(addonLines);
           } else {
             $addonsRow.hide();
           }
@@ -886,13 +998,7 @@
         $("#kfbPromoInput").prop("disabled", false);
         $("#kfbPromoApply").text("Apply");
       }
-      if (state.selectedVehicle) {
-        state.selectedVehicle = $.extend({}, state.selectedVehicle, {
-          price: priceFor(state.selectedVehicle),
-          breakdown: priceBreakdown(state.selectedVehicle),
-        });
-      }
-      renderSideSummary();
+      recalcSelectedVehicle();
     }
 
     function promoReasonText(reason) {
@@ -908,11 +1014,15 @@
     }
 
     // ============================================================
-    // RESERVATION + PAYPAL
+    // RESERVATION + STRIPE
     // ============================================================
     function createReservation() {
+      if (!state.selectedVehicle) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
+      // Force a fresh price/breakdown right before we charge — anything that
+      // changed the route, add-ons, or child seats since the vehicle was
+      // selected must be reflected in the amount we're about to bill.
+      recalcSelectedVehicle();
       var v = state.selectedVehicle;
-      if (!v) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
       var stops = [];
       $("#kfbStopsContainer input[name='stop[]']").each(function () {
         var s = ($(this).val() || "").trim();
@@ -939,7 +1049,6 @@
         airline:         $('input[name="airline"]').val()       || null,
         flightNumber:    $('input[name="flightNumber"]').val()  || null,
         arrivalTime:     $('input[name="arrivalTime"]').val()   || null,
-        pickupPoint:     $('select[name="pickupPoint"]').val()  || null,
         pickupTypeDetail: state.pickupTypeDetail,
         tailNumber:      state.tailNumber || null,
         dropoff:         dropoffValue,
@@ -947,11 +1056,26 @@
         dropoffAirline:        $('input[name="dropoffAirline"]').val()       || null,
         dropoffFlightNumber:   $('input[name="dropoffFlightNumber"]').val()  || null,
         dropoffArrivalTime:    $('input[name="dropoffArrivalTime"]').val()   || null,
-        dropoffPickupPoint:    $('select[name="dropoffPickupPoint"]').val()  || null,
+        dropoffTypeDetail: state.dropoffTypeDetail,
+        dropoffTailNumber: state.dropoffTailNumber || null,
         stops:           stops,
         isReturnTrip:    state.isReturnTrip,
         returnDate:      state.returnDate,
         returnTime:      state.returnTime,
+        // Return leg pickup (= original dropoff, once swapped) — only meaningful
+        // when the original dropoff is an airport.
+        returnAirline:         $('input[name="returnAirline"]').val()       || null,
+        returnFlightNumber:    $('input[name="returnFlightNumber"]').val()  || null,
+        returnArrivalTime:     $('input[name="returnArrivalTime"]').val()   || null,
+        returnPickupTypeDetail: state.returnPickupTypeDetail,
+        returnTailNumber:      state.returnTailNumber || null,
+        // Return leg drop-off (= original pickup, once swapped) — only meaningful
+        // when the original pickup is an airport.
+        returnDropoffAirline:      $('input[name="returnDropoffAirline"]').val()      || null,
+        returnDropoffFlightNumber: $('input[name="returnDropoffFlightNumber"]').val() || null,
+        returnDropoffArrivalTime:  $('input[name="returnDropoffArrivalTime"]').val()  || null,
+        returnDropoffTypeDetail:   state.returnDropoffTypeDetail,
+        returnDropoffTailNumber:   state.returnDropoffTailNumber || null,
         passengers:      parseInt($('input[name="passengers"]').val(), 10) || 1,
         luggage:         parseInt($('input[name="bags"]').val(), 10) || 0,
         childSeats:      totalChildSeats(),
@@ -982,91 +1106,138 @@
         timeout: 10000,
       });
     }
-    function createPaypalOrder() {
+    /**
+     * Authorize (hold) the trip amount and save the card for future
+     * off-session charges. Does NOT charge the customer yet — see
+     * Api::stripe_create_intent().
+     */
+    function createStripeIntent() {
       var v = state.selectedVehicle;
       if (!v) return $.Deferred().reject().promise();
       return $.ajax({
-        url: API_BASE + "/paypal/create-order",
+        url: API_BASE + "/stripe/create-intent",
         method: "POST",
         contentType: "application/json",
         data: JSON.stringify({
-          amount:    v.breakdown.total.toFixed(2),
-          bookingId: state.bookingId,
-          description: "Chauffeur booking " + state.bookingId + " — " + v.name,
-          customer:  { name: $('input[name="firstName"]').val(), email: $('input[name="email"]').val() },
-          ride:      { from: $('input[name="pickup"]').val(), to: $('input[name="dropoff"]').val() },
-          vehicle:   { id: v.id, name: v.name },
-          distanceMiles: state.distanceMiles,
-          durationMins:  state.durationMins,
+          booking_id: state.bookingId,
+          amount:     v.breakdown.total.toFixed(2),
         }),
         dataType: "json",
         timeout: 10000,
       });
     }
 
-    function renderPaypalButton() {
-      if (typeof paypal === "undefined") {
-        var tries = 0;
-        var timer = setInterval(function () {
-          tries++;
-          if (typeof paypal !== "undefined") { clearInterval(timer); renderPaypalButton(); }
-          else if (tries > 200) {
-            clearInterval(timer);
-            $("#kfbPaypalButton").html('<p class="kfb-pay-error">PayPal SDK did not load. Please refresh.</p>');
-          }
-        }, 100);
+    /** Confirms the authorization succeeded and saves the card on the booking. */
+    function finalizeStripe(paymentIntentId) {
+      return $.ajax({
+        url: API_BASE + "/stripe/finalize",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+          booking_id:         state.bookingId,
+          payment_intent_id:  paymentIntentId,
+        }),
+        dataType: "json",
+        timeout: 10000,
+      });
+    }
+
+    /**
+     * Mount the Stripe Card Element once, into the #kfbCardElement container.
+     * Retries for a few seconds if Stripe.js hasn't finished loading yet
+     * (matches how the old PayPal integration waited for its SDK).
+     */
+    var mountStripeCardTries = 0;
+    function mountStripeCard() {
+      if (stripeCard) return;
+      if (!initStripe()) {
+        mountStripeCardTries++;
+        if (mountStripeCardTries > 200) {
+          $("#kfbCardElement").html('<p class="kfb-pay-error">Stripe failed to load. Please refresh the page.</p>');
+          return;
+        }
+        setTimeout(mountStripeCard, 100);
         return;
       }
-      paypal.Buttons({
-        createOrder: function () {
-          var required = ["firstName", "lastName", "email", "phone"];
-          var missing = [];
-          required.forEach(function (n) {
-            if (!($('input[name="' + n + '"]').val() || "").trim()) missing.push(n);
-          });
-          if (missing.length) { toast("Please fill: " + missing.join(", ")); return Promise.reject("validation"); }
-          $("#kfbPaymentStatus").show().find("p").text("Creating your reservation…");
-          return createReservation()
-            .then(function (res) {
-              state.bookingId = res.booking_id;
-              return createPaypalOrder();
-            })
-            .then(function (order) { $("#kfbPaymentStatus").hide(); return order.id; })
-            .catch(function (err) {
-              $("#kfbPaymentStatus").hide();
-              toast("Could not start payment: " + (err && err.message ? err.message : err), "error");
-              return Promise.reject(err);
-            });
+      if (!document.getElementById("kfbCardElement")) return;
+      stripeCard = stripeElements.create("card", {
+        style: {
+          base: { fontSize: "14px", fontFamily: "inherit", color: "#111827", "::placeholder": { color: "#9ca3af" } },
+          invalid: { color: "#b91c1c" },
         },
-        onApprove: function (data) {
-          $("#kfbPaymentStatus").show().find("p").text("Processing your payment…");
-          return fetch(API_BASE + "/paypal/capture-order/" + encodeURIComponent(data.orderID), {
-            method: "POST", credentials: "same-origin",
-          })
-          .then(function (r) { return r.json(); })
-          .then(function (res) {
-            $("#kfbPaymentStatus").hide();
-            if (res && res.success) {
-              // After successful capture: save the signature if any
-              saveSignature().always(function () {
-                showSuccess(res.bookingId || state.bookingId);
-                promptAccountCreation(res.bookingId || state.bookingId);
-              });
-            } else {
-              toast("Payment could not be completed. Please try again.", "error");
-            }
-          })
-          .catch(function () {
-            $("#kfbPaymentStatus").hide();
-            toast("Network error while confirming payment.", "error");
+      });
+      stripeCard.mount("#kfbCardElement");
+      stripeCard.on("change", function (event) {
+        $("#kfbCardErrors").text(event.error ? event.error.message : "");
+      });
+    }
+
+    /**
+     * Book Now: validate → create the reservation → authorize the card via
+     * Stripe (confirmCardPayment handles any 3-D Secure challenge on its
+     * own) → confirm the authorization with the backend → save signature,
+     * show success. The reservation is NOT charged here — an admin must
+     * accept it first (see the admin Reservations screen).
+     */
+    function submitBooking() {
+      if (!stripe || !stripeCard) {
+        toast("Payment form failed to load. Please refresh the page.", "error");
+        return;
+      }
+      var v = state.selectedVehicle;
+      if (!v) { toast("Choose a vehicle first."); return; }
+
+      var required = ["firstName", "lastName", "email", "phone"];
+      var missing = [];
+      required.forEach(function (n) {
+        if (!($('input[name="' + n + '"]').val() || "").trim()) missing.push(n);
+      });
+      if ($("#kfbTermsBlock").is(":visible") && !$('input[name="terms"]').is(":checked")) {
+        missing.push("Terms & Conditions");
+      }
+      if (missing.length) { toast("Please fill: " + missing.join(", ")); return; }
+
+      var $btn = $("#kfbBookNowBtn");
+      $btn.prop("disabled", true);
+      $("#kfbCardErrors").text("");
+      $("#kfbPaymentStatus").show().find("p").text("Creating your reservation…");
+
+      createReservation()
+        .then(function (res) {
+          state.bookingId = res.booking_id;
+          $("#kfbPaymentStatus").find("p").text("Authorizing your card…");
+          return createStripeIntent();
+        })
+        .then(function (intentRes) {
+          return stripe.confirmCardPayment(intentRes.client_secret, {
+            payment_method: {
+              card: stripeCard,
+              billing_details: {
+                name:  ($('input[name="firstName"]').val() + " " + $('input[name="lastName"]').val()).trim(),
+                email: $('input[name="email"]').val(),
+                phone: $('input[name="phone"]').val(),
+              },
+            },
+          }).then(function (result) {
+            if (result.error) return $.Deferred().reject({ message: result.error.message }).promise();
+            return finalizeStripe(result.paymentIntent.id);
           });
-        },
-        onError: function (err) {
+        })
+        .then(function () {
           $("#kfbPaymentStatus").hide();
-          console.error("PayPal error", err);
-          toast("PayPal reported an error. Please try again.", "error");
-        },
-      }).render("#kfbPaypalButton");
+          return saveSignature();
+        })
+        .then(function () {
+          showSuccess(state.bookingId);
+          promptAccountCreation(state.bookingId);
+        })
+        .catch(function (err) {
+          $("#kfbPaymentStatus").hide();
+          $btn.prop("disabled", false);
+          var msg = (err && err.responseJSON && err.responseJSON.error) || (err && err.message) || "Could not process payment.";
+          $("#kfbCardErrors").text(msg);
+          toast(msg, "error");
+        });
     }
 
     function showSuccess(bookingId) {
@@ -1077,87 +1248,9 @@
       $("#kfbSuccessEmail").text($('input[name="email"]').val() || "—");
       $("html, body").animate({ scrollTop: 0 }, 200);
     }
-    function resetAll() {
-      state.selectedVehicle = null;
-      state.bookingId = null;
-      state.promo = null;
-      state.childSeats = {};
-      $("#kfbForm")[0].reset();
-      $("#kfbStopsContainer").empty();
-      $("#kfbChildSeatsContainer").empty();
-      $("#kfbReturnDifferent").prop("checked", true).trigger("change");
-      $(".kfb-airport-extras").hide();
-      $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").show();
-      $("#kfbSuccess").hide();
-      // Clear v4 state
-      state.addons = [];
-      state.stops = [];
-      state.isReturnTrip = false;
-      state.returnDate = null;
-      state.returnTime = null;
-      state.pickupTypeDetail = "Curbside";
-      state.tailNumber = "";
-      state.signatureData = null;
-      state.minFareApplied = 0;
-      state.meetGreetFee = 0;
-      gotoStep(1);
-    }
-
     // ============================================================
     // FLIGHT VALIDATION (v4)
     // ============================================================
-    /**
-     * Call Aviationstack via the backend. Falls back to manual entry on
-     * any failure (no API key, network error, flight not found).
-     * Updates the airline / flight # / arrival time fields from the
-     * result so the customer doesn't have to re-type them.
-     */
-    function validateFlight(group) {
-      var flightInput = $('input[name="' + (group === "pickup" ? "flightNumber" : "dropoffFlightNumber") + '"]');
-      var dateInput   = $('input[name="pickupDate"]');
-      var flight = (flightInput.val() || "").trim().toUpperCase();
-      var date   = (dateInput.val() || "").trim();
-      if (!flight || !date) {
-        toast("Enter flight number and pickup date first.");
-        return;
-      }
-      var $btn = $("#kfbValidateFlightPickup, #kfbValidateFlightDropoff").filter(":visible").first();
-      var oldLabel = $btn.text();
-      $btn.prop("disabled", true).text("Checking…");
-      $.ajax({
-        url: API_BASE + "/flights/validate",
-        data: { flight: flight, date: date },
-        dataType: "json",
-        timeout: 10000,
-      })
-      .done(function (res) {
-        if (res && res.ok && res.flight) {
-          var f = res.flight;
-          // Auto-fill the airline + arrival time if available
-          if (group === "pickup") {
-            if (f.airline_name) $('input[name="airline"]').val(f.airline_name);
-            if (f.arrival_scheduled) {
-              // Aviationstack returns ISO timestamps like "2026-08-01T14:30:00.000+05:00"
-              var m = (f.arrival_scheduled || "").match(/T(\d{2}):(\d{2})/);
-              if (m) $('input[name="arrivalTime"]').val(m[1] + ":" + m[2]);
-            }
-            toast("Flight " + f.flight_number + " verified — " + (f.departure_iata || "?") + " → " + (f.arrival_iata || "?"));
-          } else {
-            if (f.airline_name) $('input[name="dropoffAirline"]').val(f.airline_name);
-            toast("Flight " + f.flight_number + " verified.");
-          }
-        } else {
-          var reason = (res && res.reason) || "unavailable";
-          var msg = reason === "not_found"
-            ? "No flight found for that number + date. Please enter details manually."
-            : "Flight API unavailable — please enter details manually.";
-          toast(msg);
-        }
-      })
-      .fail(function () { toast("Could not reach flight API — please enter manually."); })
-      .always(function () { $btn.prop("disabled", false).text(oldLabel); });
-    }
-
     // ============================================================
     // RETURN TRIP (v4)
     // ============================================================
@@ -1171,14 +1264,38 @@
       var $panel = $("#kfbReturnTripPanel");
       if (on) {
         $panel.removeAttr("hidden");
+        updateReturnTripAirportBlocks();
       } else {
         $panel.attr("hidden", true);
         // Clear any return-trip data
         state.returnDate = null;
         state.returnTime = null;
-        $('input[name="returnDate"]').val("");
-        $('input[name="returnTime"]').val("");
+        state.returnPickupTypeDetail = "Curbside";
+        state.returnTailNumber = "";
+        state.returnDropoffTypeDetail = "Curbside";
+        state.returnDropoffTailNumber = "";
+        $('input[name="returnDate"], input[name="returnTime"]').val("");
+        $('input[name="returnAirline"], input[name="returnFlightNumber"], input[name="returnArrivalTime"], input[name="returnTailNumber"]').val("");
+        $('input[name="returnDropoffAirline"], input[name="returnDropoffFlightNumber"], input[name="returnDropoffArrivalTime"], input[name="returnDropoffTailNumber"]').val("");
+        $("#kfbReturnPickupTypeDetail, #kfbReturnDropoffTypeDetail").val("Curbside");
+        $("#kfbReturnTailNumberWrap, #kfbReturnDropoffTailNumberWrap").attr("hidden", true);
+        $("#kfbReturnPickupFlightBlock, #kfbReturnDropoffFlightBlock").hide();
       }
+    }
+
+    /**
+     * Show/hide the return-leg flight-info blocks based on which of the
+     * original pickup/dropoff is an airport — the return leg swaps them,
+     * so an airport dropoff becomes the return leg's pickup and vice versa.
+     */
+    function updateReturnTripAirportBlocks() {
+      if (!state.isReturnTrip) return;
+      var pickupIsAirport = getLocType("pickup") === "Airport";
+      var returnDifferent = $("#kfbReturnDifferent").is(":checked");
+      var dropoffIsAirport = (returnDifferent ? getLocType("dropoff") : getLocType("pickup")) === "Airport";
+      // Return leg pickup = original dropoff; return leg dropoff = original pickup.
+      $("#kfbReturnPickupFlightBlock").toggle(dropoffIsAirport);
+      $("#kfbReturnDropoffFlightBlock").toggle(pickupIsAirport);
     }
 
     // ============================================================
@@ -1273,7 +1390,7 @@
 
     /**
      * Save the captured signature to the backend.
-     * Called from PayPal onApprove (right after capture).
+     * Called from submitBooking() right after the card is authorized.
      */
     function saveSignature() {
       if (!state.bookingId || !state.signatureData) return $.Deferred().resolve().promise();
@@ -1346,11 +1463,18 @@
       state.isReturnTrip = false;
       state.returnDate = null;
       state.returnTime = null;
+      state.returnPickupTypeDetail = "Curbside";
+      state.returnTailNumber = "";
+      state.returnDropoffTypeDetail = "Curbside";
+      state.returnDropoffTailNumber = "";
       state.pickupTypeDetail = "Curbside";
       state.tailNumber = "";
+      state.dropoffTypeDetail = "Curbside";
+      state.dropoffTailNumber = "";
       state.signatureData = null;
       state.minFareApplied = 0;
       state.meetGreetFee = 0;
+      state.dropoffMeetGreetFee = 0;
       $("#kfbForm")[0].reset();
       $("#kfbStopsContainer").empty();
       $("#kfbChildSeatsContainer").empty();
@@ -1358,12 +1482,18 @@
       $("#kfbAccountPrompt").attr("hidden", true);
       $("#kfbSignatureBlock").attr("hidden", true);
       $("#kfbReturnDifferent").prop("checked", true).trigger("change");
-      $('input[name="returnDate"], input[name="returnTime"], input[name="tailNumber"]').val("");
+      $('input[name="returnDate"], input[name="returnTime"], input[name="tailNumber"], input[name="dropoffTailNumber"], input[name="returnTailNumber"], input[name="returnDropoffTailNumber"]').val("");
       $(".kfb-airport-extras").hide();
       $("#kfbTailNumberWrap").attr("hidden", true);
+      $("#kfbDropoffTailNumberWrap").attr("hidden", true);
+      $("#kfbReturnTailNumberWrap").attr("hidden", true);
+      $("#kfbReturnDropoffTailNumberWrap").attr("hidden", true);
+      $("#kfbReturnPickupFlightBlock, #kfbReturnDropoffFlightBlock").hide();
       $("#kfbReturnTripPanel").attr("hidden", true);
       $("#kfbReturnTripToggle").prop("checked", false);
-      $('input[name="pickupTypeDetail"][value="Curbside"]').prop("checked", true);
+      $("#kfbPickupTypeDetail").val("Curbside");
+      $("#kfbDropoffTypeDetail").val("Curbside");
+      $("#kfbReturnPickupTypeDetail, #kfbReturnDropoffTypeDetail").val("Curbside");
       $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").show();
       $("#kfbSuccess").hide();
       // Re-seed addons catalog
@@ -1400,12 +1530,13 @@
         var on = $(this).is(":checked");
         if (on) $("#kfbDropoffWrap").slideDown(120);
         else    $("#kfbDropoffWrap").slideUp(120);
+        updateReturnTripAirportBlocks();
       });
 
       window.addEventListener("kfb:route-updated", function () {
         syncRouteFromMap();
         renderVehicles();
-        renderSideSummary();
+        recalcSelectedVehicle();
       });
 
       $(document).on("click", "[data-next]", function () { gotoStep(parseInt($(this).attr("data-next"), 10)); });
@@ -1416,16 +1547,19 @@
         if (e.key === "Enter") { e.preventDefault(); applyPromo(); }
       });
       $("#kfbResetBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
+      $("#kfbCancelBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
       $("#kfbSortVehicles").on("change", renderVehicles);
 
       // Live recompute summary on contact-info edits
       $(document).on("input", 'input[name="firstName"], input[name="lastName"], input[name="email"], input[name="phone"]', renderSideSummary);
 
       loadFleet();
+      loadSettings();
       loadAddons();
       renderVehicles();
       renderSideSummary();
-      renderPaypalButton();
+      mountStripeCard();
+      $("#kfbBookNowBtn").on("click", submitBooking);
       initSignaturePad();
 
       // Return trip toggle
@@ -1438,31 +1572,71 @@
         state.returnTime = $('input[name="returnTime"]').val() || null;
       });
 
-      // Pickup type detail (Curbside / Meet & Greet / Private Terminal)
-      $('input[name="pickupTypeDetail"]').on("change", function () {
+      // Pickup Point (Curbside / Meet & Greet / Private Terminal)
+      $("#kfbPickupTypeDetail").on("change", function () {
         state.pickupTypeDetail = $(this).val();
         var $tail = $("#kfbTailNumberWrap");
         if (state.pickupTypeDetail === "Private Terminal (FBO)") {
           $tail.removeAttr("hidden").find("input").prop("required", true);
         } else {
-          $tail.attr("hidden", true).find("input").prop("required", false);
+          $tail.attr("hidden", true).find("input").prop("required", false).val("");
+          state.tailNumber = "";
         }
-        if (state.selectedVehicle) {
-          state.selectedVehicle = $.extend({}, state.selectedVehicle, {
-            price: priceFor(state.selectedVehicle),
-            breakdown: priceBreakdown(state.selectedVehicle),
-          });
-          renderSideSummary();
-        }
+        recalcSelectedVehicle();
       });
       $('input[name="tailNumber"]').on("input", function () {
         state.tailNumber = $(this).val().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
         $(this).val(state.tailNumber);
       });
 
-      // Flight validation buttons
-      $("#kfbValidateFlightPickup").on("click", function () { validateFlight("pickup"); });
-      $("#kfbValidateFlightDropoff").on("click", function () { validateFlight("dropoff"); });
+      // Drop-Off Point (Curbside / Meet & Greet / Private Terminal)
+      $("#kfbDropoffTypeDetail").on("change", function () {
+        state.dropoffTypeDetail = $(this).val();
+        var $tail = $("#kfbDropoffTailNumberWrap");
+        if (state.dropoffTypeDetail === "Private Terminal (FBO)") {
+          $tail.removeAttr("hidden").find("input").prop("required", true);
+        } else {
+          $tail.attr("hidden", true).find("input").prop("required", false).val("");
+          state.dropoffTailNumber = "";
+        }
+        recalcSelectedVehicle();
+      });
+      $('input[name="dropoffTailNumber"]').on("input", function () {
+        state.dropoffTailNumber = $(this).val().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+        $(this).val(state.dropoffTailNumber);
+      });
+
+      // Return leg — Pickup Point (Curbside / Meet & Greet / Private Terminal)
+      $("#kfbReturnPickupTypeDetail").on("change", function () {
+        state.returnPickupTypeDetail = $(this).val();
+        var $tail = $("#kfbReturnTailNumberWrap");
+        if (state.returnPickupTypeDetail === "Private Terminal (FBO)") {
+          $tail.removeAttr("hidden").find("input").prop("required", true);
+        } else {
+          $tail.attr("hidden", true).find("input").prop("required", false).val("");
+          state.returnTailNumber = "";
+        }
+      });
+      $('input[name="returnTailNumber"]').on("input", function () {
+        state.returnTailNumber = $(this).val().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+        $(this).val(state.returnTailNumber);
+      });
+
+      // Return leg — Drop-Off Point (Curbside / Meet & Greet / Private Terminal)
+      $("#kfbReturnDropoffTypeDetail").on("change", function () {
+        state.returnDropoffTypeDetail = $(this).val();
+        var $tail = $("#kfbReturnDropoffTailNumberWrap");
+        if (state.returnDropoffTypeDetail === "Private Terminal (FBO)") {
+          $tail.removeAttr("hidden").find("input").prop("required", true);
+        } else {
+          $tail.attr("hidden", true).find("input").prop("required", false).val("");
+          state.returnDropoffTailNumber = "";
+        }
+      });
+      $('input[name="returnDropoffTailNumber"]').on("input", function () {
+        state.returnDropoffTailNumber = $(this).val().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+        $(this).val(state.returnDropoffTailNumber);
+      });
 
       // Initial state of side column
       gotoStep(1);

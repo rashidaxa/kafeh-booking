@@ -15,6 +15,11 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST   /admin/api/vehicles/:id/save        → update (+ optional image upload)
  *   POST   /admin/api/vehicles/:id/delete      → delete
  *   POST   /admin/api/vehicles/:id/toggle      → flip enabled/disabled
+ *   GET    /admin/api/reservations             → list (?status= filter)
+ *   GET    /admin/api/reservations/:id         → fetch one (trip + payment history)
+ *   POST   /admin/api/reservations/:id/accept  → capture held funds, mark paid
+ *   POST   /admin/api/reservations/:id/reject  → release hold, mark cancelled
+ *   POST   /admin/api/reservations/:id/charge  → bill the saved card again { amount, description? }
  */
 
 class Admin_api extends CI_Controller
@@ -25,8 +30,8 @@ class Admin_api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model']);
-        $this->load->library('session');
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Settings_model', 'Booking_model']);
+        $this->load->library(['session', 'stripe']);
         $this->load->helper('url');
         $this->_set_cors_headers();
 
@@ -273,6 +278,184 @@ class Admin_api extends CI_Controller
         $this->_json(['success' => TRUE, 'addon' => $this->Addon_model->get($id)]);
     }
 
+    // ----------------- Settings -----------------
+
+    /** GET /admin/api/settings */
+    public function settings_index()
+    {
+        $this->_require_login();
+        $this->_json(['success' => TRUE, 'settings' => $this->Settings_model->meet_greet_fees()]);
+    }
+
+    /** POST /admin/api/settings/save — { meet_greet_chicago, meet_greet_elsewhere } */
+    public function settings_update()
+    {
+        $this->_require_login();
+        $payload = $this->_collect_payload();
+
+        $chicago   = $payload['meet_greet_chicago']   ?? NULL;
+        $elsewhere = $payload['meet_greet_elsewhere'] ?? NULL;
+        $errors = [];
+        if ($chicago === NULL || $chicago === '' || !is_numeric($chicago) || (float)$chicago < 0) {
+            $errors['meet_greet_chicago'] = 'Must be a number 0 or greater.';
+        }
+        if ($elsewhere === NULL || $elsewhere === '' || !is_numeric($elsewhere) || (float)$elsewhere < 0) {
+            $errors['meet_greet_elsewhere'] = 'Must be a number 0 or greater.';
+        }
+        if (!empty($errors)) {
+            return $this->_error('Validation failed', 422, ['fields' => $errors]);
+        }
+
+        $this->Settings_model->set_many([
+            'meet_greet_chicago'   => number_format((float)$chicago, 2, '.', ''),
+            'meet_greet_elsewhere' => number_format((float)$elsewhere, 2, '.', ''),
+        ]);
+        $this->_json(['success' => TRUE, 'settings' => $this->Settings_model->meet_greet_fees()]);
+    }
+
+    // ----------------- Reservations -----------------
+
+    /** GET /admin/api/reservations?status= */
+    public function reservations_index()
+    {
+        $this->_require_login();
+        $status = trim((string)$this->input->get('status'));
+        $this->_json(['success' => TRUE, 'reservations' => $this->Booking_model->list_all(
+            $status !== '' ? ['status' => $status] : []
+        )]);
+    }
+
+    /** GET /admin/api/reservations/:id */
+    public function reservations_get($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $row = $this->Booking_model->get_booking($id);
+        if (!$row) return $this->_error('Reservation not found', 404);
+        $this->_json(['success' => TRUE, 'reservation' => $row]);
+    }
+
+    /**
+     * POST /admin/api/reservations/:id/accept
+     * Captures the held funds, marks the reservation paid, bumps promo
+     * usage, and sends the customer's confirmation email.
+     */
+    public function reservations_accept($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $booking = $this->Booking_model->get_booking($id);
+        if (!$booking) return $this->_error('Reservation not found', 404);
+        if (empty($booking['stripe_payment_intent_id'])) {
+            return $this->_error('This reservation has no authorized payment to capture.', 422);
+        }
+        if ($booking['status'] !== 'awaiting_approval') {
+            return $this->_error('Only reservations awaiting approval can be accepted (current status: ' . $booking['status'] . ').', 422);
+        }
+
+        try {
+            $intent = $this->stripe->capturePaymentIntent($booking['stripe_payment_intent_id']);
+        } catch (Exception $e) {
+            log_message('error', '[Admin_api] reservations_accept capture: ' . $e->getMessage());
+            return $this->_error('Stripe capture failed', 502, ['detail' => $e->getMessage()]);
+        }
+
+        $this->Booking_model->record_payment($id, $intent['id'], 'capture', $intent['status'] ?? 'succeeded', [
+            'amount'   => ($intent['amount'] ?? 0) / 100,
+            'currency' => strtoupper($intent['currency'] ?? 'usd'),
+            'intent'   => $intent,
+        ]);
+        $this->Booking_model->set_approval($id, 'paid', $this->session->userdata('admin_username'));
+
+        if (!empty($booking['promo_code'])) {
+            $this->Promo_model->record_booking_use($booking['promo_code']);
+        }
+        if ($this->config->item('send_confirmation_email', 'kafeh')) {
+            $this->_send_confirmation($booking);
+        }
+
+        $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);
+    }
+
+    /**
+     * POST /admin/api/reservations/:id/reject
+     * Releases the authorization hold — nothing is charged — and marks
+     * the reservation cancelled.
+     */
+    public function reservations_reject($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $booking = $this->Booking_model->get_booking($id);
+        if (!$booking) return $this->_error('Reservation not found', 404);
+        if (empty($booking['stripe_payment_intent_id'])) {
+            return $this->_error('This reservation has no authorized payment to cancel.', 422);
+        }
+        if ($booking['status'] !== 'awaiting_approval') {
+            return $this->_error('Only reservations awaiting approval can be rejected (current status: ' . $booking['status'] . ').', 422);
+        }
+
+        try {
+            $intent = $this->stripe->cancelPaymentIntent($booking['stripe_payment_intent_id']);
+        } catch (Exception $e) {
+            log_message('error', '[Admin_api] reservations_reject cancel: ' . $e->getMessage());
+            return $this->_error('Stripe cancel failed', 502, ['detail' => $e->getMessage()]);
+        }
+
+        $this->Booking_model->record_payment($id, $intent['id'], 'cancel', $intent['status'] ?? 'canceled', [
+            'amount'   => ($intent['amount'] ?? 0) / 100,
+            'currency' => strtoupper($intent['currency'] ?? 'usd'),
+            'intent'   => $intent,
+        ]);
+        $this->Booking_model->set_approval($id, 'cancelled', $this->session->userdata('admin_username'));
+
+        $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);
+    }
+
+    /**
+     * POST /admin/api/reservations/:id/charge — { amount, description? }
+     * Bills the reservation's saved card again (e.g. extra waiting time
+     * discovered after the trip). Works on any reservation with a saved
+     * card, regardless of its current status.
+     */
+    public function reservations_charge($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $booking = $this->Booking_model->get_booking($id);
+        if (!$booking) return $this->_error('Reservation not found', 404);
+        if (empty($booking['stripe_customer_id']) || empty($booking['stripe_payment_method_id'])) {
+            return $this->_error('This reservation has no saved card to charge.', 422);
+        }
+
+        $payload = $this->_collect_payload();
+        $amount = $payload['amount'] ?? NULL;
+        if (!is_numeric($amount) || (float)$amount <= 0) {
+            return $this->_error('Validation failed', 422, ['fields' => ['amount' => 'Enter an amount greater than 0.']]);
+        }
+        $description = trim((string)($payload['description'] ?? '')) ?: ('Additional charge — booking ' . $id);
+
+        try {
+            $intent = $this->stripe->createOffSessionCharge(
+                $amount, $booking['stripe_customer_id'], $booking['stripe_payment_method_id'], $description
+            );
+        } catch (Stripe_CardException $e) {
+            return $this->_error($e->getMessage(), 402);
+        } catch (Exception $e) {
+            log_message('error', '[Admin_api] reservations_charge: ' . $e->getMessage());
+            return $this->_error('Stripe charge failed', 502, ['detail' => $e->getMessage()]);
+        }
+
+        $this->Booking_model->record_payment($id, $intent['id'], 'additional_charge', $intent['status'] ?? 'succeeded', [
+            'amount'      => $amount,
+            'currency'    => strtoupper($intent['currency'] ?? 'usd'),
+            'description' => $description,
+            'intent'      => $intent,
+        ]);
+
+        $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);
+    }
+
     // ----------------- helpers -----------------
 
     /** Combine POST fields and JSON body so the API works for both forms and fetch(). */
@@ -296,6 +479,31 @@ class Admin_api extends CI_Controller
             $payload['status'] = ((int)$payload['status'] || $payload['status'] === 'on' || $payload['status'] === TRUE) ? 1 : 0;
         }
         return $payload;
+    }
+
+    /** Best-effort confirmation email, sent once a reservation is accepted. */
+    protected function _send_confirmation($booking)
+    {
+        $to      = $booking['email'];
+        $subject = 'Booking ' . $booking['booking_id'] . ' Confirmed';
+        $body    =
+            "Hi {$booking['first_name']},\n\n" .
+            "Your booking is confirmed.\n\n" .
+            "Booking ID: {$booking['booking_id']}\n" .
+            "Service:    {$booking['service_type']}\n" .
+            "Pickup:     {$booking['pickup_date']} at {$booking['pickup_time']}\n" .
+            "From:       {$booking['pickup']}\n" .
+            "To:         {$booking['dropoff']}\n" .
+            "Vehicle:    {$booking['vehicle_name']}\n" .
+            "Amount:     \${$booking['amount']}\n" .
+            (!empty($booking['promo_code'])
+                ? "Promo:      {$booking['promo_code']} (-\${$booking['discount_amount']})\n"
+                : "") .
+            "\nThank you for choosing our chauffeur service.\n";
+        $headers = "From: no-reply@bookings.local\r\n";
+
+        // Best-effort. If your server doesn't have mail() configured, swap for SMTP.
+        @mail($to, $subject, $body, $headers);
     }
 
     protected function _require_login()

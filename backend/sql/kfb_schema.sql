@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `dropoff_pickup_point`    VARCHAR(50)  NULL COMMENT 'Curb / Terminal / Departure hall when dropoff loc type = Airport',
   `pickup_type_detail`     VARCHAR(30)  NULL COMMENT 'Curbside | Meet & Greet | Private Terminal (FBO)',
   `tail_number`             VARCHAR(20)  NULL,
+  `dropoff_type_detail`     VARCHAR(30)  NULL COMMENT 'Curbside | Meet & Greet | Private Terminal (FBO)',
+  `dropoff_tail_number`     VARCHAR(20)  NULL,
   `addons_json`             TEXT         NULL,
   `addons_total`            DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `min_fare_applied`        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -41,6 +43,13 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `signature_at`            DATETIME     NULL,
   `terms_version`           VARCHAR(20)  NULL,
   `customer_id`             INT UNSIGNED NULL,
+  `stripe_customer_id`       VARCHAR(64)  NULL COMMENT 'Stripe Customer id — card saved here for future off-session charges',
+  `stripe_payment_method_id` VARCHAR(64)  NULL COMMENT 'Stripe PaymentMethod id of the saved card',
+  `stripe_payment_intent_id` VARCHAR(64)  NULL COMMENT 'PaymentIntent for the original authorization/capture',
+  `card_brand`               VARCHAR(20)  NULL,
+  `card_last4`               VARCHAR(4)   NULL,
+  `approved_at`              DATETIME     NULL COMMENT 'When an admin accepted or rejected this reservation',
+  `approved_by`              VARCHAR(60)  NULL COMMENT 'Admin username who accepted/rejected',
   `passengers`      TINYINT      NOT NULL DEFAULT 1,
   `luggage`         TINYINT      NOT NULL DEFAULT 0,
   `child_seats`     TINYINT      NOT NULL DEFAULT 0,
@@ -58,7 +67,7 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `last_name`       VARCHAR(100) NULL,
   `email`           VARCHAR(150) NULL,
   `phone`           VARCHAR(50)  NULL,
-  `status`          ENUM('pending','awaiting_payment','paid','payment_failed','cancelled','refunded')
+  `status`          ENUM('pending','awaiting_payment','awaiting_approval','paid','payment_failed','cancelled','refunded')
                     NOT NULL DEFAULT 'pending',
   `paypal_order_id` VARCHAR(64)  NULL,
   `ip_address`      VARCHAR(45)  NULL,
@@ -87,8 +96,10 @@ CREATE TABLE IF NOT EXISTS `kfb_stops` (
 CREATE TABLE IF NOT EXISTS `kfb_payments` (
   `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `booking_id`     VARCHAR(32)  NOT NULL,
-  `paypal_order_id`VARCHAR(64)  NULL,
-  `event`          ENUM('create','capture','refund') NOT NULL,
+  `paypal_order_id`VARCHAR(64)  NULL COMMENT 'Legacy — PayPal is no longer used, kept for historical rows',
+  `provider`       VARCHAR(20)  NOT NULL DEFAULT 'stripe' COMMENT 'stripe | paypal (legacy rows)',
+  `stripe_payment_intent_id` VARCHAR(64) NULL,
+  `event`          ENUM('create','capture','refund','authorize','cancel','additional_charge') NOT NULL,
   `status`         VARCHAR(40)  NULL,
   `amount`         DECIMAL(10,2) NULL,
   `currency`       CHAR(3)       NULL,
@@ -132,6 +143,9 @@ CREATE TABLE IF NOT EXISTS `kfb_promo_codes` (
   KEY `idx_status`  (`status`),
   KEY `idx_expires` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Vehicles -----------------
+CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   `id`               INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 
   -- General
@@ -180,7 +194,9 @@ CREATE TABLE IF NOT EXISTS `kfb_promo_codes` (
   -- Minimum fare (v4) — bill at least this amount regardless of distance
   `min_fare`             DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
-  -- Meet & Greet fee (v4) — configurable per region
+  -- Meet & Greet fee (v4) — DEPRECATED as of v5: the fee is now a single
+  -- global setting (see `kfb_settings`), not per-vehicle. Columns kept
+  -- for backward compatibility but no longer read or written.
   `meet_greet_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 65.00,
   `meet_greet_elsewhere` DECIMAL(10,2) NOT NULL DEFAULT 95.00,
 
@@ -251,3 +267,17 @@ CREATE TABLE IF NOT EXISTS `kfb_customers` (
   UNIQUE KEY `uniq_customer_email` (`email`),
   KEY `idx_customer_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Global settings (v5, key/value) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_settings` (
+  `setting_key`   VARCHAR(64)  NOT NULL PRIMARY KEY,
+  `setting_value` VARCHAR(255) NULL,
+  `updated_at`    DATETIME     NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `kfb_settings` (`setting_key`, `setting_value`, `updated_at`)
+SELECT * FROM (
+  SELECT 'meet_greet_chicago'   AS setting_key, '65.00' AS setting_value, NOW() AS updated_at
+  UNION ALL SELECT 'meet_greet_elsewhere', '95.00', NOW()
+) AS seed
+WHERE NOT EXISTS (SELECT 1 FROM `kfb_settings` LIMIT 1);

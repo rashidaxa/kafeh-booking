@@ -10,12 +10,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 $route['api/health']                 = 'api/health';
 $route['api/fleet']                  = 'api/fleet';
+$route['api/settings']               = 'api/settings';
 $route['api/addons']                 = 'api/addons';
 $route['api/flights/validate']       = 'api/flights_validate';
 $route['api/reservation']            = 'api/reservation_create';
-$route['api/reservation/(:any)']     = 'api/reservation_get/$1';
+// More specific routes must come before the (:any) wildcard below —
+// CI3 matches routes in declaration order, so reservation/sign would
+// otherwise be swallowed by reservation/(:any) and never reached.
 $route['api/reservation/sign']       = 'api/reservation_sign';
+$route['api/reservation/(:any)']     = 'api/reservation_get/$1';
 $route['api/customers/register']     = 'api/customer_register';
-$route['api/paypal/create-order']    = 'api/paypal_create_order';
-$route['api/paypal/capture-order/(:any)'] = 'api/paypal_capture_order/$1';
+$route['api/stripe/create-intent']   = 'api/stripe_create_intent';
+$route['api/stripe/finalize']        = 'api/stripe_finalize';
 $route['api/promo/validate']         = 'api/promo_validate';

@@ -319,6 +319,41 @@
     });
   }
 
+  // -------- Settings form (Meet & Greet fee) --------
+  var settingsForm = $("#kfbSettingsForm");
+  if (settingsForm) {
+    settingsForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearErrors();
+      var savedNote = $("#kfbSettingsSaved");
+      if (savedNote) savedNote.hidden = true;
+
+      var data = new FormData(settingsForm);
+      var submitBtn = settingsForm.querySelector('button[type="submit"]');
+      var oldLabel = submitBtn ? submitBtn.textContent : null;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
+
+      fetch(settingsForm.action, {
+        method: "POST", body: data, credentials: "same-origin",
+      })
+      .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; })
+        .then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        if (res.body && res.body.success) {
+          if (savedNote) { savedNote.hidden = false; }
+        } else if (res.body && res.body.fields) {
+          showErrors(res.body.fields);
+        } else {
+          showErrors({ _all: (res.body && res.body.error) || "Save failed." });
+        }
+      })
+      .catch(function (err) { showErrors({ _all: "Network error: " + (err && err.message ? err.message : err) }); })
+      .finally(function () {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldLabel; }
+      });
+    });
+  }
+
   // -------- Add-on delete button --------
   var delAddonBtn = $("#kfbDeleteAddon");
   if (delAddonBtn) {
@@ -357,6 +392,84 @@
         delAddonBtn.disabled = false;
         delAddonBtn.textContent = oldLabel;
       });
+  }
+
+  // -------- Reservation Accept / Reject --------
+  function wireReservationDecisionButton(id, confirmMsg, failMsg) {
+    var btn = $(id);
+    if (!btn) return;
+    btn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var proceed = function () {
+        var endpoint = btn.getAttribute("data-endpoint");
+        if (!endpoint) return;
+        btn.disabled = true;
+        var oldLabel = btn.textContent;
+        btn.textContent = "Working…";
+        fetch(endpoint, { method: "POST", credentials: "same-origin" })
+          .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
+          .then(function (j) {
+            if (j && j.success) {
+              window.location.reload();
+            } else {
+              alert((j && j.error) || failMsg);
+              btn.disabled = false;
+              btn.textContent = oldLabel;
+            }
+          })
+          .catch(function (err) {
+            alert("Network error: " + (err && err.message ? err.message : err));
+            btn.disabled = false;
+            btn.textContent = oldLabel;
+          });
+      };
+      if (window.KFB && typeof window.KFB.confirm === "function") {
+        Promise.resolve(window.KFB.confirm(confirmMsg)).then(function (ok) { if (ok) proceed(); });
+      } else if (window.confirm(confirmMsg)) {
+        proceed();
+      }
+    });
+  }
+  wireReservationDecisionButton(
+    "#kfbAcceptBtn",
+    "Accept this reservation? The held amount will be captured from the customer's card immediately.",
+    "Accept failed."
+  );
+  wireReservationDecisionButton(
+    "#kfbRejectBtn",
+    "Reject this reservation? The authorization hold will be released — nothing will be charged.",
+    "Reject failed."
+  );
+
+  // -------- Reservation: charge saved card for an additional amount --------
+  var chargeForm = $("#kfbChargeForm");
+  if (chargeForm) {
+    chargeForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearErrors();
+
+      var data = new FormData(chargeForm);
+      var submitBtn = chargeForm.querySelector('button[type="submit"]');
+      var oldLabel = submitBtn ? submitBtn.textContent : null;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Charging…"; }
+
+      fetch(chargeForm.action, { method: "POST", body: data, credentials: "same-origin" })
+        .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; })
+          .then(function (j) { return { status: r.status, body: j }; }); })
+        .then(function (res) {
+          if (res.body && res.body.success) {
+            window.location.reload();
+          } else if (res.body && res.body.fields) {
+            showErrors(res.body.fields);
+          } else {
+            showErrors({ _all: (res.body && res.body.error) || "Charge failed." });
+          }
+        })
+        .catch(function (err) { showErrors({ _all: "Network error: " + (err && err.message ? err.message : err) }); })
+        .finally(function () {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldLabel; }
+        });
+    });
   }
 
   function clearErrors() {

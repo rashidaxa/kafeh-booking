@@ -155,9 +155,9 @@ $rate_groups = [
         </fieldset>
       <?php endforeach; ?>
 
-      <!-- ============ Minimum fare + Meet & Greet (v4) ============ -->
+      <!-- ============ Minimum fare (v4) ============ -->
       <fieldset class="kfb-fieldset">
-        <legend>Minimum fare &amp; Meet &amp; Greet</legend>
+        <legend>Minimum fare</legend>
         <label class="kfb-field">
           <span>Minimum fare <small class="kfb-hint">USD — bill at least this regardless of distance</small></span>
           <div class="kfb-money">
@@ -166,22 +166,10 @@ $rate_groups = [
                    value="<?= $is_edit ? number_format((float)($editing['min_fare'] ?? 0), 2, '.', '') : '0.00' ?>">
           </div>
         </label>
-        <label class="kfb-field">
-          <span>Meet &amp; Greet — Chicago <small class="kfb-hint">USD flat fee</small></span>
-          <div class="kfb-money">
-            <span class="kfb-money-prefix">$</span>
-            <input type="number" name="meet_greet_chicago" min="0" step="0.01"
-                   value="<?= $is_edit ? number_format((float)($editing['meet_greet_chicago'] ?? 65), 2, '.', '') : '65.00' ?>">
-          </div>
-        </label>
-        <label class="kfb-field">
-          <span>Meet &amp; Greet — elsewhere <small class="kfb-hint">USD flat fee</small></span>
-          <div class="kfb-money">
-            <span class="kfb-money-prefix">$</span>
-            <input type="number" name="meet_greet_elsewhere" min="0" step="0.01"
-                   value="<?= $is_edit ? number_format((float)($editing['meet_greet_elsewhere'] ?? 95), 2, '.', '') : '95.00' ?>">
-          </div>
-        </label>
+        <p class="kfb-hint">
+          The Meet &amp; Greet fee is now a global setting — manage it under
+          <a href="<?= site_url('admin/settings') ?>">Settings</a> instead of per vehicle.
+        </p>
       </fieldset>
 
       <!-- ============ Image ============ -->

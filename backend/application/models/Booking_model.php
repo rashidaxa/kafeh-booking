@@ -16,26 +16,24 @@ class Booking_model extends CI_Model
         parent::__construct();
     }
 
-    /** Create a new booking. Returns the booking_id. */
+    /**
+     * Create a new booking. Returns the booking_id.
+     *
+     * When isReturnTrip is set, a second linked booking row is also created
+     * for the return leg: pickup/dropoff are swapped (the outbound dropoff
+     * becomes the return leg's pickup, and vice versa), the return leg's
+     * own airport/flight fields (returnAirline, returnFlightNumber, ...
+     * returnDropoffAirline, returnDropoffFlightNumber, ...) are used, and
+     * the two rows are linked both ways via return_booking_id.
+     */
     public function create_booking(array $data)
     {
-        $booking_id = 'KFB-' . strtoupper(base_convert((string)(microtime(true) * 1000), 10, 36));
+        $booking_id = $this->_new_booking_id();
+        list($childSeats, $childSeatsBreakdown) = $this->_normalize_child_seats($data);
 
-        // Normalize child seat breakdown if it's an array → JSON
-        $childSeats = (int)($data['childSeats'] ?? 0);
-        $childSeatsBreakdown = NULL;
-        if (!empty($data['childSeatsBreakdown']) && is_array($data['childSeatsBreakdown'])) {
-            $clean = [];
-            foreach ($data['childSeatsBreakdown'] as $type => $qty) {
-                $qty = (int)$qty;
-                if ($qty > 0) $clean[substr((string)$type, 0, 40)] = $qty;
-            }
-            if (!empty($clean)) {
-                $childSeatsBreakdown = json_encode($clean, JSON_UNESCAPED_UNICODE);
-                $childSeats = array_sum($clean);
-            }
-        } elseif (!empty($data['childSeatsBreakdown']) && is_string($data['childSeatsBreakdown'])) {
-            $childSeatsBreakdown = $data['childSeatsBreakdown'];
+        $return_booking_id = NULL;
+        if (!empty($data['isReturnTrip'])) {
+            $return_booking_id = $this->_create_return_leg($data, $booking_id, $childSeats, $childSeatsBreakdown);
         }
 
         // Normalize add-ons if provided
@@ -67,11 +65,13 @@ class Booking_model extends CI_Model
             'dropoff_pickup_point'  => !empty($data['dropoffPickupPoint']) ? $data['dropoffPickupPoint'] : NULL,
             'pickup_type_detail'    => $data['pickupTypeDetail'] ?? NULL,
             'tail_number'           => !empty($data['tailNumber']) ? strtoupper(trim($data['tailNumber'])) : NULL,
+            'dropoff_type_detail'   => $data['dropoffTypeDetail'] ?? NULL,
+            'dropoff_tail_number'   => !empty($data['dropoffTailNumber']) ? strtoupper(trim($data['dropoffTailNumber'])) : NULL,
             'addons_json'           => $addonsJson,
             'addons_total'          => $addonsTotal,
             'min_fare_applied'      => (float)($data['minFareApplied'] ?? 0),
             'is_return_trip'        => !empty($data['isReturnTrip']) ? 1 : 0,
-            'return_booking_id'     => $data['returnBookingId'] ?? NULL,
+            'return_booking_id'     => $return_booking_id,
             'return_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
             'return_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,
             'passengers'            => (int)($data['passengers'] ?? 1),
@@ -96,7 +96,7 @@ class Booking_model extends CI_Model
             'ip_address'            => $this->input->ip_address(),
         ]);
 
-        // Stops
+        // Stops (outbound leg only — the widget doesn't collect separate return-leg stops)
         if (!empty($data['stops']) && is_array($data['stops'])) {
             foreach (array_values($data['stops']) as $i => $addr) {
                 $this->db->insert('kfb_stops', [
@@ -107,7 +107,7 @@ class Booking_model extends CI_Model
             }
         }
 
-        // Add-on line items
+        // Add-on line items (outbound leg only)
         if (!empty($data['addons']) && is_array($data['addons'])) {
             foreach ($data['addons'] as $a) {
                 $this->db->insert('kfb_booking_addons', [
@@ -124,6 +124,98 @@ class Booking_model extends CI_Model
         }
 
         return $booking_id;
+    }
+
+    /**
+     * Insert the return leg's booking row and return its booking_id.
+     *
+     * Pickup/dropoff are the outbound leg's dropoff/pickup swapped — the
+     * widget already resolves $data['pickup']/$data['dropoff'] (and their
+     * loc types) to their final values before submitting, so we just flip
+     * them rather than re-deriving anything. Fare/add-ons/promo are left
+     * at 0 — the whole reservation is authorized and captured as one Stripe
+     * PaymentIntent against the outbound booking (see update_booking_status(),
+     * which also marks this row paid/cancelled when the outbound one is).
+     */
+    protected function _create_return_leg(array $data, $primary_booking_id, $childSeats, $childSeatsBreakdown)
+    {
+        $return_booking_id = $this->_new_booking_id();
+
+        $this->db->insert('kfb_bookings', [
+            'booking_id'            => $return_booking_id,
+            'service_type'          => $data['service'] ?? NULL,
+            'pickup_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
+            'pickup_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,
+            'pickup_loc_type'       => $data['dropoffType'] ?? NULL,
+            'dropoff_loc_type'      => $data['pickupType'] ?? NULL,
+            'pickup'                => $data['dropoff'] ?? NULL,
+            'dropoff'               => $data['pickup'] ?? NULL,
+            'airline'               => !empty($data['returnAirline']) ? trim($data['returnAirline']) : NULL,
+            'flight_number'         => !empty($data['returnFlightNumber']) ? strtoupper(trim($data['returnFlightNumber'])) : NULL,
+            'arrival_time'          => !empty($data['returnArrivalTime']) ? $data['returnArrivalTime'] : NULL,
+            'pickup_type_detail'    => $data['returnPickupTypeDetail'] ?? NULL,
+            'tail_number'           => !empty($data['returnTailNumber']) ? strtoupper(trim($data['returnTailNumber'])) : NULL,
+            'dropoff_airline'       => !empty($data['returnDropoffAirline']) ? trim($data['returnDropoffAirline']) : NULL,
+            'dropoff_flight_number' => !empty($data['returnDropoffFlightNumber']) ? strtoupper(trim($data['returnDropoffFlightNumber'])) : NULL,
+            'dropoff_arrival_time'  => !empty($data['returnDropoffArrivalTime']) ? $data['returnDropoffArrivalTime'] : NULL,
+            'dropoff_type_detail'   => $data['returnDropoffTypeDetail'] ?? NULL,
+            'dropoff_tail_number'   => !empty($data['returnDropoffTailNumber']) ? strtoupper(trim($data['returnDropoffTailNumber'])) : NULL,
+            'addons_json'           => NULL,
+            'addons_total'          => 0.00,
+            'min_fare_applied'      => 0.00,
+            'is_return_trip'        => 1,
+            'return_booking_id'     => $primary_booking_id,
+            'return_date'           => $data['pickupDate'] ?? NULL,
+            'return_time'           => $data['pickupTime'] ?? NULL,
+            'passengers'            => (int)($data['passengers'] ?? 1),
+            'luggage'               => (int)($data['luggage'] ?? 0),
+            'child_seats'           => $childSeats,
+            'child_seats_breakdown' => $childSeatsBreakdown,
+            'notes'                 => $data['notes'] ?? NULL,
+            'vehicle_id'            => $data['vehicle_id'] ?? NULL,
+            'vehicle_name'          => $data['vehicle_name'] ?? NULL,
+            'distance_miles'        => (float)($data['distanceMiles'] ?? 0),
+            'duration_mins'         => (int)($data['durationMins'] ?? 0),
+            'amount'                => 0.00,
+            'discount_amount'       => 0.00,
+            'promo_code'            => NULL,
+            'currency'              => 'USD',
+            'first_name'            => $data['firstName'] ?? NULL,
+            'last_name'             => $data['lastName'] ?? NULL,
+            'email'                 => $data['email'] ?? NULL,
+            'phone'                 => $data['phone'] ?? NULL,
+            'status'                => 'pending',
+            'created_at'            => date('Y-m-d H:i:s'),
+            'ip_address'            => $this->input->ip_address(),
+        ]);
+
+        return $return_booking_id;
+    }
+
+    protected function _new_booking_id()
+    {
+        return 'KFB-' . strtoupper(base_convert((string)(microtime(true) * 1000), 10, 36));
+    }
+
+    /** Normalize child seat breakdown if it's an array → JSON. Returns [count, json|NULL]. */
+    protected function _normalize_child_seats(array $data)
+    {
+        $childSeats = (int)($data['childSeats'] ?? 0);
+        $childSeatsBreakdown = NULL;
+        if (!empty($data['childSeatsBreakdown']) && is_array($data['childSeatsBreakdown'])) {
+            $clean = [];
+            foreach ($data['childSeatsBreakdown'] as $type => $qty) {
+                $qty = (int)$qty;
+                if ($qty > 0) $clean[substr((string)$type, 0, 40)] = $qty;
+            }
+            if (!empty($clean)) {
+                $childSeatsBreakdown = json_encode($clean, JSON_UNESCAPED_UNICODE);
+                $childSeats = array_sum($clean);
+            }
+        } elseif (!empty($data['childSeatsBreakdown']) && is_string($data['childSeatsBreakdown'])) {
+            $childSeatsBreakdown = $data['childSeatsBreakdown'];
+        }
+        return [$childSeats, $childSeatsBreakdown];
     }
 
     /**
@@ -153,30 +245,92 @@ class Booking_model extends CI_Model
             ->order_by('created_at', 'DESC')
             ->get_where('kfb_payments', ['booking_id' => $booking_id])
             ->result_array();
+        $row['return_leg'] = !empty($row['return_booking_id'])
+            ? $this->db->get_where('kfb_bookings', ['booking_id' => $row['return_booking_id']])->row_array()
+            : NULL;
         return $row;
     }
 
-    public function record_payment($booking_id, $paypal_order_id, $event, $status, $payload = [])
+    /** Log a Stripe lifecycle event (authorize / capture / cancel / additional_charge) against a booking. */
+    public function record_payment($booking_id, $payment_intent_id, $event, $status, $payload = [])
     {
         $this->db->insert('kfb_payments', [
-            'booking_id'      => $booking_id,
-            'paypal_order_id' => $paypal_order_id,
-            'event'           => $event,        // 'create' | 'capture' | 'refund'
-            'status'          => $status,        // 'CREATED' | 'COMPLETED' | 'FAILED'
-            'amount'          => $payload['amount'] ?? NULL,
-            'currency'        => $payload['currency'] ?? 'USD',
-            'raw_response'    => json_encode($payload),
-            'created_at'      => date('Y-m-d H:i:s'),
+            'booking_id'               => $booking_id,
+            'provider'                 => 'stripe',
+            'stripe_payment_intent_id' => $payment_intent_id,
+            'event'                    => $event,        // 'authorize' | 'capture' | 'cancel' | 'additional_charge'
+            'status'                   => $status,        // Stripe PaymentIntent status, e.g. 'requires_capture' | 'succeeded' | 'canceled'
+            'amount'                   => $payload['amount'] ?? NULL,
+            'currency'                 => $payload['currency'] ?? 'USD',
+            'raw_response'             => json_encode($payload),
+            'created_at'               => date('Y-m-d H:i:s'),
         ]);
     }
 
-    public function update_booking_status($booking_id, $status, $paypal_order_id = NULL)
+    /**
+     * Persist the result of the initial Stripe authorization on a booking
+     * (card + PaymentIntent) and mark it awaiting admin approval. Only
+     * touches the leg that was actually charged — see the class doc on
+     * _create_return_leg() for why the return leg doesn't carry its own
+     * payment info.
+     */
+    public function save_stripe_auth($booking_id, array $data)
+    {
+        return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
+            'stripe_customer_id'       => $data['stripe_customer_id']       ?? NULL,
+            'stripe_payment_method_id' => $data['stripe_payment_method_id'] ?? NULL,
+            'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? NULL,
+            'card_brand'               => $data['card_brand'] ?? NULL,
+            'card_last4'               => $data['card_last4'] ?? NULL,
+            'status'                   => 'awaiting_approval',
+            'updated_at'               => date('Y-m-d H:i:s'),
+        ]) ? TRUE : FALSE;
+    }
+
+    /**
+     * List bookings for the admin reservations screen. Return-trip legs are
+     * synthetic rows (amount always 0, see _create_return_leg()) that ride
+     * on the outbound leg's payment — they're excluded here and shown
+     * nested under the outbound booking's detail page instead.
+     */
+    public function list_all(array $filters = [])
+    {
+        $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
+        if (!empty($filters['status'])) $this->db->where('status', $filters['status']);
+        return $this->db->order_by('created_at', 'DESC')->get('kfb_bookings')->result_array();
+    }
+
+    /** Record an admin accept/reject decision: status + audit stamp, cascading to a linked return leg. */
+    public function set_approval($booking_id, $status, $admin_username)
+    {
+        $this->update_booking_status($booking_id, $status);
+
+        $ids = [$booking_id];
+        $row = $this->db->select('return_booking_id')->get_where('kfb_bookings', ['booking_id' => $booking_id])->row_array();
+        if (!empty($row['return_booking_id'])) $ids[] = $row['return_booking_id'];
+
+        $this->db->where_in('booking_id', $ids)->update('kfb_bookings', [
+            'approved_at' => date('Y-m-d H:i:s'),
+            'approved_by' => $admin_username,
+        ]);
+    }
+
+    public function update_booking_status($booking_id, $status)
     {
         $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
             'status'         => $status,
-            'paypal_order_id'=> $paypal_order_id,
             'updated_at'     => date('Y-m-d H:i:s'),
         ]);
+
+        // Return-trip bookings are two linked rows charged as a single Stripe
+        // authorization — keep the linked leg's status in sync with this one.
+        $row = $this->db->select('return_booking_id')->get_where('kfb_bookings', ['booking_id' => $booking_id])->row_array();
+        if (!empty($row['return_booking_id'])) {
+            $this->db->where('booking_id', $row['return_booking_id'])->update('kfb_bookings', [
+                'status'         => $status,
+                'updated_at'     => date('Y-m-d H:i:s'),
+            ]);
+        }
     }
 
     /** Get the enabled fleet from kfb_vehicles (DB-driven, replaces the old static list). */
@@ -230,8 +384,6 @@ class Booking_model extends CI_Model
                 'child_seat_worldwide' => (float)($row['child_seat_worldwide'] ?? 0),
 
                 'min_fare'             => (float)($row['min_fare']             ?? 0),
-                'meet_greet_chicago'   => (float)($row['meet_greet_chicago']   ?? 65),
-                'meet_greet_elsewhere' => (float)($row['meet_greet_elsewhere'] ?? 95),
             ];
         }, $rows);
     }

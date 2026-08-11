@@ -35,6 +35,11 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST /admin/api/vehicles/:id/save        → Admin_api::vehicles_update/:id
  *   POST /admin/api/vehicles/:id/delete      → Admin_api::vehicles_delete/:id
  *   POST /admin/api/vehicles/:id/toggle      → Admin_api::vehicles_toggle/:id
+ *   GET  /admin/api/reservations             → Admin_api::reservations_index
+ *   GET  /admin/api/reservations/:id         → Admin_api::reservations_get/:id
+ *   POST /admin/api/reservations/:id/accept  → Admin_api::reservations_accept/:id
+ *   POST /admin/api/reservations/:id/reject  → Admin_api::reservations_reject/:id
+ *   POST /admin/api/reservations/:id/charge  → Admin_api::reservations_charge/:id
  */
 
 // ---- Auth ----
@@ -55,6 +60,11 @@ $route['admin/promos/(:num)']                  = 'admin/promo_edit/$1';
 $route['admin/addons']                         = 'admin/addons';
 $route['admin/addons/new']                     = 'admin/addon_new';
 $route['admin/addons/(:num)']                  = 'admin/addon_edit/$1';
+$route['admin/settings']                       = 'admin/settings';
+$route['admin/reservations']                   = 'admin/reservations';
+// booking_id is not numeric (e.g. KFB-AB12CD), so this uses (:any) — it
+// must stay the LAST reservations route since :any is greedy.
+$route['admin/reservations/(:any)']            = 'admin/reservation_detail/$1';
 
 // ---- JSON API ----
 $route['admin/api/me']                         = 'admin_api/me';
@@ -73,3 +83,12 @@ $route['admin/api/addons/save']                = 'admin_api/addons_create';
 $route['admin/api/addons/(:num)/save']         = 'admin_api/addons_update/$1';
 $route['admin/api/addons/(:num)/delete']       = 'admin_api/addons_delete/$1';
 $route['admin/api/addons/(:num)/toggle']       = 'admin_api/addons_toggle/$1';
+$route['admin/api/settings']                   = 'admin_api/settings_index';
+$route['admin/api/settings/save']              = 'admin_api/settings_update';
+$route['admin/api/reservations']               = 'admin_api/reservations_index';
+// Same (:any) ordering caveat as above — suffixed action routes must come
+// before the bare get-by-id route.
+$route['admin/api/reservations/(:any)/accept'] = 'admin_api/reservations_accept/$1';
+$route['admin/api/reservations/(:any)/reject'] = 'admin_api/reservations_reject/$1';
+$route['admin/api/reservations/(:any)/charge'] = 'admin_api/reservations_charge/$1';
+$route['admin/api/reservations/(:any)']        = 'admin_api/reservations_get/$1';

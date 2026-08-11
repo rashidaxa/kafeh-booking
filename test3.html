@@ -15,13 +15,8 @@
   <script src="vendor/jquery-3.7.1.min.js"></script>
   <script src="test-config.js"></script>
 
-  <!-- PayPal SDK -->
-  <script
-    src="https://www.paypal.com/sdk/js?client-id=sb&currency=USD&intent=capture"
-    id="kfbPaypalSdk"
-    onload="window.dispatchEvent(new CustomEvent('kfb:paypal-ready'))"
-    onerror="window.dispatchEvent(new CustomEvent('kfb:paypal-failed', {detail:{reason:'network-or-csp'}}))">
-  </script>
+  <!-- Stripe.js -->
+  <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
 
@@ -119,10 +114,7 @@
                       </label>
                       <label class="kfb-field">
                         <span>Flight #</span>
-                        <div class="kfb-flight-row">
-                          <input type="text" name="flightNumber" placeholder="e.g. AA1234">
-                          <button type="button" class="kfb-btn kfb-btn--ghost kfb-btn--sm" id="kfbValidateFlightPickup">Verify flight</button>
-                        </div>
+                        <input type="text" name="flightNumber" placeholder="e.g. AA1234">
                       </label>
                       <label class="kfb-field">
                         <span>Arrival Time</span>
@@ -131,34 +123,17 @@
                     </div>
                     <label class="kfb-field" style="margin-top:8px">
                       <span>Pickup Point</span>
-                      <select name="pickupPoint">
-                        <option value="Baggage claim">Baggage claim</option>
-                        <option value="Curbside">Curbside</option>
-                        <option value="Gate">Gate (meet &amp; greet)</option>
-                        <option value="Arrivals hall">Arrivals hall</option>
+                      <select name="pickupTypeDetail" id="kfbPickupTypeDetail">
+                        <option value="Curbside" selected>Curbside Pickup (Outside) — included</option>
+                        <option value="Meet & Greet">Meet &amp; Greet (Inside) — additional fee</option>
+                        <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
                       </select>
                     </label>
-                    <!-- Pickup Type Detail (v4): Curbside / Meet & Greet / Private Terminal -->
-                    <fieldset class="kfb-fieldset kfb-pickup-type-detail" style="margin-top:12px">
-                      <legend>Pickup Type</legend>
-                      <label class="kfb-radio-pill">
-                        <input type="radio" name="pickupTypeDetail" value="Curbside" checked>
-                        <span>Curbside Pickup (Outside) — included</span>
-                      </label>
-                      <label class="kfb-radio-pill">
-                        <input type="radio" name="pickupTypeDetail" value="Meet & Greet">
-                        <span>Meet &amp; Greet (Inside) — additional fee</span>
-                      </label>
-                      <label class="kfb-radio-pill">
-                        <input type="radio" name="pickupTypeDetail" value="Private Terminal (FBO)">
-                        <span>Private Terminal (FBO)</span>
-                      </label>
-                      <label class="kfb-field" id="kfbTailNumberWrap" hidden>
-                        <span>Aircraft Tail Number <em>*</em></span>
-                        <input type="text" name="tailNumber" maxlength="10"
-                               placeholder="e.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
-                      </label>
-                    </fieldset>
+                    <label class="kfb-field" id="kfbTailNumberWrap" hidden>
+                      <span>Aircraft Tail Number <em>*</em></span>
+                      <input type="text" name="tailNumber" maxlength="10"
+                             placeholder="e.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                    </label>
                   </div>
                 </div>
 
@@ -198,10 +173,7 @@
                       </label>
                       <label class="kfb-field">
                         <span>Flight #</span>
-                        <div class="kfb-flight-row">
-                          <input type="text" name="dropoffFlightNumber" placeholder="e.g. AA1234">
-                          <button type="button" class="kfb-btn kfb-btn--ghost kfb-btn--sm" id="kfbValidateFlightDropoff">Verify flight</button>
-                        </div>
+                        <input type="text" name="dropoffFlightNumber" placeholder="e.g. AA1234">
                       </label>
                       <label class="kfb-field">
                         <span>Departure Time</span>
@@ -210,12 +182,16 @@
                     </div>
                     <label class="kfb-field" style="margin-top:8px">
                       <span>Drop-Off Point</span>
-                      <select name="dropoffPickupPoint">
-                        <option value="Departure curb">Departure curb</option>
-                        <option value="Terminal entrance">Terminal entrance</option>
-                        <option value="Check-in counter">Check-in counter</option>
-                        <option value="Departure hall">Departure hall</option>
+                      <select name="dropoffTypeDetail" id="kfbDropoffTypeDetail">
+                        <option value="Curbside" selected>Curbside Drop-Off (Outside) — included</option>
+                        <option value="Meet & Greet">Meet &amp; Greet (Inside) — additional fee</option>
+                        <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
                       </select>
+                    </label>
+                    <label class="kfb-field" id="kfbDropoffTailNumberWrap" hidden>
+                      <span>Aircraft Tail Number <em>*</em></span>
+                      <input type="text" name="dropoffTailNumber" maxlength="10"
+                             placeholder="e.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
                     </label>
                   </div>
                 </div>
@@ -246,11 +222,6 @@
                   </div>
                 </div>
 
-                <div class="kfb-actions">
-                  <button type="button" class="kfb-btn kfb-btn-ghost">Cancel</button>
-                  <button type="button" class="kfb-btn kfb-btn-primary" data-next="2">Continue →</button>
-                </div>
-
                 <!-- Return Trip toggle + return date/time (v4) -->
                 <div class="kfb-section">
                   <label class="kfb-check kfb-check-block">
@@ -268,8 +239,80 @@
                         <input type="time" name="returnTime">
                       </label>
                     </div>
-                    <p class="kfb-hint" style="margin:6px 0 0">After you continue, the dropoff &amp; pickup will be swapped for the return leg.</p>
+                    <p class="kfb-hint" style="margin:6px 0 0">On the return leg, the pickup &amp; drop-off are swapped.</p>
+
+                    <!-- Return leg PICKUP flight info — shown when the original drop-off is an airport
+                         (the return leg picks the customer up there for the trip back). -->
+                    <div id="kfbReturnPickupFlightBlock" hidden>
+                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return pickup</strong> — picking you up at the airport for the trip back.</p>
+                      <div class="kfb-field-row-3">
+                        <label class="kfb-field">
+                          <span>Airline</span>
+                          <input type="text" name="returnAirline" list="kfbAirlinesListReturnPickup" placeholder="Select or type airline">
+                          <datalist id="kfbAirlinesListReturnPickup"></datalist>
+                        </label>
+                        <label class="kfb-field">
+                          <span>Flight #</span>
+                          <input type="text" name="returnFlightNumber" placeholder="e.g. AA1234">
+                        </label>
+                        <label class="kfb-field">
+                          <span>Arrival Time</span>
+                          <input type="time" name="returnArrivalTime">
+                        </label>
+                      </div>
+                      <label class="kfb-field" style="margin-top:8px">
+                        <span>Pickup Point</span>
+                        <select name="returnPickupTypeDetail" id="kfbReturnPickupTypeDetail">
+                          <option value="Curbside" selected>Curbside Pickup (Outside) — included</option>
+                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — additional fee</option>
+                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
+                        </select>
+                      </label>
+                      <label class="kfb-field" id="kfbReturnTailNumberWrap" hidden>
+                        <span>Aircraft Tail Number <em>*</em></span>
+                        <input type="text" name="returnTailNumber" maxlength="10"
+                               placeholder="e.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                      </label>
+                    </div>
+
+                    <!-- Return leg DROP-OFF flight info — shown when the original pickup is an airport
+                         (the return leg drops the customer back there for their flight home). -->
+                    <div id="kfbReturnDropoffFlightBlock" hidden>
+                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return drop-off</strong> — dropping you back at the airport for your flight home.</p>
+                      <div class="kfb-field-row-3">
+                        <label class="kfb-field">
+                          <span>Airline</span>
+                          <input type="text" name="returnDropoffAirline" list="kfbAirlinesListReturnDropoff" placeholder="Select or type airline">
+                          <datalist id="kfbAirlinesListReturnDropoff"></datalist>
+                        </label>
+                        <label class="kfb-field">
+                          <span>Flight #</span>
+                          <input type="text" name="returnDropoffFlightNumber" placeholder="e.g. AA1234">
+                        </label>
+                        <label class="kfb-field">
+                          <span>Departure Time</span>
+                          <input type="time" name="returnDropoffArrivalTime">
+                        </label>
+                      </div>
+                      <label class="kfb-field" style="margin-top:8px">
+                        <span>Drop-Off Point</span>
+                        <select name="returnDropoffTypeDetail" id="kfbReturnDropoffTypeDetail">
+                          <option value="Curbside" selected>Curbside Drop-Off (Outside) — included</option>
+                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — additional fee</option>
+                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
+                        </select>
+                      </label>
+                      <label class="kfb-field" id="kfbReturnDropoffTailNumberWrap" hidden>
+                        <span>Aircraft Tail Number <em>*</em></span>
+                        <input type="text" name="returnDropoffTailNumber" maxlength="10"
+                               placeholder="e.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                      </label>
+                    </div>
                   </div>
+                </div>
+                  <div class="kfb-actions">
+                  <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbCancelBtn">Cancel</button>
+                  <button type="button" class="kfb-btn kfb-btn-primary" data-next="2">Continue →</button>
                 </div>
               </section>
 
@@ -335,11 +378,14 @@
                 <!-- Payment Option -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Payment Option</h3>
                 <div class="kfb-pay-methods">
-                  <div class="kfb-pay-method is-active"><span>🅿</span> PayPal</div>
-                  <div class="kfb-pay-method is-disabled" title="Coming soon"><span>💳</span> Credit Card</div>
+                  <div class="kfb-pay-method is-active"><span>💳</span> Credit / Debit Card</div>
                 </div>
-                <div id="kfbPaypalButton" class="kfb-paypal-host"></div>
-                <p class="kfb-pay-note">🔒 Payments are processed securely by PayPal.</p>
+                <label class="kfb-field">
+                  <span>Card details</span>
+                  <div id="kfbCardElement" class="kfb-card-element"></div>
+                </label>
+                <div id="kfbCardErrors" class="kfb-card-errors" role="alert"></div>
+                <p class="kfb-pay-note">🔒 Your card is processed securely by Stripe. It's authorized now and charged once your reservation is approved.</p>
 
                 <!-- Special Instructions -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
@@ -381,8 +427,9 @@
 
             <section class="kfb-success" id="kfbSuccess" hidden>
               <div class="kfb-success-icon">✓</div>
-              <h3>Booking Confirmed</h3>
-              <p>Thank you, <b id="kfbSuccessName">rider</b>. Confirmation sent to <b id="kfbSuccessEmail">—</b>.</p>
+              <h3>Reservation Submitted</h3>
+              <p>Thank you, <b id="kfbSuccessName">rider</b>. Your card has been authorized — you have <strong>not</strong> been charged yet.
+                We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
               <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
               <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
             </section>
@@ -418,8 +465,9 @@
                   <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
                   <div class="kfb-srow" id="kfbSumHourlyRow"><span>Hourly</span><b id="kfbSumHourly">—</b></div>
                   <div class="kfb-srow"><span>Child Seats</span><b id="kfbSumChildSeats">—</b></div>
-                  <div class="kfb-srow" id="kfbSumMeetGreetRow" hidden><span>Meet &amp; Greet</span><b id="kfbSumMeetGreet">—</b></div>
-                  <div class="kfb-srow" id="kfbSumAddonsRow"    hidden><span>Add-ons</span><b id="kfbSumAddons">—</b></div>
+                  <div class="kfb-srow" id="kfbSumMeetGreetRow" hidden><span>Meet &amp; Greet (Pickup)</span><b id="kfbSumMeetGreet">—</b></div>
+                  <div class="kfb-srow" id="kfbSumDropoffMeetGreetRow" hidden><span>Meet &amp; Greet (Drop-off)</span><b id="kfbSumDropoffMeetGreet">—</b></div>
+                  <div class="kfb-srow kfb-srow--addons" id="kfbSumAddonsRow" hidden><span>Add-ons</span><b id="kfbSumAddons">—</b></div>
                   <div class="kfb-srow" id="kfbSumMinFareRow"   hidden><span>Min Fare</span><b id="kfbSumMinFare">—</b></div>
                   <div class="kfb-srow"><span>Discount</span><b id="kfbSumDiscount">—</b></div>
                 </div>

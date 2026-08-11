@@ -216,6 +216,22 @@ body.kfb-admin {
   margin-bottom: 20px;
 }
 .kfb-card--narrow { padding: 14px; }
+
+.kfb-link-back {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--kfb-text-muted);
+  text-decoration: none;
+}
+.kfb-link-back:hover { color: var(--kfb-text); }
+
+.kfb-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px 24px;
+}
+.kfb-detail-grid p { margin: 4px 0 0; line-height: 1.5; }
 .kfb-card-head {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 16px;
@@ -231,6 +247,7 @@ body.kfb-admin {
   margin: 0;
 }
 
+.kfb-table-scroll { overflow-x: auto; }
 .kfb-table {
   width: 100%; border-collapse: collapse;
   font-size: 13px;
@@ -250,8 +267,10 @@ body.kfb-admin {
   font-size: 11px;
   font-weight: 600;
 }
-.kfb-badge--ok  { background: #d1fae5; color: #065f46; }
-.kfb-badge--off { background: #e2e8f0; color: #475569; }
+.kfb-badge--ok   { background: #d1fae5; color: #065f46; }
+.kfb-badge--off  { background: #e2e8f0; color: #475569; }
+.kfb-badge--warn { background: #fef3c7; color: #92400e; }
+.kfb-badge--danger { background: #fee2e2; color: #991b1b; }
 
 .kfb-mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace; color: var(--kfb-text-muted); }
 
@@ -395,6 +414,12 @@ body.kfb-admin {
 }
 .kfb-form-errors ul { margin: 6px 0 0 18px; padding: 0; }
 .kfb-error { color: #991b1b; }
+.kfb-form-saved {
+  align-self: center;
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 600;
+}
 
 /* ============================================================
    Image picker
@@ -459,6 +484,9 @@ body.kfb-admin {
 .kfb-btn--danger:hover { background: #dc2626; border-color: #dc2626; }
 .kfb-btn--block { display: flex; width: 100%; }
 .kfb-btn--sm   { padding: 5px 10px; font-size: 12px; }
+.kfb-btn--ghost.is-active { background: var(--kfb-primary); color: #fff; border-color: var(--kfb-primary); }
+
+.kfb-status-filter { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ============================================================
    List actions (toggle / delete)

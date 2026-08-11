@@ -6,11 +6,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * Routes (defined in application/config/routes.php):
  *   GET  /api/fleet                       → list vehicles
+ *   GET  /api/settings                    → global settings (Meet & Greet fees)
  *   POST /api/reservation                 → create booking (returns booking_id)
  *   GET  /api/reservation/:id             → fetch booking detail
- *   POST /api/paypal/create-order         → start PayPal order
- *   POST /api/paypal/capture-order/:oid   → complete PayPal order
+ *   POST /api/stripe/create-intent        → authorize (hold) payment, save card
+ *   POST /api/stripe/finalize             → confirm authorization succeeded
  *   GET  /api/health                      → health check
+ *
+ * Payments are authorized only here — an admin must accept the
+ * reservation (see Admin_api::reservations_accept) before the held
+ * funds are actually captured. See backend/application/libraries/Stripe.php.
  *
  * CORS: open by default (set $allowed_origins in __construct to lock down).
  */
@@ -23,8 +28,8 @@ class Api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model']);
-        $this->load->library(['paypal', 'flights']);
+        $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model']);
+        $this->load->library(['stripe', 'flights']);
         $this->_set_cors_headers();
     }
 
@@ -35,11 +40,21 @@ class Api extends CI_Controller
         $this->_json($this->Booking_model->get_fleet());
     }
 
+    /**
+     * GET /api/settings
+     * Public global settings the widget needs before a vehicle is picked —
+     * currently just the Meet & Greet fee (Chicago vs. all other airports).
+     */
+    public function settings()
+    {
+        $this->_json(array_merge(['success' => TRUE], $this->Settings_model->meet_greet_fees()));
+    }
+
     public function health()
     {
         $this->_json([
             'ok'    => TRUE,
-            'env'   => $this->config->item('environment', 'paypal'),
+            'env'   => ENVIRONMENT,
             'time'  => date('c'),
             'php'   => PHP_VERSION,
         ]);
@@ -76,7 +91,7 @@ class Api extends CI_Controller
                 'phone'      => $raw['phone']      ?? '',
             ]);
             if ($customerId) {
-                $this->db->where('booking_id', $bookingId)->update('kfb_bookings', ['customer_id' => $customerId]);
+                $this->db->where('booking_id', $booking_id)->update('kfb_bookings', ['customer_id' => $customerId]);
             }
         }
 
@@ -96,91 +111,94 @@ class Api extends CI_Controller
         $this->_json($row);
     }
 
-    /** POST /api/paypal/create-order
-     *  Body: { amount, bookingId, description, customer, ride, vehicle, distanceMiles, durationMins } */
-    public function paypal_create_order()
+    /**
+     * POST /api/stripe/create-intent
+     * Body: { booking_id, amount }
+     * Authorizes (holds) the full trip amount and saves the card on a
+     * Stripe Customer for future off-session charges. Does NOT charge the
+     * customer — funds are only captured once an admin accepts the
+     * reservation (Admin_api::reservations_accept).
+     * Returns { client_secret, payment_intent_id } so the frontend can
+     * confirm with Stripe.js (which also handles any 3-D Secure challenge).
+     */
+    public function stripe_create_intent()
     {
         $raw = $this->_read_json();
         if (!$raw) return $this->_error('Invalid JSON body', 400);
 
+        $bookingId = trim((string)($raw['booking_id'] ?? ''));
         $amount    = $raw['amount'] ?? NULL;
-        $bookingId = $raw['bookingId'] ?? NULL;
-        $description = $raw['description'] ?? 'Chauffeur booking';
-
-        if (!$amount || !$bookingId) {
-            return $this->_error('amount and bookingId are required', 422);
+        if ($bookingId === '' || !$amount) {
+            return $this->_error('booking_id and amount are required', 422);
         }
+
+        $booking = $this->db->get_where('kfb_bookings', ['booking_id' => $bookingId])->row_array();
+        if (!$booking) return $this->_error('Booking not found', 404);
 
         try {
-            $order = $this->paypal->createOrder($amount, $bookingId, $description);
+            $customerId = $this->stripe->findOrCreateCustomer(
+                $booking['email'],
+                trim($booking['first_name'] . ' ' . $booking['last_name'])
+            );
+            $intent = $this->stripe->createPaymentIntent($amount, $customerId, $bookingId, 'Chauffeur booking ' . $bookingId);
         } catch (Exception $e) {
-            log_message('error', '[Booking] createOrder: ' . $e->getMessage());
-            return $this->_error('PayPal create-order failed', 502, ['detail' => $e->getMessage()]);
+            log_message('error', '[Stripe] create-intent: ' . $e->getMessage());
+            return $this->_error('Could not start payment', 502, ['detail' => $e->getMessage()]);
         }
 
-        // Persist
-        $this->Booking_model->record_payment($bookingId, $order['id'], 'create', 'CREATED', [
-            'amount'   => $amount,
-            'currency' => 'USD',
-            'order'    => $order,
-        ]);
-        $this->Booking_model->update_booking_status($bookingId, 'awaiting_payment', $order['id']);
-
         $this->_json([
-            'id'        => $order['id'],
-            'status'    => $order['status'] ?? 'CREATED',
-            'bookingId' => $bookingId,
+            'success'           => TRUE,
+            'client_secret'     => $intent['client_secret'],
+            'payment_intent_id' => $intent['id'],
         ], 201);
     }
 
-    /** POST /api/paypal/capture-order/:orderId */
-    public function paypal_capture_order($orderId = NULL)
+    /**
+     * POST /api/stripe/finalize
+     * Body: { booking_id, payment_intent_id }
+     * Called after the frontend confirms the PaymentIntent with Stripe.js.
+     * Verifies the authorization directly with Stripe, saves the card +
+     * intent on the booking, and marks it awaiting_approval.
+     */
+    public function stripe_finalize()
     {
-        if (!$orderId) return $this->_error('Order ID required', 400);
+        $raw = $this->_read_json();
+        if (!$raw) return $this->_error('Invalid JSON body', 400);
+
+        $bookingId = trim((string)($raw['booking_id'] ?? ''));
+        $intentId  = trim((string)($raw['payment_intent_id'] ?? ''));
+        if ($bookingId === '' || $intentId === '') {
+            return $this->_error('booking_id and payment_intent_id are required', 422);
+        }
 
         try {
-            $result = $this->paypal->captureOrder($orderId);
+            $intent = $this->stripe->retrievePaymentIntent($intentId);
         } catch (Exception $e) {
-            log_message('error', '[Booking] captureOrder: ' . $e->getMessage());
-            return $this->_error('PayPal capture failed', 502, ['detail' => $e->getMessage()]);
+            log_message('error', '[Stripe] finalize: ' . $e->getMessage());
+            return $this->_error('Could not verify payment', 502, ['detail' => $e->getMessage()]);
         }
 
-        // Find booking by order_id
-        $booking = $this->db->get_where('kfb_bookings', ['paypal_order_id' => $orderId])->row_array();
-        $bookingId = $booking['booking_id'] ?? NULL;
-
-        $status = $result['status'] ?? 'UNKNOWN';
-        $success = ($status === 'COMPLETED');
-
-        if ($bookingId) {
-            $this->Booking_model->record_payment($bookingId, $orderId, 'capture', $status, [
-                'amount'   => $booking['amount'] ?? NULL,
-                'currency' => 'USD',
-                'result'   => $result,
-            ]);
-            $this->Booking_model->update_booking_status(
-                $bookingId,
-                $success ? 'paid' : 'payment_failed',
-                $orderId
-            );
-
-            // Bump promo usage counter on successful payment
-            if ($success && !empty($booking['promo_code'])) {
-                $this->Promo_model->record_booking_use($booking['promo_code']);
-            }
-
-            // Optional: send confirmation email / SMS
-            if ($success && $this->config->item('send_confirmation_email', 'kafeh')) {
-                $this->_send_confirmation($booking, $result);
-            }
+        if (($intent['status'] ?? '') !== 'requires_capture') {
+            return $this->_error('Payment was not authorized (status: ' . ($intent['status'] ?? 'unknown') . ')', 422);
         }
 
-        $this->_json([
-            'success'      => $success,
-            'status'       => $status,
-            'bookingId'    => $bookingId,
-            'paypalOrderId'=> $orderId,
+        $pm   = is_array($intent['payment_method'] ?? NULL) ? $intent['payment_method'] : [];
+        $card = $pm['card'] ?? [];
+
+        $this->Booking_model->save_stripe_auth($bookingId, [
+            'stripe_customer_id'       => $intent['customer'] ?? NULL,
+            'stripe_payment_method_id' => $pm['id'] ?? NULL,
+            'stripe_payment_intent_id' => $intent['id'],
+            'card_brand'               => $card['brand'] ?? NULL,
+            'card_last4'               => $card['last4'] ?? NULL,
         ]);
+        $this->Booking_model->record_payment($bookingId, $intent['id'], 'authorize', $intent['status'], [
+            'amount'   => ($intent['amount'] ?? 0) / 100,
+            'currency' => strtoupper($intent['currency'] ?? 'usd'),
+            'intent'   => $intent,
+        ]);
+
+        $this->_json(['success' => TRUE, 'booking_id' => $bookingId, 'status' => 'awaiting_approval']);
     }
 
     /**
@@ -315,30 +333,6 @@ class Api extends CI_Controller
     }
 
     // ----------------- helpers -----------------
-
-    protected function _send_confirmation($booking, $paypalResult)
-    {
-        $to      = $booking['email'];
-        $subject = 'Booking ' . $booking['booking_id'] . ' Confirmed';
-        $body    =
-            "Hi {$booking['first_name']},\n\n" .
-            "Your booking is confirmed.\n\n" .
-            "Booking ID: {$booking['booking_id']}\n" .
-            "Service:    {$booking['service_type']}\n" .
-            "Pickup:     {$booking['pickup_date']} at {$booking['pickup_time']}\n" .
-            "From:       {$booking['pickup']}\n" .
-            "To:         {$booking['dropoff']}\n" .
-            "Vehicle:    {$booking['vehicle_name']}\n" .
-            "Amount:     \${$booking['amount']}\n" .
-            (!empty($booking['promo_code'])
-                ? "Promo:      {$booking['promo_code']} (-\${$booking['discount_amount']})\n"
-                : "") .
-            "\nThank you for choosing our chauffeur service.\n";
-        $headers = "From: no-reply@bookings.local\r\n";
-
-        // Best-effort. If your server doesn't have mail() configured, swap for SMTP.
-        @mail($to, $subject, $body, $headers);
-    }
 
     protected function _read_json()
     {

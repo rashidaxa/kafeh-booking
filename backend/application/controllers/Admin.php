@@ -20,7 +20,7 @@ class Admin extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Settings_model', 'Booking_model']);
         $this->load->library('session');
         $this->load->helper(['url', 'form']);
         $this->_require_login();
@@ -173,6 +173,60 @@ class Admin extends CI_Controller
         ];
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/addons', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    // ----------------- Settings -----------------
+
+    /** GET /admin/settings — global settings (Meet & Greet fees) */
+    public function settings()
+    {
+        $data = [
+            'page_title' => 'Settings',
+            'admin'      => $this->_current_admin(),
+            'settings'   => $this->Settings_model->meet_greet_fees(),
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/settings', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    // ----------------- Reservations -----------------
+
+    /** GET /admin/reservations — list, optionally filtered by ?status= */
+    public function reservations()
+    {
+        $status = trim((string)$this->input->get('status'));
+        $data = [
+            'page_title'   => 'Reservations',
+            'admin'        => $this->_current_admin(),
+            'reservations' => $this->Booking_model->list_all($status !== '' ? ['status' => $status] : []),
+            'status_filter'=> $status,
+            'flash'        => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/reservations', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** GET /admin/reservations/:id — trip detail, payment history, accept/reject/charge */
+    public function reservation_detail($id = NULL)
+    {
+        if (!$id) return redirect('admin/reservations');
+        $booking = $this->Booking_model->get_booking($id);
+        if (!$booking) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Reservation not found.']);
+            return redirect('admin/reservations');
+        }
+        $data = [
+            'page_title' => 'Reservation ' . $booking['booking_id'],
+            'admin'      => $this->_current_admin(),
+            'booking'    => $booking,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/reservation_detail', $data);
         $this->load->view('admin/_layout_footer', $data);
     }
 

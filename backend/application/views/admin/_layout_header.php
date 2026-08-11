@@ -25,6 +25,8 @@ $admin      = isset($admin) ? $admin : NULL;
     <a href="<?= site_url('admin/vehicles') ?>" class="<?= $page_title === 'Vehicles' || $page_title === 'Edit Vehicle' ? 'is-active' : '' ?>">Vehicles</a>
     <a href="<?= site_url('admin/promos') ?>"   class="<?= $page_title === 'Promo Codes' || $page_title === 'Edit Promo Code' ? 'is-active' : '' ?>">Promo Codes</a>
     <a href="<?= site_url('admin/addons') ?>"   class="<?= $page_title === 'Add-On Services' || $page_title === 'Edit Add-On' ? 'is-active' : '' ?>">Add-Ons</a>
+    <a href="<?= site_url('admin/reservations') ?>" class="<?= strpos($page_title, 'Reservation') === 0 ? 'is-active' : '' ?>">Reservations</a>
+    <a href="<?= site_url('admin/settings') ?>" class="<?= $page_title === 'Settings' ? 'is-active' : '' ?>">Settings</a>
   </nav>
   <div class="kfb-sidebar-foot">
     <?php if ($admin): ?>
