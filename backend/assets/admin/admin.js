@@ -60,6 +60,23 @@
     });
   }
 
+  // -------- Add-on list → click loads row into form --------
+  $$("#kfbAddonList .kfb-list-item").forEach(function (item) {
+    item.addEventListener("click", function () {
+      var id = item.getAttribute("data-id");
+      if (!id) return;
+      window.location.href = BASE + "index.php/admin/addons/" + encodeURIComponent(id);
+    });
+  });
+
+  // -------- "New add-on" button --------
+  var newAddonBtn = $("#kfbNewAddon");
+  if (newAddonBtn) {
+    newAddonBtn.addEventListener("click", function () {
+      window.location.href = BASE + "index.php/admin/addons";
+    });
+  }
+
   // -------- Promo form: live swap of discount value unit (% vs $) --------
   // Default layout (percent): unit sits on the RIGHT of the input.
   // For fixed ($): unit sits on the LEFT.
@@ -267,6 +284,79 @@
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldLabel; }
       });
     });
+  }
+
+  // -------- Add-on form (create / update via fetch + FormData) --------
+  var addonForm = $("#kfbAddonForm");
+  if (addonForm) {
+    addonForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearErrors();
+
+      var data = new FormData(addonForm);
+      var submitBtn = addonForm.querySelector('button[type="submit"]');
+      var oldLabel = submitBtn ? submitBtn.textContent : null;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
+
+      fetch(addonForm.action, {
+        method: "POST", body: data, credentials: "same-origin",
+      })
+      .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; })
+        .then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        if (res.body && res.body.success) {
+          window.location.href = BASE + "index.php/admin/addons";
+        } else if (res.body && res.body.fields) {
+          showErrors(res.body.fields);
+        } else {
+          showErrors({ _all: (res.body && res.body.error) || "Save failed." });
+        }
+      })
+      .catch(function (err) { showErrors({ _all: "Network error: " + (err && err.message ? err.message : err) }); })
+      .finally(function () {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldLabel; }
+      });
+    });
+  }
+
+  // -------- Add-on delete button --------
+  var delAddonBtn = $("#kfbDeleteAddon");
+  if (delAddonBtn) {
+    delAddonBtn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var msg = "Delete this add-on? Customers will no longer be able to add it to their bookings.";
+      var proceed = function () { doAddonDelete(); };
+      if (window.KFB && typeof window.KFB.confirm === "function") {
+        Promise.resolve(window.KFB.confirm(msg)).then(function (ok) { if (ok) proceed(); });
+      } else if (window.confirm(msg)) {
+        proceed();
+      }
+    });
+  }
+  function doAddonDelete() {
+    if (!delAddonBtn) return;
+    var endpoint = delAddonBtn.getAttribute("data-endpoint");
+    if (!endpoint) { alert("Delete endpoint not configured."); return; }
+    delAddonBtn.disabled = true;
+    var oldLabel = delAddonBtn.textContent;
+    delAddonBtn.textContent = "Deleting…";
+    var fd = new FormData();
+    fetch(endpoint, { method: "POST", body: fd, credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
+      .then(function (j) {
+        if (j && j.success) {
+          window.location.href = BASE + "index.php/admin/addons";
+        } else {
+          alert((j && j.error) || "Delete failed.");
+          delAddonBtn.disabled = false;
+          delAddonBtn.textContent = oldLabel;
+        }
+      })
+      .catch(function (err) {
+        alert("Network error: " + (err && err.message ? err.message : err));
+        delAddonBtn.disabled = false;
+        delAddonBtn.textContent = oldLabel;
+      });
   }
 
   function clearErrors() {

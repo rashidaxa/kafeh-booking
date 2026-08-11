@@ -25,7 +25,7 @@ class Admin_api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model']);
         $this->load->library('session');
         $this->load->helper('url');
         $this->_set_cors_headers();
@@ -211,6 +211,66 @@ class Admin_api extends CI_Controller
         $ok = $this->Promo_model->toggle_status($id);
         if (!$ok) return $this->_error('Could not toggle promo code', 500);
         $this->_json(['success' => TRUE, 'promo' => $this->Promo_model->get($id)]);
+    }
+
+    // ----------------- Add-ons -----------------
+
+    /** GET /admin/api/addons */
+    public function addons_index()
+    {
+        $this->_require_login();
+        $this->_json(['success' => TRUE, 'addons' => $this->Addon_model->list_all()]);
+    }
+
+    /** POST /admin/api/addons */
+    public function addons_create()
+    {
+        $this->_require_login();
+        $payload = $this->_collect_payload();
+        $errors = $this->Addon_model->validate_form($payload, TRUE);
+        if (!empty($errors)) {
+            return $this->_error('Validation failed', 422, ['fields' => $errors]);
+        }
+        $id = $this->Addon_model->create($payload);
+        if (!$id) return $this->_error('Could not create add-on', 500, ['db' => $this->db->error()]);
+        $this->_json(['success' => TRUE, 'addon' => $this->Addon_model->get($id)], 201);
+    }
+
+    /** POST /admin/api/addons/:id */
+    public function addons_update($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $existing = $this->Addon_model->get($id);
+        if (!$existing) return $this->_error('Add-on not found', 404);
+        $payload = $this->_collect_payload();
+        $errors = $this->Addon_model->validate_form($payload, FALSE, $existing);
+        if (!empty($errors)) {
+            return $this->_error('Validation failed', 422, ['fields' => $errors]);
+        }
+        $ok = $this->Addon_model->update($id, $payload);
+        if (!$ok) return $this->_error('Could not update add-on', 500);
+        $this->_json(['success' => TRUE, 'addon' => $this->Addon_model->get($id)]);
+    }
+
+    /** POST /admin/api/addons/:id/delete */
+    public function addons_delete($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $ok = $this->Addon_model->delete($id);
+        if (!$ok) return $this->_error('Could not delete add-on', 500);
+        $this->_json(['success' => TRUE, 'id' => (int)$id]);
+    }
+
+    /** POST /admin/api/addons/:id/toggle */
+    public function addons_toggle($id = NULL)
+    {
+        $this->_require_login();
+        if (!$id) return $this->_error('ID required', 400);
+        $ok = $this->Addon_model->toggle_status($id);
+        if (!$ok) return $this->_error('Could not toggle add-on', 500);
+        $this->_json(['success' => TRUE, 'addon' => $this->Addon_model->get($id)]);
     }
 
     // ----------------- helpers -----------------

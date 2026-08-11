@@ -206,6 +206,11 @@ class Vehicle_model extends CI_Model
             'waiting_chicago', 'waiting_america', 'waiting_worldwide',
             'child_seat_chicago', 'child_seat_america', 'child_seat_worldwide',
         ];
+
+        // Min fare + meet & greet (v4) — also must be non-negative.
+        $rate_fields[] = 'min_fare';
+        $rate_fields[] = 'meet_greet_chicago';
+        $rate_fields[] = 'meet_greet_elsewhere';
         foreach ($rate_fields as $f) {
             $v = $data[$f] ?? NULL;
             if ($v === '' || $v === NULL) {
@@ -405,6 +410,10 @@ class Vehicle_model extends CI_Model
             'child_seat_chicago'   => (float)($data['child_seat_chicago']   ?? 0),
             'child_seat_america'   => (float)($data['child_seat_america']   ?? 0),
             'child_seat_worldwide' => (float)($data['child_seat_worldwide'] ?? 0),
+
+            'min_fare'             => (float)($data['min_fare']             ?? 0),
+            'meet_greet_chicago'   => (float)($data['meet_greet_chicago']   ?? 65),
+            'meet_greet_elsewhere' => (float)($data['meet_greet_elsewhere'] ?? 95),
         ];
 
         if ($uploaded_image_name) {

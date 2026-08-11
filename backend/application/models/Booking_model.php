@@ -32,11 +32,20 @@ class Booking_model extends CI_Model
             }
             if (!empty($clean)) {
                 $childSeatsBreakdown = json_encode($clean, JSON_UNESCAPED_UNICODE);
-                // recount total from the breakdown if provided
                 $childSeats = array_sum($clean);
             }
         } elseif (!empty($data['childSeatsBreakdown']) && is_string($data['childSeatsBreakdown'])) {
             $childSeatsBreakdown = $data['childSeatsBreakdown'];
+        }
+
+        // Normalize add-ons if provided
+        $addonsJson = NULL;
+        $addonsTotal = 0.0;
+        if (!empty($data['addons']) && is_array($data['addons'])) {
+            $addonsJson = json_encode(array_values($data['addons']), JSON_UNESCAPED_UNICODE);
+            foreach ($data['addons'] as $a) {
+                $addonsTotal += (float)($a['line_total'] ?? 0);
+            }
         }
 
         $this->db->insert('kfb_bookings', [
@@ -56,6 +65,15 @@ class Booking_model extends CI_Model
             'dropoff_flight_number' => !empty($data['dropoffFlightNumber']) ? strtoupper(trim($data['dropoffFlightNumber'])) : NULL,
             'dropoff_arrival_time'  => !empty($data['dropoffArrivalTime']) ? $data['dropoffArrivalTime'] : NULL,
             'dropoff_pickup_point'  => !empty($data['dropoffPickupPoint']) ? $data['dropoffPickupPoint'] : NULL,
+            'pickup_type_detail'    => $data['pickupTypeDetail'] ?? NULL,
+            'tail_number'           => !empty($data['tailNumber']) ? strtoupper(trim($data['tailNumber'])) : NULL,
+            'addons_json'           => $addonsJson,
+            'addons_total'          => $addonsTotal,
+            'min_fare_applied'      => (float)($data['minFareApplied'] ?? 0),
+            'is_return_trip'        => !empty($data['isReturnTrip']) ? 1 : 0,
+            'return_booking_id'     => $data['returnBookingId'] ?? NULL,
+            'return_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
+            'return_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,
             'passengers'            => (int)($data['passengers'] ?? 1),
             'luggage'               => (int)($data['luggage'] ?? 0),
             'child_seats'           => $childSeats,
@@ -88,7 +106,39 @@ class Booking_model extends CI_Model
                 ]);
             }
         }
+
+        // Add-on line items
+        if (!empty($data['addons']) && is_array($data['addons'])) {
+            foreach ($data['addons'] as $a) {
+                $this->db->insert('kfb_booking_addons', [
+                    'booking_id' => $booking_id,
+                    'addon_id'   => (int)($a['id'] ?? 0),
+                    'addon_code' => $a['code'] ?? '',
+                    'addon_name' => $a['name'] ?? '',
+                    'quantity'   => (int)($a['quantity'] ?? 1),
+                    'unit_price' => (float)($a['unit_price'] ?? 0),
+                    'line_total' => (float)($a['line_total'] ?? 0),
+                    'region'     => $a['region'] ?? 'worldwide',
+                ]);
+            }
+        }
+
         return $booking_id;
+    }
+
+    /**
+     * Save the e-signature for a booking (base64 PNG).
+     * Returns TRUE on success.
+     */
+    public function save_signature($booking_id, $base64_data, $terms_version = 'v1')
+    {
+        if (!$booking_id || !$base64_data) return FALSE;
+        return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
+            'signature_data' => $base64_data,
+            'signature_ip'   => $this->input->ip_address(),
+            'signature_at'   => date('Y-m-d H:i:s'),
+            'terms_version'  => $terms_version,
+        ]) ? TRUE : FALSE;
     }
 
     public function get_booking($booking_id)
@@ -178,6 +228,10 @@ class Booking_model extends CI_Model
                 'child_seat_chicago'   => (float)($row['child_seat_chicago']   ?? 0),
                 'child_seat_america'   => (float)($row['child_seat_america']   ?? 0),
                 'child_seat_worldwide' => (float)($row['child_seat_worldwide'] ?? 0),
+
+                'min_fare'             => (float)($row['min_fare']             ?? 0),
+                'meet_greet_chicago'   => (float)($row['meet_greet_chicago']   ?? 65),
+                'meet_greet_elsewhere' => (float)($row['meet_greet_elsewhere'] ?? 95),
             ];
         }, $rows);
     }

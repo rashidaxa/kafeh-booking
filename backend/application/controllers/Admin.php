@@ -20,7 +20,7 @@ class Admin extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model']);
         $this->load->library('session');
         $this->load->helper(['url', 'form']);
         $this->_require_login();
@@ -129,6 +129,50 @@ class Admin extends CI_Controller
         ];
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/promos', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    // ----------------- Add-ons -----------------
+
+    /** GET /admin/addons — list + create/edit form */
+    public function addons()
+    {
+        $data = [
+            'page_title' => 'Add-On Services',
+            'admin'      => $this->_current_admin(),
+            'addons'     => $this->Addon_model->list_all(),
+            'editing'    => NULL,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/addons', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** GET /admin/addons/new — blank create form */
+    public function addon_new()
+    {
+        return $this->addons();
+    }
+
+    /** GET /admin/addons/:id — pre-filled edit form */
+    public function addon_edit($id = NULL)
+    {
+        if (!$id) return redirect('admin/addons');
+        $addon = $this->Addon_model->get($id);
+        if (!$addon) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Add-on not found.']);
+            return redirect('admin/addons');
+        }
+        $data = [
+            'page_title' => 'Edit Add-On',
+            'admin'      => $this->_current_admin(),
+            'addons'     => $this->Addon_model->list_all(),
+            'editing'    => $addon,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/addons', $data);
         $this->load->view('admin/_layout_footer', $data);
     }
 

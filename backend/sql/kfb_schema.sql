@@ -27,6 +27,20 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `dropoff_flight_number`   VARCHAR(20)  NULL,
   `dropoff_arrival_time`    TIME         NULL,
   `dropoff_pickup_point`    VARCHAR(50)  NULL COMMENT 'Curb / Terminal / Departure hall when dropoff loc type = Airport',
+  `pickup_type_detail`     VARCHAR(30)  NULL COMMENT 'Curbside | Meet & Greet | Private Terminal (FBO)',
+  `tail_number`             VARCHAR(20)  NULL,
+  `addons_json`             TEXT         NULL,
+  `addons_total`            DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `min_fare_applied`        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `is_return_trip`          TINYINT(1) NOT NULL DEFAULT 0,
+  `return_booking_id`       VARCHAR(32)  NULL,
+  `return_date`             DATE         NULL,
+  `return_time`             TIME         NULL,
+  `signature_data`          LONGTEXT     NULL,
+  `signature_ip`            VARCHAR(45)  NULL,
+  `signature_at`            DATETIME     NULL,
+  `terms_version`           VARCHAR(20)  NULL,
+  `customer_id`             INT UNSIGNED NULL,
   `passengers`      TINYINT      NOT NULL DEFAULT 1,
   `luggage`         TINYINT      NOT NULL DEFAULT 0,
   `child_seats`     TINYINT      NOT NULL DEFAULT 0,
@@ -54,7 +68,8 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   INDEX `idx_status`  (`status`),
   INDEX `idx_paypal`  (`paypal_order_id`),
   INDEX `idx_date`    (`pickup_date`),
-  INDEX `idx_promo_code` (`promo_code`)
+  INDEX `idx_promo_code` (`promo_code`),
+  INDEX `idx_return_booking` (`return_booking_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------- Stops -----------------
@@ -98,11 +113,25 @@ CREATE TABLE IF NOT EXISTS `kfb_admins` (
   `updated_at`    DATETIME     NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ----------------- Vehicles (admin-managed fleet) -----------------
--- One row per vehicle class shown in the booking wizard step 2.
--- All money / numeric fields use DECIMAL(10,2). Region columns use the
--- same three buckets as the booking widget (Chicago / America / Worldwide).
-CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
+-- ----------------- Promo codes (v3) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_promo_codes` (
+  `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `code`           VARCHAR(40)  NOT NULL,
+  `description`    VARCHAR(255) NULL,
+  `discount_type`  ENUM('percent','fixed') NOT NULL DEFAULT 'percent',
+  `discount_value` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `min_amount`     DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Subtotal must be >= this to apply',
+  `max_uses`       INT          NOT NULL DEFAULT 0 COMMENT '0 = unlimited',
+  `used_count`     INT          NOT NULL DEFAULT 0,
+  `starts_at`      DATE         NULL,
+  `expires_at`     DATE         NULL,
+  `status`         TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '0=disabled, 1=enabled',
+  `created_at`     DATETIME     NOT NULL,
+  `updated_at`     DATETIME     NULL,
+  UNIQUE KEY `uniq_code` (`code`),
+  KEY `idx_status`  (`status`),
+  KEY `idx_expires` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `id`               INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 
   -- General
@@ -148,6 +177,13 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   `child_seat_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `child_seat_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
+  -- Minimum fare (v4) — bill at least this amount regardless of distance
+  `min_fare`             DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+
+  -- Meet & Greet fee (v4) — configurable per region
+  `meet_greet_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 65.00,
+  `meet_greet_elsewhere` DECIMAL(10,2) NOT NULL DEFAULT 95.00,
+
   -- Image (filename only — actual file lives in /uploads/vehicles/)
   `image`           VARCHAR(255) NULL,
 
@@ -159,22 +195,59 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   INDEX `idx_code`       (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ----------------- Promo codes (v3) -----------------
-CREATE TABLE IF NOT EXISTS `kfb_promo_codes` (
+-- ----------------- Add-ons (v4) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_addons` (
   `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `code`           VARCHAR(40)  NOT NULL,
-  `description`    VARCHAR(255) NULL,
-  `discount_type`  ENUM('percent','fixed') NOT NULL DEFAULT 'percent',
-  `discount_value` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `min_amount`     DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Subtotal must be >= this to apply',
-  `max_uses`       INT          NOT NULL DEFAULT 0 COMMENT '0 = unlimited',
-  `used_count`     INT          NOT NULL DEFAULT 0,
-  `starts_at`      DATE         NULL,
-  `expires_at`     DATE         NULL,
-  `status`         TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '0=disabled, 1=enabled',
-  `created_at`     DATETIME     NOT NULL,
-  `updated_at`     DATETIME     NULL,
-  UNIQUE KEY `uniq_code` (`code`),
-  KEY `idx_status`  (`status`),
-  KEY `idx_expires` (`expires_at`)
+  `name`           VARCHAR(120) NOT NULL,
+  `description`    VARCHAR(500) NULL,
+  `category`       VARCHAR(40)  NULL COMMENT 'Red Carpet | Floral | Beverage | Decor | Other',
+  `pricing_type`   ENUM('flat','percent') NOT NULL DEFAULT 'flat',
+  `price_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `price_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `price_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `image`          VARCHAR(255) NULL,
+  `sort_order`     INT NOT NULL DEFAULT 0,
+  `status`         TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at`     DATETIME NOT NULL,
+  `updated_at`     DATETIME NULL,
+  UNIQUE KEY `uniq_addon_code` (`code`),
+  KEY `idx_addon_status` (`status`),
+  KEY `idx_addon_sort`   (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Booking add-on line items (v4) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_booking_addons` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `booking_id`  VARCHAR(32)  NOT NULL,
+  `addon_id`    INT UNSIGNED NOT NULL,
+  `addon_code`  VARCHAR(40)  NOT NULL,
+  `addon_name`  VARCHAR(120) NOT NULL,
+  `quantity`    INT          NOT NULL DEFAULT 1,
+  `unit_price`  DECIMAL(10,2) NOT NULL,
+  `line_total`  DECIMAL(10,2) NOT NULL,
+  `region`      VARCHAR(20)  NOT NULL,
+  KEY `idx_ba_booking` (`booking_id`),
+  KEY `idx_ba_addon`   (`addon_id`),
+  CONSTRAINT `fk_ba_booking` FOREIGN KEY (`booking_id`)
+    REFERENCES `kfb_bookings`(`booking_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Customer accounts (v4, optional) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_customers` (
+  `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `email`          VARCHAR(150) NOT NULL,
+  `password_hash`  VARCHAR(255) NULL,
+  `first_name`     VARCHAR(100) NOT NULL,
+  `last_name`      VARCHAR(100) NOT NULL,
+  `phone`          VARCHAR(50)  NULL,
+  `default_pickup` VARCHAR(255) NULL,
+  `default_dropoff` VARCHAR(255) NULL,
+  `total_bookings` INT NOT NULL DEFAULT 0,
+  `last_booking_at` DATETIME NULL,
+  `status`         ENUM('active','disabled') NOT NULL DEFAULT 'active',
+  `created_at`     DATETIME NOT NULL,
+  `updated_at`     DATETIME NULL,
+  UNIQUE KEY `uniq_customer_email` (`email`),
+  KEY `idx_customer_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

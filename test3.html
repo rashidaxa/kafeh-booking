@@ -119,7 +119,10 @@
                       </label>
                       <label class="kfb-field">
                         <span>Flight #</span>
-                        <input type="text" name="flightNumber" placeholder="e.g. AA1234">
+                        <div class="kfb-flight-row">
+                          <input type="text" name="flightNumber" placeholder="e.g. AA1234">
+                          <button type="button" class="kfb-btn kfb-btn--ghost kfb-btn--sm" id="kfbValidateFlightPickup">Verify flight</button>
+                        </div>
                       </label>
                       <label class="kfb-field">
                         <span>Arrival Time</span>
@@ -135,6 +138,27 @@
                         <option value="Arrivals hall">Arrivals hall</option>
                       </select>
                     </label>
+                    <!-- Pickup Type Detail (v4): Curbside / Meet & Greet / Private Terminal -->
+                    <fieldset class="kfb-fieldset kfb-pickup-type-detail" style="margin-top:12px">
+                      <legend>Pickup Type</legend>
+                      <label class="kfb-radio-pill">
+                        <input type="radio" name="pickupTypeDetail" value="Curbside" checked>
+                        <span>Curbside Pickup (Outside) — included</span>
+                      </label>
+                      <label class="kfb-radio-pill">
+                        <input type="radio" name="pickupTypeDetail" value="Meet & Greet">
+                        <span>Meet &amp; Greet (Inside) — additional fee</span>
+                      </label>
+                      <label class="kfb-radio-pill">
+                        <input type="radio" name="pickupTypeDetail" value="Private Terminal (FBO)">
+                        <span>Private Terminal (FBO)</span>
+                      </label>
+                      <label class="kfb-field" id="kfbTailNumberWrap" hidden>
+                        <span>Aircraft Tail Number <em>*</em></span>
+                        <input type="text" name="tailNumber" maxlength="10"
+                               placeholder="e.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                      </label>
+                    </fieldset>
                   </div>
                 </div>
 
@@ -174,7 +198,10 @@
                       </label>
                       <label class="kfb-field">
                         <span>Flight #</span>
-                        <input type="text" name="dropoffFlightNumber" placeholder="e.g. AA1234">
+                        <div class="kfb-flight-row">
+                          <input type="text" name="dropoffFlightNumber" placeholder="e.g. AA1234">
+                          <button type="button" class="kfb-btn kfb-btn--ghost kfb-btn--sm" id="kfbValidateFlightDropoff">Verify flight</button>
+                        </div>
                       </label>
                       <label class="kfb-field">
                         <span>Departure Time</span>
@@ -222,6 +249,27 @@
                 <div class="kfb-actions">
                   <button type="button" class="kfb-btn kfb-btn-ghost">Cancel</button>
                   <button type="button" class="kfb-btn kfb-btn-primary" data-next="2">Continue →</button>
+                </div>
+
+                <!-- Return Trip toggle + return date/time (v4) -->
+                <div class="kfb-section">
+                  <label class="kfb-check kfb-check-block">
+                    <input type="checkbox" id="kfbReturnTripToggle">
+                    <span><strong>Return Trip</strong> — also book the trip back to the origin</span>
+                  </label>
+                  <div id="kfbReturnTripPanel" hidden>
+                    <div class="kfb-field-row-2" style="margin-top:10px">
+                      <label class="kfb-field">
+                        <span>Return Date</span>
+                        <input type="date" name="returnDate">
+                      </label>
+                      <label class="kfb-field">
+                        <span>Return Time</span>
+                        <input type="time" name="returnTime">
+                      </label>
+                    </div>
+                    <p class="kfb-hint" style="margin:6px 0 0">After you continue, the dropoff &amp; pickup will be swapped for the return leg.</p>
+                  </div>
                 </div>
               </section>
 
@@ -278,6 +326,12 @@
                   <div class="kfb-promo-status" id="kfbPromoStatus"></div>
                 </div>
 
+                <!-- Add-On Services (v4) -->
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Add-On Services</h3>
+                <div class="kfb-addon-list" id="kfbAddonList">
+                  <p class="kfb-empty">Loading add-ons…</p>
+                </div>
+
                 <!-- Payment Option -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Payment Option</h3>
                 <div class="kfb-pay-methods">
@@ -293,10 +347,25 @@
                   <textarea name="notes" rows="3" placeholder="Other notes, instructions, or special requests."></textarea>
                 </label>
 
-                <label class="kfb-check kfb-check-block" style="margin-top:14px">
-                  <input type="checkbox" name="terms" required>
-                  <span>I agree to the <a href="#" data-kfb-link>Terms &amp; Conditions</a> and <a href="#" data-kfb-link>Privacy Policy</a>.</span>
-                </label>
+                <!-- Terms & Conditions (v4) — required for > $500 -->
+                <div id="kfbTermsBlock" style="display:none">
+                  <label class="kfb-check kfb-check-block" style="margin-top:14px">
+                    <input type="checkbox" name="terms" required>
+                    <span>I agree to the <a href="#" data-kfb-link>Terms &amp; Conditions</a> and <a href="#" data-kfb-link>Privacy Policy</a>.</span>
+                  </label>
+                </div>
+
+                <!-- E-Signature (v4) — required for bookings > $500 -->
+                <div id="kfbSignatureBlock" class="kfb-section" hidden style="margin-top:14px">
+                  <h3 class="kfb-section-title">E-Signature Required</h3>
+                  <p class="kfb-hint" style="margin:0 0 8px">Bookings over $500 require a signature. Please sign in the box below.</p>
+                  <canvas id="kfbSignatureCanvas" width="600" height="160"
+                          style="width:100%;max-width:600px;height:160px;background:#fff;border:1px solid var(--kfb-border-strong);border-radius:6px;touch-action:none;cursor:crosshair"></canvas>
+                  <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+                    <small class="kfb-hint">Sign with your mouse, finger, or stylus</small>
+                    <button type="button" class="kfb-btn kfb-btn--ghost kfb-btn--sm" id="kfbSignatureClear">Clear</button>
+                  </div>
+                </div>
 
                 <div id="kfbPaymentStatus" class="kfb-payment-status" hidden>
                   <div class="kfb-spinner"></div>
@@ -349,6 +418,9 @@
                   <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
                   <div class="kfb-srow" id="kfbSumHourlyRow"><span>Hourly</span><b id="kfbSumHourly">—</b></div>
                   <div class="kfb-srow"><span>Child Seats</span><b id="kfbSumChildSeats">—</b></div>
+                  <div class="kfb-srow" id="kfbSumMeetGreetRow" hidden><span>Meet &amp; Greet</span><b id="kfbSumMeetGreet">—</b></div>
+                  <div class="kfb-srow" id="kfbSumAddonsRow"    hidden><span>Add-ons</span><b id="kfbSumAddons">—</b></div>
+                  <div class="kfb-srow" id="kfbSumMinFareRow"   hidden><span>Min Fare</span><b id="kfbSumMinFare">—</b></div>
                   <div class="kfb-srow"><span>Discount</span><b id="kfbSumDiscount">—</b></div>
                 </div>
                 <div class="kfb-srow kfb-stotal"><span>Estimated Price</span><b id="kfbSumTotal">$0.00</b></div>

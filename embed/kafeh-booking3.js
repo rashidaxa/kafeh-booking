@@ -67,12 +67,11 @@
     var PAYPAL_CLIENT = window.KAFEH_PAYPAL_CLIENT_ID || "sb";
     var HOURLY_KEYS   = ["hourly", "as directed", "as-directed", "hourly / as directed"];
 
-    // -------- Child seat catalog --------
+    // -------- Child seat catalog (simplified to 3 types per spec v4) --------
     var CHILD_SEAT_TYPES = [
-      { key: "infant",     label: "Rear Facing (Infant)" },
-      { key: "toddler",    label: "Forward Facing (Toddler)" },
-      { key: "all_in_one", label: "All-in-One (Convertible)" },
-      { key: "booster",    label: "Booster Seat" },
+      { key: "rear_facing",    label: "Rear-Facing Seat (Infant)" },
+      { key: "forward_facing", label: "Forward-Facing Seat (Toddler)" },
+      { key: "booster",        label: "Booster Seat" },
     ];
 
     // -------- Default fleet (fallback if backend is unreachable) --------
@@ -89,12 +88,23 @@
       selectedVehicle: null,
       bookingId: null,
       fleet: DEFAULT_FLEET,
+      addons: [],            // [{id, code, name, unit_price, quantity, line_total, region, ...}]
+      addonsCatalog: [],     // fetched from backend at boot
       distanceKm: 0,
       distanceMiles: 0,
       durationMins: 0,
       region: "Worldwide",
       promo: null,
       childSeats: {},
+      stops: [],             // [{address, lat, lng}] — ordered, with edit support
+      isReturnTrip: false,   // toggles pickup/dropoff swap
+      returnDate: null,      // for return trip
+      returnTime: null,      // for return trip
+      pickupTypeDetail: "Curbside", // Curbside | Meet & Greet | Private Terminal (FBO)
+      tailNumber: "",         // for FBO / private terminal pickups
+      signatureData: null,   // base64 PNG of customer signature (>$500)
+      minFareApplied: 0,     // 0 if subtotal > min, else the min amount
+      meetGreetFee: 0,       // added to total if pickup type = Meet & Greet
     };
 
     // -------- Helpers --------
@@ -425,6 +435,9 @@
       var gratuity   = +(v['gratuity_'  + region] || 0);
       var hourlyRate = +(v['hourly_'    + region] || 0);
       var childSeatR = +(v['child_seat_' + region] || 0);
+      var minFare      = +(v.min_fare || 0);
+      var meetChicago  = +(v.meet_greet_chicago   || 65);
+      var meetOther    = +(v.meet_greet_elsewhere || 95);
 
       // Minimum billable time is 1 hour even if the route is short.
       var hours = Math.max(1, (state.durationMins || 0) / 60);
@@ -435,24 +448,54 @@
       var base, hourlyAdd, baseLabel;
       if (isHourlyService()) {
         base      = hourlyRate * hours;
-        hourlyAdd = 0;            // already in base
+        hourlyAdd = 0;
         baseLabel = "Hourly (" + hours.toFixed(1) + "h × $" + hourlyRate.toFixed(2) + ")";
       } else {
         base      = km * perKm;
-        hourlyAdd = 0;            // no hourly for non-hourly services
+        hourlyAdd = 0;
         baseLabel = "Base (" + km.toFixed(1) + " km × $" + perKm.toFixed(2) + ")";
       }
 
-      var extras   = surcharge + gratuity + childAdd;
+      // Meet & Greet surcharge: only when pickup is at an airport AND
+      // the customer picked the "Meet & Greet" pickup type. Chicago
+      // airports use the in-city rate, all other airports the higher rate.
+      var meetGreetFee = 0;
+      if (state.pickupTypeDetail === "Meet & Greet" && getLocType("pickup") === "Airport") {
+        meetGreetFee = (region === "chicago") ? meetChicago : meetOther;
+        state.meetGreetFee = meetGreetFee;
+      } else {
+        state.meetGreetFee = 0;
+      }
+
+      // Add-ons: flat amounts already carry unit_price; percent add-ons
+      // apply to the running subtotal. For simplicity we treat everything
+      // as flat (the backend uses the configured per-region price).
+      var addonsTotal = totalAddons();
+
+      var extras   = surcharge + gratuity + childAdd + meetGreetFee + addonsTotal;
       var subtotal = base + extras;
       var discount = (state.promo && state.promo.ok) ? +(state.promo.discount || 0) : 0;
-      var total    = Math.max(0, subtotal - discount);
+      var afterDiscount = Math.max(0, subtotal - discount);
+
+      // Enforce minimum fare
+      var minFareApplied = 0;
+      var total = afterDiscount;
+      if (afterDiscount < minFare) {
+        minFareApplied = minFare;
+        total = minFare;
+        state.minFareApplied = minFareApplied;
+      } else {
+        state.minFareApplied = 0;
+      }
 
       return {
         km: km, perKm: perKm, base: base,
         surcharge: surcharge, gratuity: gratuity,
         hourlyRate: hourlyRate, hours: hours, hourlyAdd: hourlyAdd,
         childSeatRate: childSeatR, childCount: childCount, childAdd: childAdd,
+        meetGreetFee: meetGreetFee,
+        addonsTotal: addonsTotal,
+        minFare: minFare, minFareApplied: minFareApplied,
         subtotal: subtotal, discount: discount, total: total,
         region: region, serviceType: selectedServiceType(),
         baseLabel: baseLabel,
@@ -479,6 +522,131 @@
         }
       })
       .fail(function () { /* keep default fleet, do not break the page */ });
+    }
+
+    /**
+     * Fetch enabled add-ons for the current region from the backend.
+     * The region is updated once the route is known (Chicago / America / Worldwide).
+     * Safe to call multiple times — only the latest response is used.
+     */
+    function loadAddons() {
+      var region = (state.region || "Worldwide").toLowerCase();
+      $.ajax({
+        url: API_BASE + "/addons",
+        data: { region: region },
+        dataType: "json",
+        timeout: 5000,
+      })
+      .done(function (res) {
+        if (res && Array.isArray(res.addons)) {
+          state.addonsCatalog = res.addons;
+          renderAddons();
+        }
+      })
+      .fail(function () { /* keep empty catalog, no add-ons shown */ });
+    }
+
+    /**
+     * Render the add-ons section in Step 3.
+     * Customers can toggle each add-on; the price is added to the booking total.
+     */
+    function renderAddons() {
+      var $list = $("#kfbAddonList");
+      if (!$list.length) return;
+      $list.empty();
+      if (!state.addonsCatalog || !state.addonsCatalog.length) {
+        $list.html('<p class="kfb-empty">No add-ons are currently available.</p>');
+        return;
+      }
+      state.addonsCatalog.forEach(function (a) {
+        var selected = state.addons.find(function (x) { return x.id === a.id; });
+        var qty = selected ? selected.quantity : 0;
+        var price = Number(a.unit_price || 0);
+        // If pricing_type is percent, show a percentage badge
+        var type = a.pricing_type || "flat";
+        var priceLabel = type === "percent"
+          ? (price + "% of subtotal")
+          : ("$" + price.toFixed(2));
+
+        var $row = $(
+          '<label class="kfb-addon-row" data-id="' + a.id + '">' +
+            '<input type="checkbox" class="kfb-addon-cb" ' + (qty > 0 ? "checked" : "") + '>' +
+            '<div class="kfb-addon-info">' +
+              '<strong>' + escapeHtml(a.name) + '</strong>' +
+              '<small class="kfb-faint">' + escapeHtml(a.description || "") + '</small>' +
+            '</div>' +
+            '<div class="kfb-addon-qty" ' + (qty > 0 ? "" : 'hidden') + '>' +
+              '<button type="button" class="kfb-qty-minus" aria-label="Decrease">−</button>' +
+              '<input type="number" class="kfb-addon-qty-input" value="' + Math.max(qty, 1) + '" min="1" max="99">' +
+              '<button type="button" class="kfb-qty-plus" aria-label="Increase">+</button>' +
+            '</div>' +
+            '<div class="kfb-addon-price">' + priceLabel + '</div>' +
+          '</label>'
+        );
+        $list.append($row);
+
+        var $cb    = $row.find(".kfb-addon-cb");
+        var $qty   = $row.find(".kfb-addon-qty");
+        var $qtyIn = $row.find(".kfb-addon-qty-input");
+
+        $cb.on("change", function () {
+          if ($cb.is(":checked")) {
+            $qty.removeAttr("hidden");
+            $qtyIn.val(Math.max(parseInt($qtyIn.val(), 10) || 1, 1));
+            addAddonToCart(a, parseInt($qtyIn.val(), 10) || 1);
+          } else {
+            $qty.attr("hidden", true);
+            removeAddonFromCart(a.id);
+          }
+          renderSideSummary();
+        });
+        $qtyIn.on("input", function () {
+          var n = Math.max(parseInt($qtyIn.val(), 10) || 1, 1);
+          if (n !== parseInt($qtyIn.val(), 10)) $qtyIn.val(n);
+          if ($cb.is(":checked")) {
+            updateAddonQuantity(a.id, n);
+            renderSideSummary();
+          }
+        });
+        $row.find(".kfb-qty-plus").on("click",  function () { $qtyIn.val(parseInt($qtyIn.val(), 10) + 1).trigger("input"); });
+        $row.find(".kfb-qty-minus").on("click", function () {
+          var v = parseInt($qtyIn.val(), 10) - 1;
+          if (v < 1) {
+            $cb.prop("checked", false).trigger("change");
+          } else {
+            $qtyIn.val(v).trigger("input");
+          }
+        });
+      });
+    }
+
+    function addAddonToCart(a, qty) {
+      var existing = state.addons.find(function (x) { return x.id === a.id; });
+      if (existing) { existing.quantity = qty; existing.unit_price = a.unit_price; }
+      else {
+        state.addons.push({
+          id: a.id, code: a.code, name: a.name, region: a.region,
+          unit_price: a.unit_price, quantity: qty,
+          line_total: 0, // computed below
+        });
+      }
+      recomputeAddonTotals();
+    }
+    function removeAddonFromCart(id) {
+      state.addons = state.addons.filter(function (x) { return x.id !== id; });
+      recomputeAddonTotals();
+    }
+    function updateAddonQuantity(id, qty) {
+      var a = state.addons.find(function (x) { return x.id === id; });
+      if (a) { a.quantity = qty; recomputeAddonTotals(); }
+    }
+    function recomputeAddonTotals() {
+      state.addons.forEach(function (a) {
+        a.line_total = +(a.unit_price * a.quantity).toFixed(2);
+      });
+    }
+    function totalAddons() {
+      return +state.addons.reduce(function (s, a) { return s + (a.line_total || 0); }, 0).toFixed(2);
     }
 
     function renderVehicles() {
@@ -536,6 +704,7 @@
           });
           renderVehicles();
           renderSideSummary();
+          refreshSignatureVisibility();
         });
         $grid.append($card);
       });
@@ -604,6 +773,38 @@
           $("#kfbSumHourly").text("—");
         }
         $("#kfbSumChildSeats").text(bd.childAdd > 0 ? fmtMoney(bd.childAdd) : "—");
+        // Meet & Greet fee (only shows when applied)
+        var $meetGreetRow = $("#kfbSumMeetGreetRow");
+        if ($meetGreetRow.length) {
+          if (bd.meetGreetFee > 0) {
+            $meetGreetRow.show();
+            $("#kfbSumMeetGreet").text(fmtMoney(bd.meetGreetFee));
+          } else {
+            $meetGreetRow.hide();
+          }
+        }
+        // Add-ons total
+        var $addonsRow = $("#kfbSumAddonsRow");
+        if ($addonsRow.length) {
+          if (bd.addonsTotal > 0) {
+            $addonsRow.show();
+            $("#kfbSumAddons").text(fmtMoney(bd.addonsTotal));
+          } else {
+            $addonsRow.hide();
+          }
+        }
+        // Minimum fare (only shows when applied)
+        var $minRow = $("#kfbSumMinFareRow");
+        if ($minRow.length) {
+          if (bd.minFareApplied > 0) {
+            $minRow.show();
+            $("#kfbSumMinFare").text(
+              "Min fare " + fmtMoney(bd.minFare) + " applied"
+            );
+          } else {
+            $minRow.hide();
+          }
+        }
         $("#kfbSumDiscount").text(
           bd.discount > 0
             ? '− ' + fmtMoney(bd.discount) + (state.promo ? ' (' + escapeHtml(state.promo.code) + ')' : '')
@@ -739,6 +940,8 @@
         flightNumber:    $('input[name="flightNumber"]').val()  || null,
         arrivalTime:     $('input[name="arrivalTime"]').val()   || null,
         pickupPoint:     $('select[name="pickupPoint"]').val()  || null,
+        pickupTypeDetail: state.pickupTypeDetail,
+        tailNumber:      state.tailNumber || null,
         dropoff:         dropoffValue,
         dropoffType:     $('#kfbReturnDifferent').is(":checked") ? dropoffType : pickupType,
         dropoffAirline:        $('input[name="dropoffAirline"]').val()       || null,
@@ -746,11 +949,16 @@
         dropoffArrivalTime:    $('input[name="dropoffArrivalTime"]').val()   || null,
         dropoffPickupPoint:    $('select[name="dropoffPickupPoint"]').val()  || null,
         stops:           stops,
+        isReturnTrip:    state.isReturnTrip,
+        returnDate:      state.returnDate,
+        returnTime:      state.returnTime,
         passengers:      parseInt($('input[name="passengers"]').val(), 10) || 1,
         luggage:         parseInt($('input[name="bags"]').val(), 10) || 0,
         childSeats:      totalChildSeats(),
         childSeatsBreakdown: childBreakdown,
         notes:           $('textarea[name="notes"]').val() || null,
+        addons:          state.addons,
+        minFareApplied:  v.breakdown ? v.breakdown.minFareApplied || 0 : 0,
         vehicle_id:      v.id || v.code,
         vehicle_name:    v.name,
         distanceMiles:   state.distanceMiles,
@@ -839,7 +1047,11 @@
           .then(function (res) {
             $("#kfbPaymentStatus").hide();
             if (res && res.success) {
-              showSuccess(res.bookingId || state.bookingId);
+              // After successful capture: save the signature if any
+              saveSignature().always(function () {
+                showSuccess(res.bookingId || state.bookingId);
+                promptAccountCreation(res.bookingId || state.bookingId);
+              });
             } else {
               toast("Payment could not be completed. Please try again.", "error");
             }
@@ -877,6 +1089,285 @@
       $(".kfb-airport-extras").hide();
       $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").show();
       $("#kfbSuccess").hide();
+      // Clear v4 state
+      state.addons = [];
+      state.stops = [];
+      state.isReturnTrip = false;
+      state.returnDate = null;
+      state.returnTime = null;
+      state.pickupTypeDetail = "Curbside";
+      state.tailNumber = "";
+      state.signatureData = null;
+      state.minFareApplied = 0;
+      state.meetGreetFee = 0;
+      gotoStep(1);
+    }
+
+    // ============================================================
+    // FLIGHT VALIDATION (v4)
+    // ============================================================
+    /**
+     * Call Aviationstack via the backend. Falls back to manual entry on
+     * any failure (no API key, network error, flight not found).
+     * Updates the airline / flight # / arrival time fields from the
+     * result so the customer doesn't have to re-type them.
+     */
+    function validateFlight(group) {
+      var flightInput = $('input[name="' + (group === "pickup" ? "flightNumber" : "dropoffFlightNumber") + '"]');
+      var dateInput   = $('input[name="pickupDate"]');
+      var flight = (flightInput.val() || "").trim().toUpperCase();
+      var date   = (dateInput.val() || "").trim();
+      if (!flight || !date) {
+        toast("Enter flight number and pickup date first.");
+        return;
+      }
+      var $btn = $("#kfbValidateFlightPickup, #kfbValidateFlightDropoff").filter(":visible").first();
+      var oldLabel = $btn.text();
+      $btn.prop("disabled", true).text("Checking…");
+      $.ajax({
+        url: API_BASE + "/flights/validate",
+        data: { flight: flight, date: date },
+        dataType: "json",
+        timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.ok && res.flight) {
+          var f = res.flight;
+          // Auto-fill the airline + arrival time if available
+          if (group === "pickup") {
+            if (f.airline_name) $('input[name="airline"]').val(f.airline_name);
+            if (f.arrival_scheduled) {
+              // Aviationstack returns ISO timestamps like "2026-08-01T14:30:00.000+05:00"
+              var m = (f.arrival_scheduled || "").match(/T(\d{2}):(\d{2})/);
+              if (m) $('input[name="arrivalTime"]').val(m[1] + ":" + m[2]);
+            }
+            toast("Flight " + f.flight_number + " verified — " + (f.departure_iata || "?") + " → " + (f.arrival_iata || "?"));
+          } else {
+            if (f.airline_name) $('input[name="dropoffAirline"]').val(f.airline_name);
+            toast("Flight " + f.flight_number + " verified.");
+          }
+        } else {
+          var reason = (res && res.reason) || "unavailable";
+          var msg = reason === "not_found"
+            ? "No flight found for that number + date. Please enter details manually."
+            : "Flight API unavailable — please enter details manually.";
+          toast(msg);
+        }
+      })
+      .fail(function () { toast("Could not reach flight API — please enter manually."); })
+      .always(function () { $btn.prop("disabled", false).text(oldLabel); });
+    }
+
+    // ============================================================
+    // RETURN TRIP (v4)
+    // ============================================================
+    /**
+     * Toggle the return trip mode. When ON, the customer fills in a
+     * second set of date/time/pickup/dropoff and we swap the primary
+     * leg automatically.
+     */
+    function applyReturnTrip(on) {
+      state.isReturnTrip = !!on;
+      var $panel = $("#kfbReturnTripPanel");
+      if (on) {
+        $panel.removeAttr("hidden");
+      } else {
+        $panel.attr("hidden", true);
+        // Clear any return-trip data
+        state.returnDate = null;
+        state.returnTime = null;
+        $('input[name="returnDate"]').val("");
+        $('input[name="returnTime"]').val("");
+      }
+    }
+
+    // ============================================================
+    // E-SIGNATURE (v4) — for bookings > $500
+    // ============================================================
+    var SIGNATURE_THRESHOLD = 500;
+
+    function initSignaturePad() {
+      var canvas = document.getElementById("kfbSignatureCanvas");
+      if (!canvas) return;
+      var ctx = canvas.getContext("2d");
+      var drawing = false;
+      var lastX = 0, lastY = 0;
+      var hasInk = false;
+
+      function getPos(e) {
+        var r = canvas.getBoundingClientRect();
+        var sx = canvas.width  / r.width;
+        var sy = canvas.height / r.height;
+        var cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+        var cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+        return { x: cx * sx, y: cy * sy };
+      }
+      function start(e) {
+        e.preventDefault();
+        drawing = true;
+        hasInk = true;
+        var p = getPos(e);
+        lastX = p.x; lastY = p.y;
+      }
+      function move(e) {
+        if (!drawing) return;
+        e.preventDefault();
+        var p = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(p.x, p.y);
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.stroke();
+        lastX = p.x; lastY = p.y;
+      }
+      function end() { drawing = false; }
+      function clear() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasInk = false;
+        state.signatureData = null;
+      }
+
+      canvas.addEventListener("mousedown", start);
+      canvas.addEventListener("mousemove", move);
+      canvas.addEventListener("mouseup", end);
+      canvas.addEventListener("mouseleave", end);
+      canvas.addEventListener("touchstart", start, { passive: false });
+      canvas.addEventListener("touchmove", move, { passive: false });
+      canvas.addEventListener("touchend", end);
+
+      var $clear = $("#kfbSignatureClear");
+      if ($clear.length) $clear.on("click", clear);
+
+      // Before submit, snapshot the canvas to base64 PNG
+      var $form = $("#kfbForm");
+      if ($form.length) {
+        $form.on("submit", function () {
+          if (hasInk && !state.signatureData) {
+            state.signatureData = canvas.toDataURL("image/png");
+          }
+        });
+      }
+    }
+
+    /**
+     * Show / hide the signature pad based on the current total.
+     * Required only if total > $500.
+     */
+    function refreshSignatureVisibility() {
+      var v = state.selectedVehicle;
+      if (!v) return;
+      var total = v.breakdown ? v.breakdown.total : 0;
+      var $sig = $("#kfbSignatureBlock");
+      if (!$sig.length) return;
+      if (total > SIGNATURE_THRESHOLD) {
+        $sig.removeAttr("hidden");
+        // Also surface T&C acknowledgement
+        $("#kfbTermsBlock").show();
+      } else {
+        $sig.attr("hidden", true);
+        $("#kfbTermsBlock").hide();
+      }
+    }
+
+    /**
+     * Save the captured signature to the backend.
+     * Called from PayPal onApprove (right after capture).
+     */
+    function saveSignature() {
+      if (!state.bookingId || !state.signatureData) return $.Deferred().resolve().promise();
+      return $.ajax({
+        url: API_BASE + "/reservation/sign",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+          booking_id:    state.bookingId,
+          signature:     state.signatureData,
+          terms_version: "v1",
+        }),
+        dataType: "json",
+        timeout: 10000,
+      });
+    }
+
+    // ============================================================
+    // POST-BOOKING ACCOUNT CREATION (v4)
+    // ============================================================
+    function promptAccountCreation(bookingId) {
+      var $block = $("#kfbAccountPrompt");
+      if (!$block.length) return;
+      $block.removeAttr("hidden");
+      $block.find(".kfb-account-prompt-btn").on("click", function () {
+        var pw = $block.find('input[name="accountPassword"]').val();
+        if (!pw || pw.length < 6) {
+          toast("Password must be at least 6 characters.");
+          return;
+        }
+        var email = $('input[name="email"]').val();
+        $.ajax({
+          url: API_BASE + "/customers/register",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({
+            email:      email,
+            password:   pw,
+            first_name: $('input[name="firstName"]').val(),
+            last_name:  $('input[name="lastName"]').val(),
+            phone:      $('input[name="phone"]').val(),
+          }),
+          dataType: "json",
+          timeout: 8000,
+        })
+        .done(function (res) {
+          if (res && res.success) {
+            toast("Account created! You can log in with your email next time.");
+            $block.find(".kfb-account-prompt-msg").text("Account created ✓");
+            $block.find(".kfb-account-prompt-fields").attr("hidden", true);
+          } else {
+            toast((res && res.error) || "Could not create account.");
+          }
+        })
+        .fail(function () { toast("Network error creating account."); });
+      });
+    }
+
+    // ============================================================
+    // RESET FORM (v4)
+    // ============================================================
+    function resetAll() {
+      state.selectedVehicle = null;
+      state.bookingId = null;
+      state.promo = null;
+      state.childSeats = {};
+      state.addons = [];
+      state.addonsCatalog = [];
+      state.stops = [];
+      state.isReturnTrip = false;
+      state.returnDate = null;
+      state.returnTime = null;
+      state.pickupTypeDetail = "Curbside";
+      state.tailNumber = "";
+      state.signatureData = null;
+      state.minFareApplied = 0;
+      state.meetGreetFee = 0;
+      $("#kfbForm")[0].reset();
+      $("#kfbStopsContainer").empty();
+      $("#kfbChildSeatsContainer").empty();
+      $("#kfbAddonList").empty();
+      $("#kfbAccountPrompt").attr("hidden", true);
+      $("#kfbSignatureBlock").attr("hidden", true);
+      $("#kfbReturnDifferent").prop("checked", true).trigger("change");
+      $('input[name="returnDate"], input[name="returnTime"], input[name="tailNumber"]').val("");
+      $(".kfb-airport-extras").hide();
+      $("#kfbTailNumberWrap").attr("hidden", true);
+      $("#kfbReturnTripPanel").attr("hidden", true);
+      $("#kfbReturnTripToggle").prop("checked", false);
+      $('input[name="pickupTypeDetail"][value="Curbside"]').prop("checked", true);
+      $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").show();
+      $("#kfbSuccess").hide();
+      // Re-seed addons catalog
+      loadAddons();
       gotoStep(1);
     }
 
@@ -931,9 +1422,48 @@
       $(document).on("input", 'input[name="firstName"], input[name="lastName"], input[name="email"], input[name="phone"]', renderSideSummary);
 
       loadFleet();
+      loadAddons();
       renderVehicles();
       renderSideSummary();
       renderPaypalButton();
+      initSignaturePad();
+
+      // Return trip toggle
+      var $retTrip = $("#kfbReturnTripToggle");
+      if ($retTrip.length) {
+        $retTrip.on("change", function () { applyReturnTrip($retTrip.is(":checked")); });
+      }
+      $('input[name="returnDate"], input[name="returnTime"]').on("change", function () {
+        state.returnDate = $('input[name="returnDate"]').val() || null;
+        state.returnTime = $('input[name="returnTime"]').val() || null;
+      });
+
+      // Pickup type detail (Curbside / Meet & Greet / Private Terminal)
+      $('input[name="pickupTypeDetail"]').on("change", function () {
+        state.pickupTypeDetail = $(this).val();
+        var $tail = $("#kfbTailNumberWrap");
+        if (state.pickupTypeDetail === "Private Terminal (FBO)") {
+          $tail.removeAttr("hidden").find("input").prop("required", true);
+        } else {
+          $tail.attr("hidden", true).find("input").prop("required", false);
+        }
+        if (state.selectedVehicle) {
+          state.selectedVehicle = $.extend({}, state.selectedVehicle, {
+            price: priceFor(state.selectedVehicle),
+            breakdown: priceBreakdown(state.selectedVehicle),
+          });
+          renderSideSummary();
+        }
+      });
+      $('input[name="tailNumber"]').on("input", function () {
+        state.tailNumber = $(this).val().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+        $(this).val(state.tailNumber);
+      });
+
+      // Flight validation buttons
+      $("#kfbValidateFlightPickup").on("click", function () { validateFlight("pickup"); });
+      $("#kfbValidateFlightDropoff").on("click", function () { validateFlight("dropoff"); });
+
       // Initial state of side column
       gotoStep(1);
     });

@@ -23,8 +23,8 @@ class Api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Booking_model', 'Promo_model']);
-        $this->load->library('paypal');
+        $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model']);
+        $this->load->library(['paypal', 'flights']);
         $this->_set_cors_headers();
     }
 
@@ -66,6 +66,19 @@ class Api extends CI_Controller
         }
 
         $booking_id = $this->Booking_model->create_booking($raw);
+
+        // Auto-link to a customer record (creates one if new)
+        if (!empty($raw['email'])) {
+            $customerId = $this->Customer_model->upsert_from_booking([
+                'email'      => $raw['email'],
+                'first_name' => $raw['firstName'] ?? '',
+                'last_name'  => $raw['lastName']  ?? '',
+                'phone'      => $raw['phone']      ?? '',
+            ]);
+            if ($customerId) {
+                $this->db->where('booking_id', $bookingId)->update('kfb_bookings', ['customer_id' => $customerId]);
+            }
+        }
 
         $this->_json([
             'success'    => TRUE,
@@ -184,6 +197,121 @@ class Api extends CI_Controller
         }
         $result = $this->Promo_model->validate($code, $amount);
         $this->_json(array_merge(['success' => TRUE], $result));
+    }
+
+    /**
+     * GET /api/addons?region=chicago|america|worldwide
+     * Returns enabled add-ons with the correct unit price for the
+     * customer's detected region.
+     */
+    public function addons()
+    {
+        $region = strtolower((string)($this->input->get('region') ?? 'worldwide'));
+        if (!in_array($region, ['chicago', 'america', 'worldwide'], TRUE)) $region = 'worldwide';
+        $rows = $this->Addon_model->list_all(TRUE);
+        $out = array_map(function ($a) use ($region) {
+            $unit = $this->Addon_model->price_for_region($a, $region);
+            return [
+                'id'         => (int)$a['id'],
+                'code'       => $a['code'],
+                'name'       => $a['name'],
+                'description'=> $a['description'],
+                'category'   => $a['category'],
+                'pricing_type'=> $a['pricing_type'],
+                'unit_price' => $unit,
+                'region'     => $region,
+            ];
+        }, $rows);
+        $this->_json(['success' => TRUE, 'addons' => $out, 'region' => $region]);
+    }
+
+    /**
+     * GET /api/flights/validate?flight=AA1234&date=2026-08-01
+     * Looks up a real flight via the configured provider (Aviationstack
+     * by default). On API error or no key configured, returns ok=false
+     * with reason="unavailable" so the frontend can fall back to
+     * manual entry without blocking the user.
+     */
+    public function flights_validate()
+    {
+        $flight = strtoupper(trim((string)($this->input->get('flight') ?? '')));
+        $date   = trim((string)($this->input->get('date')   ?? ''));
+        if ($flight === '' || $date === '') {
+            return $this->_error('flight and date query params are required', 422);
+        }
+        $result = $this->flights->lookup($flight, $date);
+        // Always return 200 with ok=false on "not found" so the frontend
+        // can cleanly fall back to manual entry without treating it as
+        // a server error.
+        $this->_json(array_merge(['success' => TRUE], $result));
+    }
+
+    /**
+     * POST /api/reservation/sign
+     * Body: { booking_id, signature (base64 PNG), terms_version? }
+     * Saves the e-signature for a booking (required for bookings > $500).
+     * Returns ok=true on success.
+     */
+    public function reservation_sign()
+    {
+        $raw = $this->_read_json();
+        if (!$raw) return $this->_error('Invalid JSON body', 400);
+        $bookingId = trim((string)($raw['booking_id'] ?? ''));
+        $signature = (string)($raw['signature'] ?? '');
+        $terms     = trim((string)($raw['terms_version'] ?? 'v1'));
+        if ($bookingId === '' || $signature === '') {
+            return $this->_error('booking_id and signature are required', 422);
+        }
+        // Verify the booking exists and is over $500
+        $row = $this->db->get_where('kfb_bookings', ['booking_id' => $bookingId])->row_array();
+        if (!$row) return $this->_error('Booking not found', 404);
+        if ((float)$row['amount'] < 500) {
+            return $this->_error('Signature not required for bookings under $500', 422);
+        }
+        $ok = $this->Booking_model->save_signature($bookingId, $signature, $terms);
+        if (!$ok) return $this->_error('Could not save signature', 500);
+        $this->_json(['success' => TRUE, 'booking_id' => $bookingId]);
+    }
+
+    /**
+     * POST /api/customers/register
+     * Body: { email, password, first_name, last_name, phone? }
+     * Promotes a guest checkout to a real account. If the email already
+     * exists, sets/updates the password on the existing customer.
+     */
+    public function customer_register()
+    {
+        $raw = $this->_read_json();
+        if (!$raw) return $this->_error('Invalid JSON body', 400);
+        $email    = strtolower(trim((string)($raw['email'] ?? '')));
+        $password = (string)($raw['password'] ?? '');
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->_error('Valid email is required', 422);
+        }
+        if (strlen($password) < 6) {
+            return $this->_error('Password must be at least 6 characters', 422);
+        }
+        $existing = $this->Customer_model->get_by_email($email);
+        if ($existing && empty($existing['password_hash'])) {
+            // Promote guest → account
+            $this->Customer_model->set_password($existing['id'], $password);
+            $this->_json(['success' => TRUE, 'customer_id' => (int)$existing['id'], 'promoted' => TRUE]);
+        } elseif ($existing) {
+            $this->_error('Account already exists for this email', 409);
+        } else {
+            // Create new
+            $id = $this->db->insert('kfb_customers', [
+                'email'         => $email,
+                'password_hash' => password_hash($password, PASSWORD_BCRYPT),
+                'first_name'    => $raw['first_name'] ?? '',
+                'last_name'     => $raw['last_name']  ?? '',
+                'phone'         => $raw['phone']      ?? NULL,
+                'status'        => 'active',
+                'created_at'    => date('Y-m-d H:i:s'),
+            ]) ? (int)$this->db->insert_id() : 0;
+            if (!$id) return $this->_error('Could not create account', 500);
+            $this->_json(['success' => TRUE, 'customer_id' => $id, 'promoted' => FALSE]);
+        }
     }
 
     // ----------------- helpers -----------------
