@@ -473,16 +473,23 @@
       var childAdd  = childCount * childSeatR;
 
       // Branch on service type — hourly replaces km-based, not stacks.
-      var base, hourlyAdd, baseLabel;
+      var rawBase, hourlyAdd, baseLabel;
       if (isHourlyService()) {
-        base      = hourlyRate * hours;
+        rawBase   = hourlyRate * hours;
         hourlyAdd = 0;
         baseLabel = "Hourly (" + hours.toFixed(1) + "h × $" + hourlyRate.toFixed(2) + ")";
       } else {
-        base      = km * perKm;
+        rawBase   = km * perKm;
         hourlyAdd = 0;
         baseLabel = "Base (" + km.toFixed(1) + " km × $" + perKm.toFixed(2) + ")";
       }
+      // Minimum fare floors the base fare itself — not disclosed to the
+      // customer as a separate line, it just quietly becomes the Base
+      // amount when the computed fare would've come in under it.
+      // Surcharge/gratuity/child seats/meet & greet/add-ons/discount all
+      // still apply on top exactly as normal.
+      var minFareApplied = (rawBase < minFare) ? minFare : 0;
+      var base = Math.max(rawBase, minFare);
 
       // Meet & Greet surcharge: only when pickup is at an airport AND
       // the customer picked the "Meet & Greet" pickup type. Chicago
@@ -515,18 +522,8 @@
       var extras   = surcharge + gratuity + childAdd + meetGreetFee + dropoffMeetGreetFee + addonsTotal;
       var subtotal = base + extras;
       var discount = (state.promo && state.promo.ok) ? +(state.promo.discount || 0) : 0;
-      var afterDiscount = Math.max(0, subtotal - discount);
-
-      // Enforce minimum fare
-      var minFareApplied = 0;
-      var oneWayTotal = afterDiscount;
-      if (afterDiscount < minFare) {
-        minFareApplied = minFare;
-        oneWayTotal = minFare;
-        state.minFareApplied = minFareApplied;
-      } else {
-        state.minFareApplied = 0;
-      }
+      var oneWayTotal = Math.max(0, subtotal - discount);
+      state.minFareApplied = minFareApplied;
 
       // Round trip: the customer is driven both ways, so the amount
       // actually collected is double the one-way fare computed above —
@@ -837,17 +834,7 @@
         $("#kfbSumVehicle").text(state.selectedVehicle.name || state.selectedVehicle.id);
         var bd = state.selectedVehicle.breakdown || priceBreakdown(state.selectedVehicle);
         $("#kfbBreakdown").show();
-        // Base row: show the amount + a small "how we got there" note.
-        //   - Hourly: "(2.0h × $95.00)"
-        //   - Non-hourly: "(18.4 km × $2.50)"
         $("#kfbSumBase").text(fmtMoney(bd.base));
-        var $baseNote = $("#kfbSumBaseNote");
-        if ($baseNote.length) {
-          $baseNote.text(isHourlyService()
-            ? "(" + bd.hours.toFixed(1) + "h × $" + bd.hourlyRate.toFixed(2) + ")"
-            : "(" + bd.km.toFixed(1) + " km × $" + bd.perKm.toFixed(2) + ")"
-          );
-        }
         $("#kfbSumSurcharge").text(fmtMoney(bd.surcharge));
         $("#kfbSumGratuity").text(fmtMoney(bd.gratuity));
         // For hourly service, the hourly amount is already the "Base" line
@@ -896,18 +883,6 @@
             $("#kfbSumAddons").html(addonLines);
           } else {
             $addonsRow.hide();
-          }
-        }
-        // Minimum fare (only shows when applied)
-        var $minRow = $("#kfbSumMinFareRow");
-        if ($minRow.length) {
-          if (bd.minFareApplied > 0) {
-            $minRow.show();
-            $("#kfbSumMinFare").text(
-              "Min fare " + fmtMoney(bd.minFare) + " applied"
-            );
-          } else {
-            $minRow.hide();
           }
         }
         $("#kfbSumDiscount").text(
@@ -1480,7 +1455,13 @@
       $("#kfbPickupTypeDetail").val("Curbside");
       $("#kfbDropoffTypeDetail").val("Curbside");
       $("#kfbReturnPickupTypeDetail, #kfbReturnDropoffTypeDetail").val("Curbside");
-      $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").show();
+      // Panel visibility is owned by gotoStep() via the `hidden` attribute
+      // — clear any inline display style showSuccess()'s .hide() left
+      // behind (rather than .show(), which would set an inline style on
+      // ALL THREE panels and permanently outrank gotoStep()'s `hidden`
+      // attribute toggling, leaving every step stacked on screen at once).
+      $(".kfb-panel").css("display", "");
+      $(".kfb-stepper, .kfb-actions, .kfb-side-col").show();
       $("#kfbSuccess").hide();
       // Re-seed addons catalog
       loadAddons();
