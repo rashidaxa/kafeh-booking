@@ -424,6 +424,10 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
   display: flex; align-items: center; gap: 10px; padding: 10px 14px;
   background: #fff7ed; border-radius: var(--kfb-radius); margin-top: 10px;
 }
+/* Author styles always beat the UA stylesheet's [hidden]{display:none},
+   regardless of specificity — without this the box above ignores the
+   `hidden` attribute in the markup and shows on page load. */
+.kfb-payment-status[hidden] { display: none; }
 .kfb-spinner {
   width: 16px; height: 16px; border-radius: 50%;
   border: 2px solid #fde68a; border-top-color: #d97706;
@@ -557,6 +561,7 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 
 /* ===================== SUCCESS ===================== */
 .kfb-success {
+  max-width: 640px; margin: 0 auto;
   padding: 36px 20px; text-align: center;
   background: #fff; border: 1px solid var(--kfb-border); border-radius: var(--kfb-radius-lg);
 }

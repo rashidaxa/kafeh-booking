@@ -29,7 +29,7 @@ $rate_groups = [
     <?php else: ?>
       <ul class="kfb-list" id="kfbVehicleList">
         <?php foreach ($vehicles as $v): ?>
-          <li class="kfb-list-item <?= ($is_edit && (int)$editing['id'] === (int)$v['id']) ? 'is-active' : '' ?>"
+          <li class="kfb-list-item kfb-list-item--thumb <?= ($is_edit && (int)$editing['id'] === (int)$v['id']) ? 'is-active' : '' ?>"
               data-id="<?= (int)$v['id'] ?>">
             <div class="kfb-list-thumb">
               <?php if (!empty($v['image'])): ?>

@@ -499,7 +499,7 @@
         var regionLine = "Service region: " + region;
 
         console.log("[BookingMap]", line, "—", regionLine);
-        try { window.alert(line + "\n" + regionLine); } catch (e) { /* alert blocked — console is enough */ }
+        // try { window.alert(line + "\n" + regionLine); } catch (e) { /* alert blocked — console is enough */ }
       }
     );
   }

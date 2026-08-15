@@ -203,6 +203,18 @@ body.kfb-admin {
 .kfb-stat-value { font-size: 28px; font-weight: 700; color: var(--kfb-text); }
 .kfb-stat-sub   { font-size: 11px; color: var(--kfb-text-faint); margin-top: 4px; }
 .kfb-stat-link  { margin-top: 8px; font-size: 13px; }
+/* Draws attention to a count that needs admin action (e.g. reservations awaiting approval). */
+.kfb-stat--warn { border-color: #fde68a; background: #fffbeb; }
+
+.kfb-section-heading {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--kfb-text-muted);
+  margin: 0 0 12px;
+}
+.kfb-section-heading:not(:first-child) { margin-top: 32px; }
 
 /* ============================================================
    Cards & tables
@@ -291,7 +303,7 @@ body.kfb-admin {
 .kfb-list { list-style: none; padding: 0; margin: 0; }
 .kfb-list-item {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 10px;
@@ -300,6 +312,9 @@ body.kfb-admin {
   margin-bottom: 6px;
   border: 1px solid transparent;
 }
+/* Vehicles list has a thumbnail as a 3rd grid child — everyone else
+   (add-ons, promo codes) is just body + status badge. */
+.kfb-list-item--thumb { grid-template-columns: 44px 1fr auto; }
 .kfb-list-item:hover { background: var(--kfb-surface-alt); }
 .kfb-list-item.is-active {
   background: #eff6ff;
@@ -373,6 +388,10 @@ body.kfb-admin {
   text-transform: uppercase;
   letter-spacing: .04em;
   color: var(--kfb-text-muted);
+  /* display: grid on the fieldset breaks the browser's native
+     legend-notches-the-border behavior in some engines — an opaque
+     background covers the border segment behind the text instead. */
+  background: var(--kfb-surface);
 }
 @media (max-width: 800px) { .kfb-fieldset { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 540px) { .kfb-fieldset { grid-template-columns: 1fr; } }
@@ -487,6 +506,17 @@ body.kfb-admin {
 .kfb-btn--ghost.is-active { background: var(--kfb-primary); color: #fff; border-color: var(--kfb-primary); }
 
 .kfb-status-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.kfb-pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--kfb-border);
+}
+.kfb-pagination-summary { font-size: 12px; color: var(--kfb-text-muted); }
+.kfb-pagination-nav { display: flex; align-items: center; gap: 10px; }
+.kfb-pagination-page { font-size: 12px; color: var(--kfb-text-muted); white-space: nowrap; }
+.kfb-btn.is-disabled { opacity: .45; cursor: default; pointer-events: none; }
 
 /* ============================================================
    List actions (toggle / delete)

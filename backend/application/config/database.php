@@ -73,13 +73,19 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $active_group = 'default';
 $query_builder = TRUE;
 
+/*
+| Real credentials never belong in this file (it's tracked by git) — set
+| database.default.hostname / .database / .username / .password / .port
+| in backend/.env instead (gitignored; see .env.example). Falls back to
+| local XAMPP defaults when .env doesn't set them.
+*/
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => 'localhost',
-	'username' => 'root',
-	'password' => '',
-	'database' => 'kafeh',
-	'dbdriver' => 'mysqli',
+	'hostname' => getenv('database.default.hostname') ?: 'localhost',
+	'username' => getenv('database.default.username') ?: 'root',
+	'password' => getenv('database.default.password') ?: '',
+	'database' => getenv('database.default.database') ?: 'kafeh',
+	'dbdriver' => getenv('database.default.dbdriver') ?: 'mysqli',
 	'dbprefix' => '',
 	'pconnect' => FALSE,
 	'db_debug' => (ENVIRONMENT !== 'production'),

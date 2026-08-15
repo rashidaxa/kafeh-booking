@@ -314,11 +314,21 @@ class Booking_model extends CI_Model
      * on the outbound leg's payment — they're excluded here and shown
      * nested under the outbound booking's detail page instead.
      */
-    public function list_all(array $filters = [])
+    public function list_all(array $filters = [], $limit = NULL, $offset = 0)
     {
         $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
         if (!empty($filters['status'])) $this->db->where('status', $filters['status']);
-        return $this->db->order_by('created_at', 'DESC')->get('kfb_bookings')->result_array();
+        $this->db->order_by('created_at', 'DESC');
+        if ($limit !== NULL) $this->db->limit((int)$limit, (int)$offset);
+        return $this->db->get('kfb_bookings')->result_array();
+    }
+
+    /** Row count for the same filters list_all() accepts — pairs with it for pagination. */
+    public function count_all(array $filters = [])
+    {
+        $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
+        if (!empty($filters['status'])) $this->db->where('status', $filters['status']);
+        return (int)$this->db->count_all_results('kfb_bookings');
     }
 
     /** Record an admin accept/reject decision: status + audit stamp, cascading to a linked return leg. */
@@ -352,6 +362,26 @@ class Booking_model extends CI_Model
                 'updated_at'     => date('Y-m-d H:i:s'),
             ]);
         }
+    }
+
+    /**
+     * Reservation counts by status, for the admin dashboard. Excludes the
+     * synthetic return-trip rows (see list_all()) so a round-trip booking
+     * counts once, not twice.
+     */
+    public function count_by_status()
+    {
+        $this->db->select('status, COUNT(*) AS cnt', FALSE);
+        $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
+        $this->db->group_by('status');
+        $rows = $this->db->get('kfb_bookings')->result_array();
+
+        $counts = ['total' => 0];
+        foreach ($rows as $r) {
+            $counts[$r['status']] = (int)$r['cnt'];
+            $counts['total'] += (int)$r['cnt'];
+        }
+        return $counts;
     }
 
     /** Get the enabled fleet from kfb_vehicles (DB-driven, replaces the old static list). */

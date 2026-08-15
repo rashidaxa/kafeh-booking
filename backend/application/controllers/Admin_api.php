@@ -315,14 +315,29 @@ class Admin_api extends CI_Controller
 
     // ----------------- Reservations -----------------
 
-    /** GET /admin/api/reservations?status= */
+    /** GET /admin/api/reservations?status=&page=&per_page= */
     public function reservations_index()
     {
         $this->_require_login();
-        $status = trim((string)$this->input->get('status'));
-        $this->_json(['success' => TRUE, 'reservations' => $this->Booking_model->list_all(
-            $status !== '' ? ['status' => $status] : []
-        )]);
+        $status  = trim((string)$this->input->get('status'));
+        $filters = $status !== '' ? ['status' => $status] : [];
+
+        $perPage = max(1, min(200, (int)($this->input->get('per_page') ?: 50)));
+        $total   = $this->Booking_model->count_all($filters);
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $page    = max(1, min($totalPages, (int)($this->input->get('page') ?: 1)));
+        $offset  = ($page - 1) * $perPage;
+
+        $this->_json([
+            'success'      => TRUE,
+            'reservations' => $this->Booking_model->list_all($filters, $perPage, $offset),
+            'pagination'   => [
+                'page'        => $page,
+                'per_page'    => $perPage,
+                'total'       => $total,
+                'total_pages' => $totalPages,
+            ],
+        ]);
     }
 
     /** GET /admin/api/reservations/:id */

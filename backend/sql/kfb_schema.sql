@@ -80,7 +80,9 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   INDEX `idx_paypal`  (`paypal_order_id`),
   INDEX `idx_date`    (`pickup_date`),
   INDEX `idx_promo_code` (`promo_code`),
-  INDEX `idx_return_booking` (`return_booking_id`)
+  INDEX `idx_return_booking` (`return_booking_id`),
+  INDEX `idx_created_at` (`created_at`),
+  INDEX `idx_status_created` (`status`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------- Stops -----------------

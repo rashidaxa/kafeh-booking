@@ -31,6 +31,10 @@ class Admin extends CI_Controller
     {
         $vehicles = $this->Vehicle_model->list_all();
         $enabled  = array_filter($vehicles, function ($v) { return (int)$v['status'] === 1; });
+
+        $reservationCounts = $this->Booking_model->count_by_status();
+        $recentReservations = $this->Booking_model->list_all([], 8, 0);
+
         $data = [
             'page_title' => 'Dashboard',
             'admin'      => $this->_current_admin(),
@@ -39,8 +43,15 @@ class Admin extends CI_Controller
                 'enabled_vehicles'  => count($enabled),
                 'disabled_vehicles' => count($vehicles) - count($enabled),
             ],
-            'recent_vehicles' => array_slice($vehicles, 0, 5),
-            'flash'          => $this->session->flashdata('flash'),
+            'reservation_stats' => [
+                'total'             => $reservationCounts['total'] ?? 0,
+                'awaiting_approval' => $reservationCounts['awaiting_approval'] ?? 0,
+                'paid'              => $reservationCounts['paid'] ?? 0,
+                'cancelled'         => $reservationCounts['cancelled'] ?? 0,
+            ],
+            'recent_vehicles'      => array_slice($vehicles, 0, 5),
+            'recent_reservations'  => $recentReservations,
+            'flash'                => $this->session->flashdata('flash'),
         ];
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/dashboard', $data);
@@ -194,15 +205,29 @@ class Admin extends CI_Controller
 
     // ----------------- Reservations -----------------
 
-    /** GET /admin/reservations — list, optionally filtered by ?status= */
+    /** GET /admin/reservations — list, optionally filtered by ?status=, paginated via ?page= */
     public function reservations()
     {
-        $status = trim((string)$this->input->get('status'));
+        $status  = trim((string)$this->input->get('status'));
+        $filters = $status !== '' ? ['status' => $status] : [];
+
+        $perPage = 50;
+        $total   = $this->Booking_model->count_all($filters);
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $page    = max(1, min($totalPages, (int)$this->input->get('page')));
+        $offset  = ($page - 1) * $perPage;
+
         $data = [
             'page_title'   => 'Reservations',
             'admin'        => $this->_current_admin(),
-            'reservations' => $this->Booking_model->list_all($status !== '' ? ['status' => $status] : []),
+            'reservations' => $this->Booking_model->list_all($filters, $perPage, $offset),
             'status_filter'=> $status,
+            'pagination'   => [
+                'page'        => $page,
+                'per_page'    => $perPage,
+                'total'       => $total,
+                'total_pages' => $totalPages,
+            ],
             'flash'        => $this->session->flashdata('flash'),
         ];
         $this->load->view('admin/_layout_header', $data);

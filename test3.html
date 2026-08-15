@@ -307,7 +307,14 @@
                     </div>
                   </div>
                 </div>
-                  <div class="kfb-actions">
+
+                <!-- Special Instructions -->
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
+                <label class="kfb-field">
+                  <textarea name="notes" rows="3" placeholder="Other notes, instructions, or special requests."></textarea>
+                </label>
+
+                <div class="kfb-actions">
                   <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbCancelBtn">Cancel</button>
                   <button type="button" class="kfb-btn kfb-btn-primary" data-next="2">Continue →</button>
                 </div>
@@ -379,12 +386,6 @@
                 </div>
                 <p class="kfb-pay-note">🔒 Clicking "Book Now" takes you to PayPal to log in and approve the payment — nothing is charged there. Your card is authorized (held) once you approve, and only charged once your reservation is accepted. You'll be brought right back here.</p>
 
-                <!-- Special Instructions -->
-                <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
-                <label class="kfb-field">
-                  <textarea name="notes" rows="3" placeholder="Other notes, instructions, or special requests."></textarea>
-                </label>
-
                 <!-- Terms & Conditions (v4) — required for > $500 -->
                 <div id="kfbTermsBlock" style="display:none">
                   <label class="kfb-check kfb-check-block" style="margin-top:14px">
@@ -416,15 +417,6 @@
                 </div>
               </section>
             </form>
-
-            <section class="kfb-success" id="kfbSuccess" hidden>
-              <div class="kfb-success-icon">✓</div>
-              <h3>Reservation Submitted</h3>
-              <p>Thank you, <b id="kfbSuccessName">rider</b>. Your PayPal payment has been authorized — you have <strong>not</strong> been charged yet.
-                We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
-              <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
-              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
-            </section>
           </div>
 
           <!-- ========== RIGHT COLUMN: map (step 1) OR summary (steps 2-3) ========== -->
@@ -462,6 +454,7 @@
                   <div class="kfb-srow kfb-srow--addons" id="kfbSumAddonsRow" hidden><span>Add-ons</span><b id="kfbSumAddons">—</b></div>
                   <div class="kfb-srow" id="kfbSumMinFareRow"   hidden><span>Min Fare</span><b id="kfbSumMinFare">—</b></div>
                   <div class="kfb-srow"><span>Discount</span><b id="kfbSumDiscount">—</b></div>
+                  <div class="kfb-srow" id="kfbSumReturnTripRow" hidden><span>Round trip (× 2)</span><b id="kfbSumReturnTrip">—</b></div>
                 </div>
                 <div class="kfb-srow kfb-stotal"><span>Estimated Price</span><b id="kfbSumTotal">$0.00</b></div>
               </div>
@@ -469,6 +462,15 @@
           </div>
 
         </div><!-- /.kfb-body -->
+
+        <section class="kfb-success" id="kfbSuccess" hidden>
+          <div class="kfb-success-icon">✓</div>
+          <h3>Reservation Submitted</h3>
+          <p>Thank you, <b id="kfbSuccessName">rider</b>. Your PayPal payment has been authorized — you have <strong>not</strong> been charged yet.
+            We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
+          <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
+          <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
+        </section>
       </div>
     </div>
   </div>

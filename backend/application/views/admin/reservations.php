@@ -1,6 +1,7 @@
 <?php
 $reservations  = isset($reservations) ? $reservations : [];
 $status_filter = isset($status_filter) ? $status_filter : '';
+$pagination    = isset($pagination) ? $pagination : ['page' => 1, 'per_page' => count($reservations), 'total' => count($reservations), 'total_pages' => 1];
 
 $statuses = [
     ''                  => 'All',
@@ -23,6 +24,15 @@ if (!function_exists('kfb_reservation_badge')) {
         }
     }
 }
+if (!function_exists('kfb_reservations_page_url')) {
+    function kfb_reservations_page_url($status, $page)
+    {
+        $params = [];
+        if ($status !== '') $params['status'] = $status;
+        if ($page > 1) $params['page'] = $page;
+        return site_url('admin/reservations') . (!empty($params) ? '?' . http_build_query($params) : '');
+    }
+}
 ?>
 
 <section class="kfb-card">
@@ -30,7 +40,7 @@ if (!function_exists('kfb_reservation_badge')) {
     <h2>All reservations</h2>
     <nav class="kfb-status-filter">
       <?php foreach ($statuses as $val => $label): ?>
-        <a href="<?= site_url('admin/reservations') . ($val !== '' ? '?status=' . urlencode($val) : '') ?>"
+        <a href="<?= kfb_reservations_page_url($val, 1) ?>"
            class="kfb-btn kfb-btn--ghost kfb-btn--sm <?= $status_filter === $val ? 'is-active' : '' ?>"><?= htmlspecialchars($label) ?></a>
       <?php endforeach; ?>
     </nav>
@@ -78,5 +88,30 @@ if (!function_exists('kfb_reservation_badge')) {
         </tbody>
       </table>
     </div>
+
+    <?php if ((int)$pagination['total_pages'] > 1): ?>
+      <?php
+        $rangeStart = (($pagination['page'] - 1) * $pagination['per_page']) + 1;
+        $rangeEnd   = min($pagination['total'], $pagination['page'] * $pagination['per_page']);
+      ?>
+      <nav class="kfb-pagination">
+        <span class="kfb-pagination-summary">
+          Showing <?= number_format($rangeStart) ?>–<?= number_format($rangeEnd) ?> of <?= number_format((int)$pagination['total']) ?>
+        </span>
+        <div class="kfb-pagination-nav">
+          <?php if ($pagination['page'] > 1): ?>
+            <a class="kfb-btn kfb-btn--ghost kfb-btn--sm" href="<?= kfb_reservations_page_url($status_filter, $pagination['page'] - 1) ?>">← Prev</a>
+          <?php else: ?>
+            <span class="kfb-btn kfb-btn--ghost kfb-btn--sm is-disabled">← Prev</span>
+          <?php endif; ?>
+          <span class="kfb-pagination-page">Page <?= number_format((int)$pagination['page']) ?> of <?= number_format((int)$pagination['total_pages']) ?></span>
+          <?php if ($pagination['page'] < $pagination['total_pages']): ?>
+            <a class="kfb-btn kfb-btn--ghost kfb-btn--sm" href="<?= kfb_reservations_page_url($status_filter, $pagination['page'] + 1) ?>">Next →</a>
+          <?php else: ?>
+            <span class="kfb-btn kfb-btn--ghost kfb-btn--sm is-disabled">Next →</span>
+          <?php endif; ?>
+        </div>
+      </nav>
+    <?php endif; ?>
   <?php endif; ?>
 </section>

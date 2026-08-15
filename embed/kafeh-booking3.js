@@ -519,14 +519,22 @@
 
       // Enforce minimum fare
       var minFareApplied = 0;
-      var total = afterDiscount;
+      var oneWayTotal = afterDiscount;
       if (afterDiscount < minFare) {
         minFareApplied = minFare;
-        total = minFare;
+        oneWayTotal = minFare;
         state.minFareApplied = minFareApplied;
       } else {
         state.minFareApplied = 0;
       }
+
+      // Round trip: the customer is driven both ways, so the amount
+      // actually collected is double the one-way fare computed above —
+      // the return leg's own kfb_bookings row always carries amount=0
+      // (see Booking_model::_create_return_leg()) and rides entirely on
+      // this total.
+      var isReturnTrip = !!state.isReturnTrip;
+      var total = isReturnTrip ? oneWayTotal * 2 : oneWayTotal;
 
       return {
         km: km, perKm: perKm, base: base,
@@ -537,7 +545,8 @@
         dropoffMeetGreetFee: dropoffMeetGreetFee,
         addonsTotal: addonsTotal,
         minFare: minFare, minFareApplied: minFareApplied,
-        subtotal: subtotal, discount: discount, total: total,
+        subtotal: subtotal, discount: discount,
+        isReturnTrip: isReturnTrip, oneWayTotal: oneWayTotal, total: total,
         region: region, serviceType: selectedServiceType(),
         baseLabel: baseLabel,
       };
@@ -772,7 +781,7 @@
               (isHourlyService()
                 ? bd.hours.toFixed(1) + 'h · ' + region
                 : fmtKm(bd.km) + ' km · ' + region
-              ) + '</small></div>' +
+              ) + (bd.isReturnTrip ? ' · round trip (× 2)' : '') + '</small></div>' +
           '</div>'
         );
         $card.on("click", function () {
@@ -906,6 +915,18 @@
             ? '− ' + fmtMoney(bd.discount) + (state.promo ? ' (' + escapeHtml(state.promo.code) + ')' : '')
             : "—"
         );
+        // Round trip: shows the extra amount added by doubling the
+        // one-way fare, so the line items above still add up to what's
+        // displayed below rather than silently jumping to 2×.
+        var $returnTripRow = $("#kfbSumReturnTripRow");
+        if ($returnTripRow.length) {
+          if (bd.isReturnTrip) {
+            $returnTripRow.show();
+            $("#kfbSumReturnTrip").text("+ " + fmtMoney(bd.oneWayTotal));
+          } else {
+            $returnTripRow.hide();
+          }
+        }
         $("#kfbSumTotal").text(fmtMoney(bd.total));
       } else {
         $("#kfbSumVehicle").text("—");
@@ -1243,6 +1264,11 @@
         $("#kfbReturnTailNumberWrap, #kfbReturnDropoffTailNumberWrap").attr("hidden", true);
         $("#kfbReturnPickupFlightBlock, #kfbReturnDropoffFlightBlock").hide();
       }
+      // Price depends on isReturnTrip (round trip = double the one-way
+      // fare) — refresh immediately rather than leaving a stale one-way
+      // price on screen until the next unrelated recalc.
+      recalcSelectedVehicle();
+      renderVehicles();
     }
 
     /**
