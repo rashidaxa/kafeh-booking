@@ -441,37 +441,6 @@
     "Reject failed."
   );
 
-  // -------- Reservation: charge saved card for an additional amount --------
-  var chargeForm = $("#kfbChargeForm");
-  if (chargeForm) {
-    chargeForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      clearErrors();
-
-      var data = new FormData(chargeForm);
-      var submitBtn = chargeForm.querySelector('button[type="submit"]');
-      var oldLabel = submitBtn ? submitBtn.textContent : null;
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Charging…"; }
-
-      fetch(chargeForm.action, { method: "POST", body: data, credentials: "same-origin" })
-        .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; })
-          .then(function (j) { return { status: r.status, body: j }; }); })
-        .then(function (res) {
-          if (res.body && res.body.success) {
-            window.location.reload();
-          } else if (res.body && res.body.fields) {
-            showErrors(res.body.fields);
-          } else {
-            showErrors({ _all: (res.body && res.body.error) || "Charge failed." });
-          }
-        })
-        .catch(function (err) { showErrors({ _all: "Network error: " + (err && err.message ? err.message : err) }); })
-        .finally(function () {
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldLabel; }
-        });
-    });
-  }
-
   function clearErrors() {
     if (!errBox) return;
     errBox.hidden = true;

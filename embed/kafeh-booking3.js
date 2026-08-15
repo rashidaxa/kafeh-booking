@@ -64,24 +64,7 @@
     // -------- Config --------
     var API_BASE      = (window.KAFEH_API || "/api").replace(/\/$/, "");
     var UPLOADS_BASE  = (window.KAFEH_UPLOADS || (API_BASE.replace(/\/api$/, "") + "/uploads/vehicles/"));
-    var STRIPE_KEY    = window.KAFEH_STRIPE_PUBLISHABLE_KEY || "";
     var HOURLY_KEYS   = ["hourly", "as directed", "as-directed", "hourly / as directed"];
-
-    // -------- Stripe.js — card element (mounted once, reused across submits) --------
-    // Stripe.js loads from a <script> tag in <head>, which should finish
-    // before this script runs (it's earlier in document order, both
-    // synchronous) — but we still poll/retry rather than assume it, the
-    // same way the old PayPal integration waited for its SDK.
-    var stripe = null;
-    var stripeElements = null;
-    var stripeCard = null;
-    function initStripe() {
-      if (stripe) return true;
-      if (!STRIPE_KEY || typeof Stripe !== "function") return false;
-      stripe = Stripe(STRIPE_KEY);
-      stripeElements = stripe.elements();
-      return true;
-    }
 
     // -------- Child seat catalog (simplified to 3 types per spec v4) --------
     var CHILD_SEAT_TYPES = [
@@ -740,6 +723,7 @@
           breakdown: priceBreakdown(state.selectedVehicle),
         });
         renderSideSummary();
+        refreshSignatureVisibility();
       }
     }
 
@@ -1014,7 +998,7 @@
     }
 
     // ============================================================
-    // RESERVATION + STRIPE
+    // RESERVATION + PAYPAL
     // ============================================================
     function createReservation() {
       if (!state.selectedVehicle) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
@@ -1107,83 +1091,43 @@
       });
     }
     /**
-     * Authorize (hold) the trip amount and save the card for future
-     * off-session charges. Does NOT charge the customer yet — see
-     * Api::stripe_create_intent().
+     * Open a PayPal order for the trip amount (intent=AUTHORIZE — nothing
+     * is held yet) and return the approval URL to redirect the browser
+     * to. return_url/cancel_url point back at this same page (minus any
+     * query string) so handlePaypalReturn() can pick up where we left
+     * off once PayPal redirects back.
      */
-    function createStripeIntent() {
+    function createPaypalOrder() {
       var v = state.selectedVehicle;
       if (!v) return $.Deferred().reject().promise();
+      var pageUrl = location.href.split("#")[0].split("?")[0];
+      var returnUrl = API_BASE + "/paypal/return?booking_id=" + encodeURIComponent(state.bookingId) +
+        "&site_return=" + encodeURIComponent(pageUrl);
+      var cancelUrl = API_BASE + "/paypal/cancel?booking_id=" + encodeURIComponent(state.bookingId) +
+        "&site_return=" + encodeURIComponent(pageUrl);
       return $.ajax({
-        url: API_BASE + "/stripe/create-intent",
+        url: API_BASE + "/paypal/create-order",
         method: "POST",
         contentType: "application/json",
         data: JSON.stringify({
           booking_id: state.bookingId,
           amount:     v.breakdown.total.toFixed(2),
+          return_url: returnUrl,
+          cancel_url: cancelUrl,
         }),
         dataType: "json",
-        timeout: 10000,
-      });
-    }
-
-    /** Confirms the authorization succeeded and saves the card on the booking. */
-    function finalizeStripe(paymentIntentId) {
-      return $.ajax({
-        url: API_BASE + "/stripe/finalize",
-        method: "POST",
-        contentType: "application/json",
-        data: JSON.stringify({
-          booking_id:         state.bookingId,
-          payment_intent_id:  paymentIntentId,
-        }),
-        dataType: "json",
-        timeout: 10000,
+        timeout: 20000,
       });
     }
 
     /**
-     * Mount the Stripe Card Element once, into the #kfbCardElement container.
-     * Retries for a few seconds if Stripe.js hasn't finished loading yet
-     * (matches how the old PayPal integration waited for its SDK).
-     */
-    var mountStripeCardTries = 0;
-    function mountStripeCard() {
-      if (stripeCard) return;
-      if (!initStripe()) {
-        mountStripeCardTries++;
-        if (mountStripeCardTries > 200) {
-          $("#kfbCardElement").html('<p class="kfb-pay-error">Stripe failed to load. Please refresh the page.</p>');
-          return;
-        }
-        setTimeout(mountStripeCard, 100);
-        return;
-      }
-      if (!document.getElementById("kfbCardElement")) return;
-      stripeCard = stripeElements.create("card", {
-        style: {
-          base: { fontSize: "14px", fontFamily: "inherit", color: "#111827", "::placeholder": { color: "#9ca3af" } },
-          invalid: { color: "#b91c1c" },
-        },
-      });
-      stripeCard.mount("#kfbCardElement");
-      stripeCard.on("change", function (event) {
-        $("#kfbCardErrors").text(event.error ? event.error.message : "");
-      });
-    }
-
-    /**
-     * Book Now: validate → create the reservation → authorize the card via
-     * Stripe (confirmCardPayment handles any 3-D Secure challenge on its
-     * own) → confirm the authorization with the backend → save signature,
-     * show success. The reservation is NOT charged here — an admin must
-     * accept it first (see the admin Reservations screen).
+     * Book Now: validate → create the reservation → save signature (if
+     * required) → open a PayPal order → redirect the browser to PayPal to
+     * approve it. Nothing is charged here — the hold is placed once
+     * PayPal redirects back (see handlePaypalReturn()), and an admin
+     * still has to accept the reservation before funds are captured.
      */
     function submitBooking() {
-      if (!stripe || !stripeCard) {
-        toast("Payment form failed to load. Please refresh the page.", "error");
-        return;
-      }
       var v = state.selectedVehicle;
       if (!v) { toast("Choose a vehicle first."); return; }
 
@@ -1199,45 +1143,63 @@
 
       var $btn = $("#kfbBookNowBtn");
       $btn.prop("disabled", true);
-      $("#kfbCardErrors").text("");
       $("#kfbPaymentStatus").show().find("p").text("Creating your reservation…");
 
       createReservation()
         .then(function (res) {
           state.bookingId = res.booking_id;
-          $("#kfbPaymentStatus").find("p").text("Authorizing your card…");
-          return createStripeIntent();
-        })
-        .then(function (intentRes) {
-          return stripe.confirmCardPayment(intentRes.client_secret, {
-            payment_method: {
-              card: stripeCard,
-              billing_details: {
-                name:  ($('input[name="firstName"]').val() + " " + $('input[name="lastName"]').val()).trim(),
-                email: $('input[name="email"]').val(),
-                phone: $('input[name="phone"]').val(),
-              },
-            },
-          }).then(function (result) {
-            if (result.error) return $.Deferred().reject({ message: result.error.message }).promise();
-            return finalizeStripe(result.paymentIntent.id);
-          });
-        })
-        .then(function () {
-          $("#kfbPaymentStatus").hide();
           return saveSignature();
         })
         .then(function () {
-          showSuccess(state.bookingId);
-          promptAccountCreation(state.bookingId);
+          $("#kfbPaymentStatus").find("p").text("Redirecting you to PayPal…");
+          return createPaypalOrder();
+        })
+        .then(function (res) {
+          window.location.href = res.approve_url;
+          // Browser navigates away here — nothing after this line runs.
         })
         .catch(function (err) {
           $("#kfbPaymentStatus").hide();
           $btn.prop("disabled", false);
           var msg = (err && err.responseJSON && err.responseJSON.error) || (err && err.message) || "Could not process payment.";
-          $("#kfbCardErrors").text(msg);
           toast(msg, "error");
         });
+    }
+
+    /**
+     * Runs once at boot. If the page was just loaded because PayPal
+     * redirected back here (?kfb_paypal=success|cancelled|error), show
+     * the right outcome and strip the params so a refresh doesn't replay
+     * it. Page-reload form state is gone at this point, so on success we
+     * re-fetch the booking to populate the confirmation screen.
+     */
+    function handlePaypalReturn() {
+      var params = new URLSearchParams(location.search);
+      var status = params.get("kfb_paypal");
+      if (!status) return;
+      var bookingId = params.get("booking_id") || "";
+      var message   = params.get("kfb_paypal_message") || "";
+
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, "", location.pathname + location.hash);
+      }
+
+      if (status === "success") {
+        state.bookingId = bookingId;
+        if (!bookingId) { showSuccess(bookingId); return; }
+        $.ajax({ url: API_BASE + "/reservation/" + encodeURIComponent(bookingId), method: "GET", dataType: "json", timeout: 10000 })
+          .then(function (res) {
+            if (res && res.first_name) $('input[name="firstName"]').val(res.first_name);
+            if (res && res.email)      $('input[name="email"]').val(res.email);
+            showSuccess(bookingId);
+            promptAccountCreation(bookingId);
+          })
+          .catch(function () { showSuccess(bookingId); });
+      } else if (status === "cancelled") {
+        toast("PayPal checkout was cancelled — you can try again.", "error");
+      } else {
+        toast(message || "PayPal reported a problem completing your payment.", "error");
+      }
     }
 
     function showSuccess(bookingId) {
@@ -1339,7 +1301,15 @@
         ctx.stroke();
         lastX = p.x; lastY = p.y;
       }
-      function end() { drawing = false; }
+      // Snapshot to base64 PNG as soon as a stroke ends, rather than
+      // waiting for a form "submit" event — "Book Now" is a plain button
+      // handled via a click listener (see submitBooking()), so it never
+      // fires a native submit event for a form-level listener to catch.
+      function end() {
+        if (!drawing) return;
+        drawing = false;
+        if (hasInk) state.signatureData = canvas.toDataURL("image/png");
+      }
       function clear() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         hasInk = false;
@@ -1356,16 +1326,6 @@
 
       var $clear = $("#kfbSignatureClear");
       if ($clear.length) $clear.on("click", clear);
-
-      // Before submit, snapshot the canvas to base64 PNG
-      var $form = $("#kfbForm");
-      if ($form.length) {
-        $form.on("submit", function () {
-          if (hasInk && !state.signatureData) {
-            state.signatureData = canvas.toDataURL("image/png");
-          }
-        });
-      }
     }
 
     /**
@@ -1558,9 +1518,9 @@
       loadAddons();
       renderVehicles();
       renderSideSummary();
-      mountStripeCard();
       $("#kfbBookNowBtn").on("click", submitBooking);
       initSignaturePad();
+      handlePaypalReturn();
 
       // Return trip toggle
       var $retTrip = $("#kfbReturnTripToggle");

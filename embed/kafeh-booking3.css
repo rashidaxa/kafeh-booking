@@ -418,14 +418,7 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 }
 .kfb-pay-method.is-active   { border-color: var(--kfb-accent); background: var(--kfb-card-2); }
 .kfb-pay-method.is-disabled  { color: var(--kfb-text-muted); cursor: not-allowed; }
-.kfb-card-element {
-  padding: 10px 12px; background: #fff;
-  border: 1px solid var(--kfb-border-strong); border-radius: var(--kfb-radius);
-}
-.kfb-card-element.StripeElement--focus { border-color: var(--kfb-accent); box-shadow: 0 0 0 3px rgba(17,17,17,.08); }
-.kfb-card-element.StripeElement--invalid { border-color: var(--kfb-error); }
 .kfb-pay-error { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--kfb-error); background: var(--kfb-error-bg); border-radius: var(--kfb-radius); }
-.kfb-card-errors { min-height: 16px; margin-top: 6px; font-size: 12px; color: var(--kfb-error); }
 .kfb-pay-note { color: var(--kfb-text-muted); font-size: 12px; margin: 12px 0 18px; }
 .kfb-payment-status {
   display: flex; align-items: center; gap: 10px; padding: 10px 14px;

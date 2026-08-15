@@ -9,13 +9,18 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   GET  /api/settings                    → global settings (Meet & Greet fees)
  *   POST /api/reservation                 → create booking (returns booking_id)
  *   GET  /api/reservation/:id             → fetch booking detail
- *   POST /api/stripe/create-intent        → authorize (hold) payment, save card
- *   POST /api/stripe/finalize             → confirm authorization succeeded
+ *   POST /api/paypal/create-order         → open a PayPal order, returns the approval redirect URL
+ *   GET  /api/paypal/return               → PayPal redirects here after the customer approves
+ *   GET  /api/paypal/cancel               → PayPal redirects here if the customer cancels
  *   GET  /api/health                      → health check
  *
- * Payments are authorized only here — an admin must accept the
- * reservation (see Admin_api::reservations_accept) before the held
- * funds are actually captured. See backend/application/libraries/Stripe.php.
+ * Payment is a redirect checkout (PayPal Orders v2 REST API): the widget
+ * calls paypal_create_order(), sends the browser to the approval link
+ * PayPal returns, and PayPal redirects back to paypal_return() once the
+ * customer approves — that's where the hold is actually placed. An admin
+ * must still accept the reservation (see Admin_api::reservations_accept)
+ * before the held funds are captured. See
+ * backend/application/libraries/Paypal.php.
  *
  * CORS: open by default (set $allowed_origins in __construct to lock down).
  */
@@ -29,7 +34,7 @@ class Api extends CI_Controller
     {
         parent::__construct();
         $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model']);
-        $this->load->library(['stripe', 'flights']);
+        $this->load->library(['paypal', 'flights']);
         $this->_set_cors_headers();
     }
 
@@ -112,93 +117,121 @@ class Api extends CI_Controller
     }
 
     /**
-     * POST /api/stripe/create-intent
-     * Body: { booking_id, amount }
-     * Authorizes (holds) the full trip amount and saves the card on a
-     * Stripe Customer for future off-session charges. Does NOT charge the
-     * customer — funds are only captured once an admin accepts the
-     * reservation (Admin_api::reservations_accept).
-     * Returns { client_secret, payment_intent_id } so the frontend can
-     * confirm with Stripe.js (which also handles any 3-D Secure challenge).
+     * POST /api/paypal/create-order
+     * Body: { booking_id, amount, return_url, cancel_url }
+     * Opens a PayPal order (intent=AUTHORIZE — nothing is held or charged
+     * yet) and returns the URL to redirect the customer's browser to so
+     * they can approve it on paypal.com. return_url/cancel_url are
+     * supplied by the widget (its own current page, so it can bring the
+     * customer back to the right place) — PayPal appends its own
+     * ?token=&PayerID= to return_url when it redirects back.
      */
-    public function stripe_create_intent()
+    public function paypal_create_order()
     {
         $raw = $this->_read_json();
         if (!$raw) return $this->_error('Invalid JSON body', 400);
 
         $bookingId = trim((string)($raw['booking_id'] ?? ''));
         $amount    = $raw['amount'] ?? NULL;
+        $returnUrl = trim((string)($raw['return_url'] ?? ''));
+        $cancelUrl = trim((string)($raw['cancel_url'] ?? ''));
         if ($bookingId === '' || !$amount) {
             return $this->_error('booking_id and amount are required', 422);
+        }
+        if (!preg_match('#^https?://#i', $returnUrl) || !preg_match('#^https?://#i', $cancelUrl)) {
+            return $this->_error('return_url and cancel_url must be absolute http(s) URLs', 422);
         }
 
         $booking = $this->db->get_where('kfb_bookings', ['booking_id' => $bookingId])->row_array();
         if (!$booking) return $this->_error('Booking not found', 404);
 
         try {
-            $customerId = $this->stripe->findOrCreateCustomer(
-                $booking['email'],
-                trim($booking['first_name'] . ' ' . $booking['last_name'])
-            );
-            $intent = $this->stripe->createPaymentIntent($amount, $customerId, $bookingId, 'Chauffeur booking ' . $bookingId);
+            $order = $this->paypal->createOrder($amount, $bookingId, $returnUrl, $cancelUrl);
         } catch (Exception $e) {
-            log_message('error', '[Stripe] create-intent: ' . $e->getMessage());
-            return $this->_error('Could not start payment', 502, ['detail' => $e->getMessage()]);
+            log_message('error', '[PayPal] create-order failed for ' . $bookingId . ': ' . $e->getMessage());
+            return $this->_error('Could not start PayPal checkout', 502, ['detail' => $e->getMessage()]);
         }
 
-        $this->_json([
-            'success'           => TRUE,
-            'client_secret'     => $intent['client_secret'],
-            'payment_intent_id' => $intent['id'],
-        ], 201);
+        $approveUrl = $this->paypal->approveLink($order);
+        if (empty($order['id']) || !$approveUrl) {
+            log_message('error', '[PayPal] create-order for ' . $bookingId . ' had no approval link: ' . json_encode($order));
+            return $this->_error('PayPal did not return an approval link', 502);
+        }
+
+        $this->Booking_model->save_paypal_order($bookingId, $order['id']);
+
+        $this->_json(['success' => TRUE, 'booking_id' => $bookingId, 'approve_url' => $approveUrl]);
     }
 
     /**
-     * POST /api/stripe/finalize
-     * Body: { booking_id, payment_intent_id }
-     * Called after the frontend confirms the PaymentIntent with Stripe.js.
-     * Verifies the authorization directly with Stripe, saves the card +
-     * intent on the booking, and marks it awaiting_approval.
+     * GET /api/paypal/return
+     * Query: token (PayPal order id), PayerID, booking_id, site_return
+     * (the widget's own page — where we send the browser back to).
+     * Places the authorization hold now that the customer has approved,
+     * then redirects into the widget's page with a ?kfb_paypal= status
+     * flag so it can show a result without needing the lost form state.
      */
-    public function stripe_finalize()
+    public function paypal_return()
     {
-        $raw = $this->_read_json();
-        if (!$raw) return $this->_error('Invalid JSON body', 400);
+        $token      = trim((string)($this->input->get('token') ?? ''));
+        $bookingId  = trim((string)($this->input->get('booking_id') ?? ''));
+        $siteReturn = (string)($this->input->get('site_return') ?? '');
 
-        $bookingId = trim((string)($raw['booking_id'] ?? ''));
-        $intentId  = trim((string)($raw['payment_intent_id'] ?? ''));
-        if ($bookingId === '' || $intentId === '') {
-            return $this->_error('booking_id and payment_intent_id are required', 422);
+        $booking = $bookingId !== '' ? $this->db->get_where('kfb_bookings', ['booking_id' => $bookingId])->row_array() : NULL;
+
+        // The order id PayPal sends back must match the one we created for
+        // this booking — otherwise this callback isn't trustworthy.
+        if (!$booking || $token === '' || empty($booking['paypal_order_id']) || !hash_equals($booking['paypal_order_id'], $token)) {
+            log_message('error', '[PayPal] return callback token mismatch for booking ' . $bookingId);
+            return $this->_redirect_to_site($siteReturn, $bookingId, 'error', 'Invalid PayPal return');
         }
 
         try {
-            $intent = $this->stripe->retrievePaymentIntent($intentId);
+            $result = $this->paypal->authorizeOrder($token);
         } catch (Exception $e) {
-            log_message('error', '[Stripe] finalize: ' . $e->getMessage());
-            return $this->_error('Could not verify payment', 502, ['detail' => $e->getMessage()]);
+            log_message('error', '[PayPal] authorizeOrder failed for ' . $bookingId . ': ' . $e->getMessage());
+            return $this->_redirect_to_site($siteReturn, $bookingId, 'error', 'Payment could not be authorized');
         }
 
-        if (($intent['status'] ?? '') !== 'requires_capture') {
-            return $this->_error('Payment was not authorized (status: ' . ($intent['status'] ?? 'unknown') . ')', 422);
+        $this->Booking_model->save_paypal_auth($bookingId, [
+            'paypal_auth_transaction_id' => $result['TRANSACTIONID'] ?? NULL,
+            'card_brand'                 => NULL,
+            'card_last4'                 => NULL,
+        ]);
+        $this->Booking_model->record_payment($bookingId, $result['TRANSACTIONID'] ?? NULL, 'authorize', $result['ACK'] ?? 'Success', [
+            'amount'   => $booking['amount'],
+            'currency' => 'USD',
+            'result'   => $result,
+        ]);
+
+        $this->_redirect_to_site($siteReturn, $bookingId, 'success', '');
+    }
+
+    /** GET /api/paypal/cancel — the customer backed out of the PayPal approval page. */
+    public function paypal_cancel()
+    {
+        $bookingId  = trim((string)($this->input->get('booking_id') ?? ''));
+        $siteReturn = (string)($this->input->get('site_return') ?? '');
+        $this->_redirect_to_site($siteReturn, $bookingId, 'cancelled', '');
+    }
+
+    /**
+     * Send the browser back into the widget's own page with a status
+     * flag. $siteReturn is client-supplied, so it's restricted to
+     * http(s) (never javascript:/data: etc.) — this is a public,
+     * unauthenticated endpoint either way, same trust level as the rest
+     * of this controller.
+     */
+    protected function _redirect_to_site($siteReturn, $bookingId, $status, $message)
+    {
+        if (!preg_match('#^https?://#i', $siteReturn)) {
+            $siteReturn = '/';
         }
-
-        $pm   = is_array($intent['payment_method'] ?? NULL) ? $intent['payment_method'] : [];
-        $card = $pm['card'] ?? [];
-
-        $this->Booking_model->save_stripe_auth($bookingId, [
-            'stripe_customer_id'       => $intent['customer'] ?? NULL,
-            'stripe_payment_method_id' => $pm['id'] ?? NULL,
-            'stripe_payment_intent_id' => $intent['id'],
-            'card_brand'               => $card['brand'] ?? NULL,
-            'card_last4'               => $card['last4'] ?? NULL,
-        ]);
-        $this->Booking_model->record_payment($bookingId, $intent['id'], 'authorize', $intent['status'], [
-            'amount'   => ($intent['amount'] ?? 0) / 100,
-            'currency' => strtoupper($intent['currency'] ?? 'usd'),
-            'intent'   => $intent,
-        ]);
-
-        $this->_json(['success' => TRUE, 'booking_id' => $bookingId, 'status' => 'awaiting_approval']);
+        $sep = (strpos($siteReturn, '?') === FALSE) ? '?' : '&';
+        $url = $siteReturn . $sep . 'kfb_paypal=' . rawurlencode($status) . '&booking_id=' . rawurlencode((string)$bookingId);
+        if ($message !== '') $url .= '&kfb_paypal_message=' . rawurlencode($message);
+        header('Location: ' . $url, TRUE, 302);
+        exit;
     }
 
     /**

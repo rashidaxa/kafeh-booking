@@ -133,8 +133,8 @@ class Booking_model extends CI_Model
      * widget already resolves $data['pickup']/$data['dropoff'] (and their
      * loc types) to their final values before submitting, so we just flip
      * them rather than re-deriving anything. Fare/add-ons/promo are left
-     * at 0 — the whole reservation is authorized and captured as one Stripe
-     * PaymentIntent against the outbound booking (see update_booking_status(),
+     * at 0 — the whole reservation is authorized and captured as one PayPal
+     * transaction against the outbound booking (see update_booking_status(),
      * which also marks this row paid/cancelled when the outbound one is).
      */
     protected function _create_return_leg(array $data, $primary_booking_id, $childSeats, $childSeatsBreakdown)
@@ -251,39 +251,60 @@ class Booking_model extends CI_Model
         return $row;
     }
 
-    /** Log a Stripe lifecycle event (authorize / capture / cancel / additional_charge) against a booking. */
-    public function record_payment($booking_id, $payment_intent_id, $event, $status, $payload = [])
+    /** Log a PayPal lifecycle event (authorize / capture / cancel / additional_charge) against a booking. */
+    public function record_payment($booking_id, $paypal_transaction_id, $event, $status, $payload = [])
     {
         $this->db->insert('kfb_payments', [
-            'booking_id'               => $booking_id,
-            'provider'                 => 'stripe',
-            'stripe_payment_intent_id' => $payment_intent_id,
-            'event'                    => $event,        // 'authorize' | 'capture' | 'cancel' | 'additional_charge'
-            'status'                   => $status,        // Stripe PaymentIntent status, e.g. 'requires_capture' | 'succeeded' | 'canceled'
-            'amount'                   => $payload['amount'] ?? NULL,
-            'currency'                 => $payload['currency'] ?? 'USD',
-            'raw_response'             => json_encode($payload),
-            'created_at'               => date('Y-m-d H:i:s'),
+            'booking_id'             => $booking_id,
+            'provider'               => 'paypal',
+            'paypal_transaction_id'  => $paypal_transaction_id,
+            'event'                  => $event,        // 'authorize' | 'capture' | 'cancel' | 'additional_charge'
+            'status'                 => $status,        // PayPal ACK/PAYMENTSTATUS, e.g. 'Success' | 'Completed'
+            'amount'                 => $payload['amount'] ?? NULL,
+            'currency'               => $payload['currency'] ?? 'USD',
+            'raw_response'           => json_encode($payload),
+            'created_at'             => date('Y-m-d H:i:s'),
         ]);
     }
 
     /**
-     * Persist the result of the initial Stripe authorization on a booking
-     * (card + PaymentIntent) and mark it awaiting admin approval. Only
-     * touches the leg that was actually charged — see the class doc on
-     * _create_return_leg() for why the return leg doesn't carry its own
-     * payment info.
+     * Persist the PayPal order id right after it's created, before the
+     * customer is redirected to paypal.com to approve it. Lets the
+     * return-URL handler verify the ?token= PayPal sends back actually
+     * belongs to this booking.
      */
-    public function save_stripe_auth($booking_id, array $data)
+    public function save_paypal_order($booking_id, $orderId)
     {
         return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
-            'stripe_customer_id'       => $data['stripe_customer_id']       ?? NULL,
-            'stripe_payment_method_id' => $data['stripe_payment_method_id'] ?? NULL,
-            'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? NULL,
-            'card_brand'               => $data['card_brand'] ?? NULL,
-            'card_last4'               => $data['card_last4'] ?? NULL,
-            'status'                   => 'awaiting_approval',
-            'updated_at'               => date('Y-m-d H:i:s'),
+            'paypal_order_id' => $orderId,
+            'updated_at'      => date('Y-m-d H:i:s'),
+        ]) ? TRUE : FALSE;
+    }
+
+    /**
+     * Persist the result of the initial PayPal authorization (placed once
+     * the customer approves the order and PayPal redirects back) on a
+     * booking and mark it awaiting admin approval. Only touches the leg
+     * that was actually charged — see the class doc on _create_return_leg()
+     * for why the return leg doesn't carry its own payment info.
+     */
+    public function save_paypal_auth($booking_id, array $data)
+    {
+        return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
+            'paypal_auth_transaction_id' => $data['paypal_auth_transaction_id'] ?? NULL,
+            'card_brand'                 => $data['card_brand'] ?? NULL,
+            'card_last4'                 => $data['card_last4'] ?? NULL,
+            'status'                     => 'awaiting_approval',
+            'updated_at'                 => date('Y-m-d H:i:s'),
+        ]) ? TRUE : FALSE;
+    }
+
+    /** Persist the DoCapture transaction id — used as the reference for later DoReferenceTransaction charges. */
+    public function save_paypal_capture($booking_id, $captureTransactionId)
+    {
+        return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
+            'paypal_capture_transaction_id' => $captureTransactionId,
+            'updated_at'                    => date('Y-m-d H:i:s'),
         ]) ? TRUE : FALSE;
     }
 
@@ -322,7 +343,7 @@ class Booking_model extends CI_Model
             'updated_at'     => date('Y-m-d H:i:s'),
         ]);
 
-        // Return-trip bookings are two linked rows charged as a single Stripe
+        // Return-trip bookings are two linked rows charged as a single PayPal
         // authorization — keep the linked leg's status in sync with this one.
         $row = $this->db->select('return_booking_id')->get_where('kfb_bookings', ['booking_id' => $booking_id])->row_array();
         if (!empty($row['return_booking_id'])) {

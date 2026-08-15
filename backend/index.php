@@ -62,7 +62,7 @@
  *
  * Minimal loader: reads KEY=value lines from backend/.env (gitignored)
  * into getenv(), so application/config/*.php can do
- * getenv('STRIPE_SECRET_KEY') ?: 'placeholder' without a real value
+ * getenv('PAYPAL_CLIENT_SECRET') ?: 'placeholder' without a real value
  * ever needing to live in a tracked file.
  */
 	$kfb_env_file = __DIR__ . '/.env';

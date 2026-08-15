@@ -14,9 +14,6 @@
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
   <script src="test-config.js"></script>
-
-  <!-- Stripe.js -->
-  <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
 
@@ -378,14 +375,9 @@
                 <!-- Payment Option -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Payment Option</h3>
                 <div class="kfb-pay-methods">
-                  <div class="kfb-pay-method is-active"><span>💳</span> Credit / Debit Card</div>
+                  <div class="kfb-pay-method is-active"><span>🅿️</span> PayPal</div>
                 </div>
-                <label class="kfb-field">
-                  <span>Card details</span>
-                  <div id="kfbCardElement" class="kfb-card-element"></div>
-                </label>
-                <div id="kfbCardErrors" class="kfb-card-errors" role="alert"></div>
-                <p class="kfb-pay-note">🔒 Your card is processed securely by Stripe. It's authorized now and charged once your reservation is approved.</p>
+                <p class="kfb-pay-note">🔒 Clicking "Book Now" takes you to PayPal to log in and approve the payment — nothing is charged there. Your card is authorized (held) once you approve, and only charged once your reservation is accepted. You'll be brought right back here.</p>
 
                 <!-- Special Instructions -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
@@ -428,7 +420,7 @@
             <section class="kfb-success" id="kfbSuccess" hidden>
               <div class="kfb-success-icon">✓</div>
               <h3>Reservation Submitted</h3>
-              <p>Thank you, <b id="kfbSuccessName">rider</b>. Your card has been authorized — you have <strong>not</strong> been charged yet.
+              <p>Thank you, <b id="kfbSuccessName">rider</b>. Your PayPal payment has been authorized — you have <strong>not</strong> been charged yet.
                 We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
               <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
               <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>

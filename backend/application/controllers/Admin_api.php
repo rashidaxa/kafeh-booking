@@ -31,7 +31,7 @@ class Admin_api extends CI_Controller
     {
         parent::__construct();
         $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Settings_model', 'Booking_model']);
-        $this->load->library(['session', 'stripe']);
+        $this->load->library(['session', 'paypal']);
         $this->load->helper('url');
         $this->_set_cors_headers();
 
@@ -346,7 +346,7 @@ class Admin_api extends CI_Controller
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
-        if (empty($booking['stripe_payment_intent_id'])) {
+        if (empty($booking['paypal_auth_transaction_id'])) {
             return $this->_error('This reservation has no authorized payment to capture.', 422);
         }
         if ($booking['status'] !== 'awaiting_approval') {
@@ -354,17 +354,19 @@ class Admin_api extends CI_Controller
         }
 
         try {
-            $intent = $this->stripe->capturePaymentIntent($booking['stripe_payment_intent_id']);
+            $result = $this->paypal->capture($booking['paypal_auth_transaction_id'], $booking['amount']);
         } catch (Exception $e) {
             log_message('error', '[Admin_api] reservations_accept capture: ' . $e->getMessage());
-            return $this->_error('Stripe capture failed', 502, ['detail' => $e->getMessage()]);
+            return $this->_error('PayPal capture failed', 502, ['detail' => $e->getMessage()]);
         }
 
-        $this->Booking_model->record_payment($id, $intent['id'], 'capture', $intent['status'] ?? 'succeeded', [
-            'amount'   => ($intent['amount'] ?? 0) / 100,
-            'currency' => strtoupper($intent['currency'] ?? 'usd'),
-            'intent'   => $intent,
+        $captureId = $result['TRANSACTIONID'] ?? NULL;
+        $this->Booking_model->record_payment($id, $captureId, 'capture', $result['PAYMENTSTATUS'] ?? ($result['ACK'] ?? 'Success'), [
+            'amount'   => $booking['amount'],
+            'currency' => 'USD',
+            'result'   => $result,
         ]);
+        if ($captureId) $this->Booking_model->save_paypal_capture($id, $captureId);
         $this->Booking_model->set_approval($id, 'paid', $this->session->userdata('admin_username'));
 
         if (!empty($booking['promo_code'])) {
@@ -388,7 +390,7 @@ class Admin_api extends CI_Controller
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
-        if (empty($booking['stripe_payment_intent_id'])) {
+        if (empty($booking['paypal_auth_transaction_id'])) {
             return $this->_error('This reservation has no authorized payment to cancel.', 422);
         }
         if ($booking['status'] !== 'awaiting_approval') {
@@ -396,16 +398,18 @@ class Admin_api extends CI_Controller
         }
 
         try {
-            $intent = $this->stripe->cancelPaymentIntent($booking['stripe_payment_intent_id']);
+            $result = $this->paypal->voidTransaction($booking['paypal_auth_transaction_id']);
         } catch (Exception $e) {
-            log_message('error', '[Admin_api] reservations_reject cancel: ' . $e->getMessage());
-            return $this->_error('Stripe cancel failed', 502, ['detail' => $e->getMessage()]);
+            log_message('error', '[Admin_api] reservations_reject void: ' . $e->getMessage());
+            return $this->_error('PayPal void failed', 502, ['detail' => $e->getMessage()]);
         }
 
-        $this->Booking_model->record_payment($id, $intent['id'], 'cancel', $intent['status'] ?? 'canceled', [
-            'amount'   => ($intent['amount'] ?? 0) / 100,
-            'currency' => strtoupper($intent['currency'] ?? 'usd'),
-            'intent'   => $intent,
+        // DoVoid doesn't mint a new transaction id — log against the
+        // authorization id it just released.
+        $this->Booking_model->record_payment($id, $booking['paypal_auth_transaction_id'], 'cancel', $result['ACK'] ?? 'Success', [
+            'amount'   => $booking['amount'],
+            'currency' => 'USD',
+            'result'   => $result,
         ]);
         $this->Booking_model->set_approval($id, 'cancelled', $this->session->userdata('admin_username'));
 
@@ -414,9 +418,12 @@ class Admin_api extends CI_Controller
 
     /**
      * POST /admin/api/reservations/:id/charge — { amount, description? }
-     * Bills the reservation's saved card again (e.g. extra waiting time
-     * discovered after the trip). Works on any reservation with a saved
-     * card, regardless of its current status.
+     * NOTE: not currently supported. PayPal's Orders v2 redirect
+     * checkout doesn't retain a chargeable payment method after the
+     * order is captured (unlike the old classic-NVP Reference
+     * Transactions this used to rely on), so Paypal::chargeReference()
+     * always throws — this endpoint exists so the admin UI gets a clear
+     * error instead of a broken button. See backend/application/libraries/Paypal.php.
      */
     public function reservations_charge($id = NULL)
     {
@@ -424,8 +431,8 @@ class Admin_api extends CI_Controller
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
-        if (empty($booking['stripe_customer_id']) || empty($booking['stripe_payment_method_id'])) {
-            return $this->_error('This reservation has no saved card to charge.', 422);
+        if ($booking['status'] !== 'paid' || empty($booking['paypal_capture_transaction_id'])) {
+            return $this->_error('This reservation must be accepted (paid) before it can be charged again.', 422);
         }
 
         $payload = $this->_collect_payload();
@@ -436,21 +443,17 @@ class Admin_api extends CI_Controller
         $description = trim((string)($payload['description'] ?? '')) ?: ('Additional charge — booking ' . $id);
 
         try {
-            $intent = $this->stripe->createOffSessionCharge(
-                $amount, $booking['stripe_customer_id'], $booking['stripe_payment_method_id'], $description
-            );
-        } catch (Stripe_CardException $e) {
-            return $this->_error($e->getMessage(), 402);
+            $result = $this->paypal->chargeReference($booking['paypal_capture_transaction_id'], $amount, $description);
         } catch (Exception $e) {
             log_message('error', '[Admin_api] reservations_charge: ' . $e->getMessage());
-            return $this->_error('Stripe charge failed', 502, ['detail' => $e->getMessage()]);
+            return $this->_error('PayPal charge failed', 502, ['detail' => $e->getMessage()]);
         }
 
-        $this->Booking_model->record_payment($id, $intent['id'], 'additional_charge', $intent['status'] ?? 'succeeded', [
+        $this->Booking_model->record_payment($id, $result['TRANSACTIONID'] ?? NULL, 'additional_charge', $result['PAYMENTSTATUS'] ?? ($result['ACK'] ?? 'Success'), [
             'amount'      => $amount,
-            'currency'    => strtoupper($intent['currency'] ?? 'usd'),
+            'currency'    => 'USD',
             'description' => $description,
-            'intent'      => $intent,
+            'result'      => $result,
         ]);
 
         $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);

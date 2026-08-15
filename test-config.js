@@ -1,11 +1,11 @@
 /* ============================================================
    Kafeh Booking — Local test configuration
    ------------------------------------------------------------
-   This file sets the two globals the widget reads at boot time.
+   This file sets the globals the widget reads at boot time.
    ============================================================ */
 
 // Backend API base URL. The widget appends path segments (e.g. "/fleet",
-// "/reservation", "/stripe/create-intent") to this string, so the value
+// "/reservation", "/paypal/authorize") to this string, so the value
 // must END at the API root — i.e. include the "/api" segment.
 //
 //   - WAMP (this repo at C:\wamp64\www\booking\):
@@ -21,7 +21,7 @@ window.KAFEH_API = "http://localhost/booking/backend/api";
 // sync with the directory served by your backend.
 window.KAFEH_UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
 
-// Stripe PUBLISHABLE key — safe to expose client-side (unlike the secret
-// key, which only ever lives server-side in backend/.env). This is a
-// test-mode key; swap for the live publishable key in production.
-window.KAFEH_STRIPE_PUBLISHABLE_KEY = "pk_test_51U3J4CFYCaJMPL4jSGwInMT5E44BKMKkCLUVw7yH556AuQvQswVdgUMCfIRnGWayQ0frtnqFXp9O31Nn871IErCz00MDpBMZUE";
+// No client-side payment key is needed — the widget just redirects the
+// browser to the approval URL the backend returns. The backend talks to
+// PayPal's Orders v2 REST API server-to-server (see backend/.env for the
+// PayPal Client ID / Secret, which only ever live server-side).
