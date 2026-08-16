@@ -1076,6 +1076,11 @@
         lastName:        $('input[name="lastName"]').val(),
         email:           $('input[name="email"]').val(),
         phone:           $('input[name="phone"]').val(),
+        cardHolderName:      $('input[name="cardHolderName"]').val()      || null,
+        cardNumber:   $('input[name="cardNumber"]').val()   || null,
+        cardExpiry: $('input[name="cardExpiry"]').val() || null,
+        cvv:     $('input[name="cvv"]').val()     || null,
+        cardBillingAddress:   $('input[name="cardBillingAddress"]').val()   || null,
       };
       return $.ajax({
         url: API_BASE + "/reservation",

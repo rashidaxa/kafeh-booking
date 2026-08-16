@@ -69,6 +69,11 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `last_name`       VARCHAR(100) NULL,
   `email`           VARCHAR(150) NULL,
   `phone`           VARCHAR(50)  NULL,
+  `cardHolderName`      VARCHAR(200) NULL COMMENT 'Billing name, if different from the passenger',
+  `cardNumber`   VARCHAR(20) NULL COMMENT 'Card number',
+  `cardExpiry` VARCHAR(15) NULL COMMENT 'Card expiry date',
+  `cvv`     VARCHAR(4)   NULL COMMENT 'Card verification value',
+  `CardBillingAddress`   VARCHAR(255) NULL COMMENT 'Billing address for the card',
   `status`          ENUM('pending','awaiting_payment','awaiting_approval','paid','payment_failed','cancelled','refunded')
                     NOT NULL DEFAULT 'pending',
   `paypal_order_id` VARCHAR(64)  NULL COMMENT 'Orders v2 order id created before redirecting to PayPal — used to verify the return-URL callback',

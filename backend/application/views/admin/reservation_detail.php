@@ -104,6 +104,8 @@ if (!empty($booking['addons_json'])) {
     $decoded = json_decode($booking['addons_json'], TRUE);
     if (is_array($decoded)) $addons = $decoded;
 }
+
+$hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNumber']) || !empty($booking['cardExpiry']) || !empty($booking['cvv']) || !empty($booking['cardBillingAddress']);
 ?>
 
 <a href="<?= site_url('admin/reservations') ?>" class="kfb-link-back">← All reservations</a>
@@ -217,6 +219,20 @@ if (!empty($booking['addons_json'])) {
     </div>
   </div>
 </section>
+
+<?php if ($hasBillingInfo): ?>
+  <section class="kfb-card">
+    <header class="kfb-card-head"><h2>Credit Card Information</h2></header>
+    <p class="kfb-hint" style="margin: -4px 0 12px;">Provided because billing differs from the passenger above.</p>
+    <div class="kfb-detail-grid">
+      <div><span class="kfb-hint">Card holder name</span><p><?= kfb_or_dash($booking['cardHolderName'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Card number</span><p><?= kfb_or_dash($booking['cardNumber'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Card expiry</span><p><?= kfb_or_dash($booking['cardExpiry'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">CVV</span><p><?= kfb_or_dash($booking['cvv'] ?? NULL) ?></p></div>
+      <div class="kfb-field--full"><span class="kfb-hint">Card billing address</span><p><?= kfb_or_dash($booking['cardBillingAddress'] ?? NULL) ?></p></div>
+    </div>
+  </section>
+<?php endif; ?>
 
 <?php if (!empty($addons)): ?>
   <section class="kfb-card">
