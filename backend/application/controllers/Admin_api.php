@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Admin Portal — REST API
+ * Booking API Admin Portal — REST API
  *
  * All endpoints require an authenticated admin (session-based). CORS
  * is open by default — tighten $allowed_origins for production.

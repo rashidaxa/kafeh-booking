@@ -1,5 +1,5 @@
 /* ============================================================
-   Kafeh Booking — Local test status panel
+   Booking API — Local test status panel
    Tiny script that fills in the checklist on the test page so
    you can see at a glance which globals are loaded.
    No external dependencies, no inline JS in test.html.
@@ -22,7 +22,7 @@
   function paint() {
     var apiEl = $("checkApi");
     var ppEl  = $("checkPp");
-    if (apiEl) apiEl.textContent = fmt(window.KAFEH_API);
+    if (apiEl) apiEl.textContent = fmt(window.API);
     if (ppEl)  ppEl.textContent  = fmt(window.KAFEH_PAYPAL_CLIENT_ID);
   }
 

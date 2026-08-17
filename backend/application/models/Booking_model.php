@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Booking Model
+ * Booking API Model
  * Tables:
  *   kfb_bookings   - one row per reservation
  *   kfb_stops      - multiple stop rows per booking

@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Vehicle Model — backend CRUD for the fleet shown in
+ * Booking API Vehicle Model — backend CRUD for the fleet shown in
  * the booking wizard step 2.
  *
  *   kfb_vehicles — one row per vehicle class

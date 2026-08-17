@@ -1,5 +1,5 @@
 /* ============================================================
-   Kafeh Booking Widget — V3.1 ("Empire CLS" style)
+   Booking API Widget — V3.1 ("Empire CLS" style)
    ------------------------------------------------------------
    - 3-step wizard: Where & When → Select Vehicle → Payment & Confirm
    - Right column: Map (step 1) OR Trip Summary (steps 2-3)
@@ -62,8 +62,8 @@
     "use strict";
 
     // -------- Config --------
-    var API_BASE      = (window.KAFEH_API || "/api").replace(/\/$/, "");
-    var UPLOADS_BASE  = (window.KAFEH_UPLOADS || (API_BASE.replace(/\/api$/, "") + "/uploads/vehicles/"));
+    var API_BASE      = (window.API || "/api").replace(/\/$/, "");
+    var UPLOADS_BASE  = (window.UPLOADS || (API_BASE.replace(/\/api$/, "") + "/uploads/vehicles/"));
     var HOURLY_KEYS   = ["hourly", "as directed", "as-directed", "hourly / as directed"];
 
     // -------- Child seat catalog (simplified to 3 types per spec v4) --------
@@ -322,7 +322,7 @@
 
     // -------- Populate the airline datalists from the catalog --------
     function populateAirlines() {
-      var airlines = (window.KAFEH_AIRLINES || []);
+      var airlines = (window.airlines || []);
       var $lists = $("#kfbAirlinesList, #kfbAirlinesListDropoff, #kfbAirlinesListReturnPickup, #kfbAirlinesListReturnDropoff");
       if (!$lists.length) return;
       $lists.each(function () { $(this).empty(); });

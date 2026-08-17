@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh — PayPal configuration (Orders v2 REST API, redirect checkout)
+ * Booking API — PayPal configuration (Orders v2 REST API, redirect checkout)
  *
  * Get sandbox Client ID / Secret at:
  *   https://developer.paypal.com/dashboard/applications/sandbox

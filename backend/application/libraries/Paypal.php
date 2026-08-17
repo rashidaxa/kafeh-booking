@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh PayPal Library for CodeIgniter 3 — Orders v2 REST API, redirect
+ * Booking API PayPal Library for CodeIgniter 3 — Orders v2 REST API, redirect
  * checkout.
  *
  * The customer is sent to paypal.com to log in and approve the payment;
@@ -76,7 +76,7 @@ class Paypal
             'application_context' => [
                 'return_url'         => $returnUrl,
                 'cancel_url'         => $cancelUrl,
-                'brand_name'         => 'Kafeh',
+                'brand_name'         => 'API Chauffeur',
                 'user_action'        => 'PAY_NOW',
                 'shipping_preference' => 'NO_SHIPPING',
             ],

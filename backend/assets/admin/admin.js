@@ -1,5 +1,5 @@
 /* ============================================================
-   Kafeh Admin Portal — frontend glue
+   Booking API Admin Portal — frontend glue
    ============================================================ */
 (function () {
   "use strict";

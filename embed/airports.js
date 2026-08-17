@@ -1,18 +1,18 @@
 /* ============================================================
-   Kafeh Booking — Airlines catalog
+   Booking API — Airlines catalog
    ------------------------------------------------------------
    Used by the V3 widget to populate the <datalist> behind the
    Airline fields (pickup and dropoff). Replaces the previous
    static airports catalog — airport selection is now handled
    by Google Places autocomplete on the text input.
 
-   Global: window.KAFEH_AIRLINES — array of { code, name }
+   Global: window.airlines — array of { code, name }
    ============================================================ */
 (function () {
   "use strict";
 
   // Major airlines (IATA code, name)
-  window.KAFEH_AIRLINES = [
+  window.airlines = [
     { code: "AA",  name: "American Airlines" },
     { code: "AC",  name: "Air Canada" },
     { code: "AF",  name: "Air France" },

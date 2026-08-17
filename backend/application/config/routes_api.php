@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Booking — REST routes
+ * Booking API — REST routes
  *
  * Drop these into your application/config/routes.php (or merge if you
  * already have a routes file).

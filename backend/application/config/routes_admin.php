@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Admin Portal — routes
+ * Booking API Admin Portal — routes
  *
  * Convention (per CI3 — routes don't see the HTTP method, so we use
  * distinct URL paths to separate GET vs POST):

@@ -1,13 +1,13 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kafeh Admin Portal — CLI admin seeder
+ * Booking API Admin Portal — CLI admin seeder
  *
  * Usage:
  *   php create_admin.php <username> <password> [display_name] [email]
  *
  * Example:
- *   php create_admin.php admin 'Sup3rSecret!' "Kafeh Admin" admin@kafeh.com
+ *   php create_admin.php admin 'Sup3rSecret!' "Site Admin" admin@example.com
  *
  * If an admin with that username already exists, the script exits
  * with code 1 and prints a message.

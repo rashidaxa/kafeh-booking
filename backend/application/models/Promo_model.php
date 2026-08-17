@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Promo Code Model — backend CRUD + validation for `kfb_promo_codes`.
+ * Booking API Promo Code Model — backend CRUD + validation for `kfb_promo_codes`.
  *
  * Lifecycle:
  *   1. admin creates a row via the admin portal

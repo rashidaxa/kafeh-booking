@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Admin Model — backend portal login
+ * Booking API Admin Model — backend portal login
  *
  *   kfb_admins — one row per admin user
  *

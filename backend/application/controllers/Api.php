@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Booking — public REST API
+ * Booking API — public REST API
  *
  * Routes (defined in application/config/routes.php):
  *   GET  /api/fleet                       → list vehicles

@@ -1,5 +1,5 @@
 /* ============================================================
-   Kafeh Booking — Local test configuration
+   Booking API — Local test configuration
    ------------------------------------------------------------
    This file sets the globals the widget reads at boot time.
    ============================================================ */

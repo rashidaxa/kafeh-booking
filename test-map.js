@@ -1,5 +1,5 @@
 /* ============================================================
-   Kafeh Booking — Test page map controller
+   Booking API — Test page map controller
    ------------------------------------------------------------
    Owns the Google Map, the pickup/stops/dropoff markers, the
    route line, and the distance/time readout for the test

@@ -46,7 +46,7 @@ booking/
 │   │       ├── paypal.php                 # PayPal Client ID/Secret — reads getenv(), see backend/.env
 │   │       ├── kafeh.php                  # Top-level config
 │   │       ├── aviationstack.php          # Flight-lookup API key/config
-│   │       ├── routes_kafeh.php           # Public REST routes
+│   │       ├── routes_api.php           # Public REST routes
 │   │       └── routes_admin.php           # Admin portal routes
 │   ├── assets/admin/                      # Admin CSS + JS
 │   ├── uploads/vehicles/                  # Uploaded vehicle images
@@ -145,7 +145,7 @@ All CSS lives in `embed/booking.css` and all wizard JS in `embed/booking.js` —
 
 ## 🔌 REST API reference
 
-Base URL: `https://YOUR-API-HOST/api` (routes defined in `backend/application/config/routes_kafeh.php`)
+Base URL: `https://YOUR-API-HOST/api` (routes defined in `backend/application/config/routes_api.php`)
 
 | Method | Route | Purpose |
 |---|---|---|

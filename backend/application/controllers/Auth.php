@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Admin Portal — Authentication
+ * Booking API Admin Portal — Authentication
  *
  * Routes:
  *   GET  /admin/login           → render login form

@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh Admin Portal — page rendering
+ * Booking API Admin Portal — page rendering
  *
  * All methods require an authenticated admin (session-checked at the
  * top of every action). Unauthenticated requests redirect to the

@@ -2,7 +2,7 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Kafeh — top-level configuration
+ * Booking API — top-level configuration
  */
 
 $config['send_confirmation_email'] = TRUE;
