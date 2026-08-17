@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="test.css">
 
   <!-- V3 Widget styles -->
-  <link rel="stylesheet" href="embed/kafeh-booking3.css">
+  <link rel="stylesheet" href="embed/booking.css">
 
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
@@ -200,7 +200,7 @@
                       <span class="kfb-section-title">Travellers *</span>
                       <div class="kfb-stepper" id="kfbStepperPassengers">
                         <button type="button" class="kfb-stepper-minus" aria-label="Decrease travellers">−</button>
-                        <input type="number" class="kfb-stepper-out" name="passengers" value="1" min="1" max="20" inputmode="numeric" readonly>
+                        <input type="number" class="kfb-stepper-out" name="passengers" value="1" min="1" max="1000" inputmode="numeric" readonly>
                         <button type="button" class="kfb-stepper-plus"  aria-label="Increase travellers">+</button>
                       </div>
                     </div>
@@ -439,9 +439,6 @@
             <div class="kfb-side-card kfb-map-card" id="kfbMapCard">
               <div class="kfb-side-head">Map</div>
               <div class="kfb-map" id="kfbMap"></div>
-              <div class="kfb-map-foot">
-                <span class="kfb-map-foot-label">Pickup &amp; Drop-off</span>
-              </div>
             </div>
 
             <div class="kfb-side-card kfb-side-summary" id="kfbSummaryCard" hidden>
@@ -497,14 +494,14 @@
 <!--
   ============================================================
   Vendor scripts.
-    1. embed/kafeh-airports.js  — airport & airline catalogs
-    2. embed/kafeh-booking3.js  — widget logic (V3 design)
+    1. embed/airports.js        — airport & airline catalogs
+    2. embed/booking.js         — widget logic (V3 design)
     3. test-map.js              — Google Maps controller (shared)
     4. Google Maps SDK LAST — callback=kfbTestInitMap owned by test-map.js
   ============================================================
 -->
-<script src="embed/kafeh-airports.js"></script>
-<script src="embed/kafeh-booking3.js"></script>
+<script src="embed/airports.js"></script>
+<script src="embed/booking.js"></script>
 <script src="test-map.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAPGyjS5tbUkUIROmDzqj0ouDCEmf7kIVY&amp;libraries=places&amp;callback=kfbTestInitMap" async defer></script>
 <script src="test-status.js"></script>

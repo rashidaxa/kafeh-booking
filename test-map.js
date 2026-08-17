@@ -5,9 +5,9 @@
    route line, and the distance/time readout for the test
    harness.
 
-   The embed widget (embed/kafeh-booking.js) intentionally
+   The embed widget (embed/booking.js) intentionally
    does NOT init the map anymore — that lives here. The Google
-   Maps <script> tag in test.html uses callback=kfbTestInitMap
+   Maps <script> tag in test3.html uses callback=kfbTestInitMap
    so this file is the single source of truth for the map.
 
    Features (per user spec):

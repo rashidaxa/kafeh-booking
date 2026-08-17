@@ -123,6 +123,20 @@
     function fmtMoney(n)  { return "$" + (Number(n) || 0).toFixed(2); }
     function fmtKm(km)    { return (Number(km) || 0).toFixed(1); }
     function fmtMins(m)   { return Math.max(0, Math.round(Number(m) || 0)); }
+    // "YYYY-MM-DD" -> "MM/DD/YYYY"
+    function fmtDateMDY(iso) {
+      var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+      return m ? (m[2] + "/" + m[3] + "/" + m[1]) : "—";
+    }
+    // "HH:MM" (24h) -> "Time: hh:MM AM/PM"
+    function fmtTime12h(hm) {
+      var m = /^(\d{1,2}):(\d{2})/.exec(hm || "");
+      if (!m) return "";
+      var h = parseInt(m[1], 10);
+      var ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12; if (h === 0) h = 12;
+      return "Time: " + String(h).padStart(2, "0") + ":" + m[2] + " " + ampm;
+    }
     function selectedServiceType() {
       return ($('input[name="service"]:checked').val() || "").toString().trim();
     }
@@ -360,7 +374,7 @@
     }
 
     // -------- Steppers (− 1 +) --------
-    function makeStepper(sel) {
+    function makeStepper(sel, onChange) {
       var $wrap = $(sel);
       if (!$wrap.length) return;
       var $out = $wrap.find(".kfb-stepper-out");
@@ -373,6 +387,7 @@
         if (v < min) v = min;
         if (v > max) v = max;
         $out.val(v);
+        if (typeof onChange === "function") onChange(v);
       }
     }
     function updateKidsTotal() {
@@ -742,15 +757,31 @@
         var n = parseInt(v && (v.capacity ?? v.max_passengers ?? v.passengers), 10);
         return isFinite(n) ? n : 0;
       };
-      var list = state.fleet.slice();
+      var passengers = parseInt($('input[name="passengers"]').val(), 10) || 1;
+      var list = state.fleet.filter(function (v) {
+        var minP = parseInt(v.min_passengers, 10);
+        var maxP = parseInt(v.max_passengers, 10);
+        if (!isFinite(minP)) minP = 1;
+        if (!isFinite(maxP)) maxP = capOf(v) || Infinity;
+        return passengers >= minP && passengers <= maxP;
+      });
       if (sortBy === "priceAsc")  list.sort(function (a, b) { return priceFor(a) - priceFor(b); });
       if (sortBy === "priceDesc") list.sort(function (a, b) { return priceFor(b) - priceFor(a); });
       if (sortBy === "capacity")  list.sort(function (a, b) { return capOf(b) - capOf(a); });
 
+      // Deselect if the passenger count grew past the previously-picked vehicle's capacity.
+      if (state.selectedVehicle && !list.some(function (v) { return v.id === state.selectedVehicle.id; })) {
+        state.selectedVehicle = null;
+      }
+
       var region = state.region || "Worldwide";
       $grid.empty();
       if (!list.length) {
-        $grid.html('<p class="kfb-empty">No vehicles are currently available. Please check back later.</p>');
+        $grid.html(
+          state.fleet.length
+            ? '<p class="kfb-empty">No vehicles fit ' + passengers + ' passenger' + (passengers === 1 ? "" : "s") + '. Please adjust the traveller count.</p>'
+            : '<p class="kfb-empty">No vehicles are currently available. Please check back later.</p>'
+        );
         return;
       }
       list.forEach(function (v) {
@@ -803,8 +834,8 @@
       if (!sum.length) return;
 
       $("#kfbSumWhen").text(
-        ($('input[name="pickupDate"]').val() || "—") + " " +
-        ($('input[name="pickupTime"]').val() || "")
+        fmtDateMDY($('input[name="pickupDate"]').val()) + "  " +
+        fmtTime12h($('input[name="pickupTime"]').val())
       );
       $("#kfbSumService").text(selectedServiceType() || "—");
       $("#kfbSumDistance").text(fmtKm(state.distanceKm) + " km · " + fmtMins(state.durationMins) + " min");
@@ -1503,7 +1534,7 @@
       wireStops();
       wireChildSeats();
       populateAirlines();
-      makeStepper("#kfbStepperPassengers");
+      makeStepper("#kfbStepperPassengers", function () { renderVehicles(); recalcSelectedVehicle(); });
       makeStepper("#kfbStepperBags");
 
       $("#kfbReturnDifferent").on("change", function () {

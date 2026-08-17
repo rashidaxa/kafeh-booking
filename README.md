@@ -11,19 +11,13 @@ A drop-in chauffeur/limousine booking widget for any HTML/jQuery website, backed
 ```
 booking/
 ├── embed/                                 # Drop-in widget (paste into any site)
-│   ├── kafeh-booking.css / .js            # v1 widget (earliest)
-│   ├── kafeh-booking2.css / .js           # v2 widget
-│   ├── kafeh-booking3.css / .js           # v3 widget — CURRENT / actively developed
-│   └── kafeh-airports.js                  # Airport autocomplete data/helper
+│   ├── booking.css / .js                  # widget styles + logic
+│   └── airports.js                        # Airport autocomplete data/helper
 │
 ├── vendor/                                # Local copies of vendor libs (offline test)
 │   └── jquery-3.7.1.min.js
 │
-├── test.html / test2.html / test3.html    # Local test harnesses for each widget version
-│                                           #   test3.html is the current one (loads kafeh-booking3.*)
-│                                           #   test.html / test2.html (v1/v2) use PayPal's Smart Buttons
-│                                           #   SDK (/api/paypal/create-order + capture-order/:id) — a
-│                                           #   different, now-removed API shape — see Known gaps
+├── test3.html                             # Local test harness (loads embed/booking.*)
 ├── test.css                               # Shared test harness styles
 ├── test-config.js                         # KAFEH_API + KAFEH_UPLOADS globals
 ├── test-status.js                         # Tiny status panel filler
@@ -76,7 +70,7 @@ booking/
 
 ### 1. Open the test page
 
-Open **`test3.html`** in your browser — it's the current widget version under active development (`embed/kafeh-booking3.css` / `.js`). `test.html` and `test2.html` are earlier iterations kept for reference.
+Open **`test3.html`** in your browser — it loads the widget from `embed/booking.css` / `.js`.
 
 - Loads **jQuery** from `vendor/jquery-3.7.1.min.js` (local copy, no internet needed for this)
 - Card number/expiry/CVV are collected in the widget's own form (Step 3) and submitted straight to the backend — no third-party payment script to load
@@ -121,11 +115,11 @@ Config files under `backend/application/config/` (e.g. `paypal.php`) are tracked
 
 ## 🧩 Embedding the widget in a production site
 
-All CSS lives in `embed/kafeh-booking3.css` and all wizard JS in `embed/kafeh-booking3.js` — no inline CSS or scripts. The canonical reference markup is the `<div class="kfb-widget">…</div>` block in `test3.html`.
+All CSS lives in `embed/booking.css` and all wizard JS in `embed/booking.js` — no inline CSS or scripts. The canonical reference markup is the `<div class="kfb-widget">…</div>` block in `test3.html`.
 
 ```html
 <!-- 1. Styles -->
-<link rel="stylesheet" href="/path/to/embed/kafeh-booking3.css">
+<link rel="stylesheet" href="/path/to/embed/booking.css">
 
 <!-- 2. Widget markup (copy from test3.html's <div class="kfb-widget"> block) -->
 <div class="kfb-widget" id="kafehBookingWidget"> … </div>
@@ -142,7 +136,7 @@ All CSS lives in `embed/kafeh-booking3.css` and all wizard JS in `embed/kafeh-bo
 <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&libraries=places&callback=kfbTestInitMap" async defer></script>
 
 <!-- 6. Widget script (after jQuery + Google Maps) -->
-<script src="/path/to/embed/kafeh-booking3.js"></script>
+<script src="/path/to/embed/booking.js"></script>
 ```
 
 **Required load order:** jQuery → widget JS → Google Maps. No payment SDK to load — "Book Now" redirects the browser straight to a PayPal-hosted approval URL the backend returns, and PayPal redirects back to the same page when the customer approves or cancels.
@@ -231,11 +225,11 @@ CORS is open by default (`$allowed_origins = ['*']` in `Api.php::__construct`) �
 
 | What | Where |
 |------|-------|
-| Theme colors | CSS vars in `kafeh-booking3.css` (prefixed `--kfb-`) |
+| Theme colors | CSS vars in `booking.css` (prefixed `--kfb-`) |
 | Vehicle list & rates | Admin portal → **Vehicles** (DB-driven via `kfb_vehicles`) |
 | Promo codes | Admin portal → **Promo Codes** (DB-driven via `kfb_promo_codes`) |
 | Add-on services | Admin portal → **Add-Ons** (DB-driven via `kfb_addons`) |
-| Pricing formula | `priceFor(v)` in `kafeh-booking3.js` |
+| Pricing formula | `priceFor(v)` in `booking.js` |
 | Meet & Greet fee | Admin portal → **Settings** (global, not per-vehicle — `kfb_settings`) |
 | Allowed origins | `Api.php::__construct` → `$allowed_origins` (also `Admin_api.php`) |
 | Flight lookups | `backend/application/config/aviationstack.php` (get a free key at aviationstack.com) |
@@ -341,7 +335,7 @@ mysql -u root -p kafeh < backend/sql/kfb_migration_v8.sql
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| Red box: *"setup error: jQuery is required"* | jQuery didn't load before the widget script | Load jQuery **before** `embed/kafeh-booking3.js` |
+| Red box: *"setup error: jQuery is required"* | jQuery didn't load before the widget script | Load jQuery **before** `embed/booking.js` |
 | "Continue →" does nothing | A required field is empty or invalid | Widget shows a toast with the missing field; check DevTools console |
 | Map area is gray, no controls | Google Maps key missing or restricted | Replace `YOUR_GOOGLE_MAPS_KEY`; check GCP API restrictions |
 | `paypal/create-order` returns 502 "Could not authenticate with PayPal" | Bad Client ID/Secret, or hitting the wrong environment | Check `backend/.env` has real `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` and `PAYPAL_ENV` matches (sandbox vs. live), and that `index.php`'s `.env` loader actually found the file |
@@ -356,7 +350,6 @@ mysql -u root -p kafeh < backend/sql/kfb_migration_v8.sql
 ## 📌 Known gaps / ideas for next tasks
 
 - **"Charge additional amount" is unsupported** — the admin Reservations screen still has this button, but `Paypal::chargeReference()` always throws. PayPal's Orders v2 redirect checkout doesn't leave behind a chargeable payment method the way the old classic-NVP Reference Transactions did; doing this properly would mean creating the original order with PayPal Vault attributes (a separate, not-on-by-default merchant capability) and storing the resulting vault token. Until then, extra charges (e.g. waiting time discovered after the trip) have to be handled manually — a new payment link for the customer, or processed directly in the PayPal dashboard.
-- **`test.html` and `test2.html` (widget v1/v2)** use an older PayPal Smart Buttons SDK integration (`/api/paypal/create-order` + `/api/paypal/capture-order/:id`, intent=CAPTURE, no authorize/capture split) that predates the current admin accept/reject workflow — they're a different API shape from what `Api.php` implements now. Only `test3.html` (v3) is current. Worth archiving v1/v2 or porting them, if they're still needed.
 - **`backend/create_admin.php` is broken** — CI3's CLI bootstrap treats `argv` as a pseudo-URI for its default character-validation pass, so a username/password/display-name containing a space or punctuation (e.g. `'Sup3rSecret!'`, `"Kafeh Admin"` — the exact example in the script's own usage comment) gets rejected with "The URI you submitted has disallowed characters," or with alphanumeric-only args it 404s trying to route `argv[1]/argv[2]` as a controller/method. Use `/admin/setup` instead (only works once, before any admin exists).
 - **No PayPal webhook listener** — accept/reject rely on the admin's synchronous request completing. A chargeback or dispute raised later won't update the booking's status automatically.
 - **Corporate IP tracking is research-only** (`docs/VISITOR_TRACKING_RESEARCH.md`) — no implementation yet; the doc compares MaxMind GeoIP2, IPinfo, and IP2Location.
