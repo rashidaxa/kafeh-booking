@@ -325,7 +325,7 @@
     // -------- Stops --------
     var stopIndex = 0;
     function addStopRow() {
-      if (stopIndex >= 3) { toast("Maximum 3 extra stops."); return; }
+      if (stopIndex >= 5) { toast("Maximum 5 extra stops."); return; }
       var $c = $("#kfbStopsContainer");
       if (!$c.length) return;
       var i = stopIndex;
@@ -837,16 +837,21 @@
         $("#kfbSumBase").text(fmtMoney(bd.base));
         $("#kfbSumSurcharge").text(fmtMoney(bd.surcharge));
         $("#kfbSumGratuity").text(fmtMoney(bd.gratuity));
-        // For hourly service, the hourly amount is already the "Base" line
-        // — the separate Hourly line is hidden. For non-hourly, the hourly
-        // line stays as "—" since the customer didn't book hourly.
-        if (isHourlyService()) {
-          $("#kfbSumHourlyRow").hide();
-        } else {
+        // For hourly service, the hourly amount is already folded into the
+        // "Base" line, so there's never a separate non-zero Hourly figure —
+        // only show this row if one somehow exists.
+        if (bd.hourlyAdd > 0) {
           $("#kfbSumHourlyRow").show();
-          $("#kfbSumHourly").text("—");
+          $("#kfbSumHourly").text(fmtMoney(bd.hourlyAdd));
+        } else {
+          $("#kfbSumHourlyRow").hide();
         }
-        $("#kfbSumChildSeats").text(bd.childAdd > 0 ? fmtMoney(bd.childAdd) : "—");
+        if (bd.childAdd > 0) {
+          $("#kfbSumChildSeatsRow").show();
+          $("#kfbSumChildSeats").text(fmtMoney(bd.childAdd));
+        } else {
+          $("#kfbSumChildSeatsRow").hide();
+        }
         // Meet & Greet fee (only shows when applied)
         var $meetGreetRow = $("#kfbSumMeetGreetRow");
         if ($meetGreetRow.length) {
@@ -885,11 +890,14 @@
             $addonsRow.hide();
           }
         }
-        $("#kfbSumDiscount").text(
-          bd.discount > 0
-            ? '− ' + fmtMoney(bd.discount) + (state.promo ? ' (' + escapeHtml(state.promo.code) + ')' : '')
-            : "—"
-        );
+        if (bd.discount > 0) {
+          $("#kfbSumDiscountRow").show();
+          $("#kfbSumDiscount").text(
+            '− ' + fmtMoney(bd.discount) + (state.promo ? ' (' + escapeHtml(state.promo.code) + ')' : '')
+          );
+        } else {
+          $("#kfbSumDiscountRow").hide();
+        }
         // Round trip: shows the extra amount added by doubling the
         // one-way fare, so the line items above still add up to what's
         // displayed below rather than silently jumping to 2×.

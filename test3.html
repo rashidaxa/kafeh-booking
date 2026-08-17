@@ -137,7 +137,7 @@
                 <!-- Stops -->
                 <div class="kfb-section">
                   <div class="kfb-stops-head">
-                    <span class="kfb-stops-label">Stops <span class="kfb-stops-hint">optional, up to 3</span></span>
+                    <span class="kfb-stops-label">Stops <span class="kfb-stops-hint">optional, up to 5</span></span>
                     <button type="button" class="kfb-link-btn" id="kfbAddStopBtn">+ Add Stop</button>
                   </div>
                   <div id="kfbStopsContainer"></div>
@@ -451,23 +451,23 @@
                 <div class="kfb-srow"><span>Service</span><b id="kfbSumService">—</b></div>
                 <div class="kfb-srow"><span>Distance</span><b id="kfbSumDistance">—</b></div>
                 <div class="kfb-srow kfb-srow--addr"><span>Pickup</span><b id="kfbSumPickup">—</b></div>
-                <div class="kfb-srow kfb-srow--addr"><span>Drop-off</span><b id="kfbSumDropoff">—</b></div>
                 <div class="kfb-srow kfb-srow--stops" id="kfbSumStopsRow" hidden>
                   <span>Stops</span>
                   <b id="kfbSumStops"></b>
                 </div>
+                <div class="kfb-srow kfb-srow--addr"><span>Drop-off</span><b id="kfbSumDropoff">—</b></div>
                 <div class="kfb-srow"><span>Vehicle</span><b id="kfbSumVehicle">—</b></div>
 
                 <div class="kfb-sbreakdown" id="kfbBreakdown" hidden>
                   <div class="kfb-srow"><span>Base</span><b id="kfbSumBase">—</b></div>
                   <div class="kfb-srow"><span>Surcharge</span><b id="kfbSumSurcharge">—</b></div>
                   <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
-                  <div class="kfb-srow" id="kfbSumHourlyRow"><span>Hourly</span><b id="kfbSumHourly">—</b></div>
-                  <div class="kfb-srow"><span>Child Seats</span><b id="kfbSumChildSeats">—</b></div>
+                  <div class="kfb-srow" id="kfbSumHourlyRow" hidden><span>Hourly</span><b id="kfbSumHourly">—</b></div>
+                  <div class="kfb-srow" id="kfbSumChildSeatsRow" hidden><span>Child Seats</span><b id="kfbSumChildSeats">—</b></div>
                   <div class="kfb-srow" id="kfbSumMeetGreetRow" hidden><span>Meet &amp; Greet (Pickup)</span><b id="kfbSumMeetGreet">—</b></div>
                   <div class="kfb-srow" id="kfbSumDropoffMeetGreetRow" hidden><span>Meet &amp; Greet (Drop-off)</span><b id="kfbSumDropoffMeetGreet">—</b></div>
                   <div class="kfb-srow kfb-srow--addons" id="kfbSumAddonsRow" hidden><span>Add-ons</span><b id="kfbSumAddons">—</b></div>
-                  <div class="kfb-srow"><span>Discount</span><b id="kfbSumDiscount">—</b></div>
+                  <div class="kfb-srow" id="kfbSumDiscountRow" hidden><span>Discount</span><b id="kfbSumDiscount">—</b></div>
                   <div class="kfb-srow" id="kfbSumReturnTripRow" hidden><span>Round trip (× 2)</span><b id="kfbSumReturnTrip">—</b></div>
                 </div>
                 <div class="kfb-srow kfb-stotal"><span>Estimated Price</span><b id="kfbSumTotal">$0.00</b></div>
