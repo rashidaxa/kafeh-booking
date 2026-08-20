@@ -14,12 +14,12 @@
 //       "http://localhost/kafeh-api"
 //   - Staging:    "https://staging-api.kafeh.com"
 //   - Production: "https://api.kafeh.com"
-window.KAFEH_API = "http://localhost/booking/backend/api";
+window.API = "http://localhost/booking/backend/api";
 
 // Uploads directory that holds the vehicle images. The widget appends
 // `v.image` to this URL when rendering the vehicle card. Keep it in
 // sync with the directory served by your backend.
-window.KAFEH_UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
+window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
 
 // No client-side payment key is needed — the widget just redirects the
 // browser to the approval URL the backend returns. The backend talks to

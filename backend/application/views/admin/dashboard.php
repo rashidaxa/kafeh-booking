@@ -116,7 +116,7 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
           <th>Name</th>
           <th>Passengers</th>
           <th>Chicago / hr</th>
-          <th>Chicago / km</th>
+          <th>Chicago / mi</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -129,7 +129,7 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
             </td>
             <td><?= (int)$v['min_passengers'] ?>–<?= (int)$v['max_passengers'] ?></td>
             <td>$<?= number_format((float)$v['hourly_chicago'], 2) ?></td>
-            <td>$<?= number_format((float)$v['per_km_chicago'], 2) ?></td>
+            <td>$<?= number_format((float)$v['per_mile_chicago'], 2) ?></td>
             <td>
               <?php if ((int)$v['status'] === 1): ?>
                 <span class="kfb-badge kfb-badge--ok">Enabled</span>

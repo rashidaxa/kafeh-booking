@@ -144,7 +144,7 @@ class Booking_model extends CI_Model
      */
     protected function _create_return_leg(array $data, $primary_booking_id, $childSeats, $childSeatsBreakdown)
     {
-        $return_booking_id = $this->_new_booking_id();
+        $return_booking_id = $this->_new_booking_id('RT');
 
         $this->db->insert('kfb_bookings', [
             'booking_id'            => $return_booking_id,
@@ -197,9 +197,16 @@ class Booking_model extends CI_Model
         return $return_booking_id;
     }
 
-    protected function _new_booking_id()
+    /**
+     * MMDDYYYY-HHMMSS-<suffix>, e.g. 08162026-132107-OP.
+     * $suffix marks how the booking originated — "OP" (Online Payment) for
+     * the normal customer-facing flow. _create_return_leg() passes "RT" so
+     * a round trip's two legs (generated seconds apart in the same request)
+     * can never collide on this table's primary key.
+     */
+    protected function _new_booking_id($suffix = 'OP')
     {
-        return 'KFB-' . strtoupper(base_convert((string)(microtime(true) * 1000), 10, 36));
+        return date('mdY-His') . '-' . $suffix;
     }
 
     /** Normalize child seat breakdown if it's an array → JSON. Returns [count, json|NULL]. */
@@ -419,9 +426,9 @@ class Booking_model extends CI_Model
                 'hourly_america'   => (float)$row['hourly_america'],
                 'hourly_worldwide' => (float)$row['hourly_worldwide'],
 
-                'per_km_chicago'   => (float)$row['per_km_chicago'],
-                'per_km_america'   => (float)$row['per_km_america'],
-                'per_km_worldwide' => (float)$row['per_km_worldwide'],
+                'per_mile_chicago'   => (float)$row['per_mile_chicago'],
+                'per_mile_america'   => (float)$row['per_mile_america'],
+                'per_mile_worldwide' => (float)$row['per_mile_worldwide'],
 
                 'surcharge_chicago'   => (float)$row['surcharge_chicago'],
                 'surcharge_america'   => (float)$row['surcharge_america'],

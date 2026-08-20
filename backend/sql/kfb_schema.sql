@@ -176,17 +176,17 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   `hourly_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `hourly_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
-  -- Per-kilometer rates (per service region)
-  `per_km_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `per_km_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `per_km_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  -- Per-mile rates (per service region)
+  `per_mile_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `per_mile_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `per_mile_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
-  -- Surcharges (per service region, currency units)
+  -- Surcharge (per service region, PERCENT of the base fare, e.g. 20.00 = 20%)
   `surcharge_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `surcharge_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `surcharge_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
-  -- Gratuity (per service region, currency units)
+  -- Gratuity (per service region, PERCENT of the base fare, e.g. 20.00 = 20%)
   `gratuity_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `gratuity_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `gratuity_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,

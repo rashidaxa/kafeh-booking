@@ -300,7 +300,8 @@ class Api extends CI_Controller
     /**
      * POST /api/reservation/sign
      * Body: { booking_id, signature (base64 PNG), terms_version? }
-     * Saves the e-signature for a booking (required for bookings > $500).
+     * Saves the e-signature for a booking — required on every booking,
+     * regardless of amount.
      * Returns ok=true on success.
      */
     public function reservation_sign()
@@ -313,12 +314,8 @@ class Api extends CI_Controller
         if ($bookingId === '' || $signature === '') {
             return $this->_error('booking_id and signature are required', 422);
         }
-        // Verify the booking exists and is over $500
         $row = $this->db->get_where('kfb_bookings', ['booking_id' => $bookingId])->row_array();
         if (!$row) return $this->_error('Booking not found', 404);
-        if ((float)$row['amount'] < 500) {
-            return $this->_error('Signature not required for bookings under $500', 422);
-        }
         $ok = $this->Booking_model->save_signature($bookingId, $signature, $terms);
         if (!$ok) return $this->_error('Could not save signature', 500);
         $this->_json(['success' => TRUE, 'booking_id' => $bookingId]);

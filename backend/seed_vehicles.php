@@ -45,12 +45,12 @@ $vehicles = [
         'hourly_america'   => 95.00,
         'hourly_worldwide' => 120.00,
 
-        // Per-km rates
-        'per_km_chicago'   => 2.50,
-        'per_km_america'   => 3.20,
-        'per_km_worldwide' => 4.00,
+        // Per-mile rates
+        'per_mile_chicago'   => 4.02,
+        'per_mile_america'   => 5.15,
+        'per_mile_worldwide' => 6.44,
 
-        // Surcharges (currency units)
+        // Surcharges (% of base fare)
         'surcharge_chicago'   => 5.00,
         'surcharge_america'   => 8.00,
         'surcharge_worldwide' => 12.00,
@@ -85,9 +85,9 @@ $vehicles = [
         'hourly_america'   => 120.00,
         'hourly_worldwide' => 150.00,
 
-        'per_km_chicago'   => 3.50,
-        'per_km_america'   => 4.20,
-        'per_km_worldwide' => 5.20,
+        'per_mile_chicago'   => 5.63,
+        'per_mile_america'   => 6.76,
+        'per_mile_worldwide' => 8.37,
 
         'surcharge_chicago'   => 7.00,
         'surcharge_america'   => 10.00,
@@ -120,9 +120,9 @@ $vehicles = [
         'hourly_america'   => 165.00,
         'hourly_worldwide' => 210.00,
 
-        'per_km_chicago'   => 4.20,
-        'per_km_america'   => 5.10,
-        'per_km_worldwide' => 6.40,
+        'per_mile_chicago'   => 6.76,
+        'per_mile_america'   => 8.21,
+        'per_mile_worldwide' => 10.30,
 
         'surcharge_chicago'   => 9.00,
         'surcharge_america'   => 13.00,
@@ -155,9 +155,9 @@ $vehicles = [
         'hourly_america'   => 220.00,
         'hourly_worldwide' => 280.00,
 
-        'per_km_chicago'   => 5.00,
-        'per_km_america'   => 6.00,
-        'per_km_worldwide' => 7.50,
+        'per_mile_chicago'   => 8.05,
+        'per_mile_america'   => 9.66,
+        'per_mile_worldwide' => 12.07,
 
         'surcharge_chicago'   => 12.00,
         'surcharge_america'   => 18.00,

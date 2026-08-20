@@ -21,7 +21,7 @@ booking/
 ├── test.css                               # Shared test harness styles
 ├── test-config.js                         # KAFEH_API + KAFEH_UPLOADS globals
 ├── test-status.js                         # Tiny status panel filler
-├── test-map.js                            # Google Maps controller (markers, route, km/min)
+├── test-map.js                            # Google Maps controller (markers, route, mi/min)
 │
 ├── backend/                               # CodeIgniter 3 application
 │   ├── application/
@@ -263,7 +263,7 @@ Session-based admin portal for managing everything shown in the booking widget.
 
 ### Vehicles
 
-Each vehicle row supports: name, code, emoji, description, sort order, enabled/disabled toggle, min/max passengers, luggage capacity, **minimum fare**, and hourly / per-km / surcharge / gratuity / waiting-time rates per region (Chicago / America / Worldwide), plus an uploaded image (JPG/PNG/WEBP, max 5 MB). The Meet & Greet fee used to live here but is now a single global setting — see **Settings** below.
+Each vehicle row supports: name, code, emoji, description, sort order, enabled/disabled toggle, min/max passengers, luggage capacity, **minimum fare**, and hourly / per-mile / surcharge / gratuity / waiting-time rates per region (Chicago / America / Worldwide), plus an uploaded image (JPG/PNG/WEBP, max 5 MB). The Meet & Greet fee used to live here but is now a single global setting — see **Settings** below.
 
 ### Promo codes
 
@@ -303,6 +303,9 @@ A round-trip booking is stored as **two linked rows** (`return_booking_id`) — 
 | `kfb_migration_v6.sql` | Payment-provider fields for the authorize/accept/reject workflow: `card_brand`, `card_last4`, `approved_at`, `approved_by` on `kfb_bookings`; widens `status` to add `awaiting_approval`; widens `kfb_payments.event` to add `authorize` / `cancel` / `additional_charge`. (Originally added alongside Stripe-specific columns that are no longer used — see v7.) |
 | `kfb_migration_v7.sql` | Reverts the payment provider from Stripe to PayPal (classic NVP at the time): adds `paypal_auth_transaction_id` / `paypal_capture_transaction_id` on `kfb_bookings` and `paypal_transaction_id` on `kfb_payments`. The unused `stripe_*` columns from v6 are left in place (non-destructive), not dropped. |
 | `kfb_migration_v8.sql` | Switches PayPal from classic NVP to the Orders v2 REST redirect flow: adds `paypal_order_id` on `kfb_bookings` (the other two PayPal id columns from v7 are reused as-is — same role, REST ids instead of NVP ids). |
+| `kfb_migration_v9.sql` | Indexes on `kfb_bookings` (`created_at`, and a composite `status, created_at`) so the admin reservations list stays fast at scale instead of full-table-scanning. |
+| `kfb_migration_v10.sql` | Optional billing-details columns on `kfb_bookings` (`billing_name`, `billing_contact`, `secondary_contact`, `street_number`, `billing_address`) for when billing differs from the passenger. |
+| `kfb_migration_v11.sql` | Distance pricing switches from kilometers to miles: renames `kfb_vehicles.per_km_*` to `per_mile_*`, converting existing rates from $/km to the equivalent $/mile (× 1.609344) so real per-trip pricing is unchanged. |
 
 All migrations are idempotent (guarded column adds / `CREATE TABLE IF NOT EXISTS` / re-runnable `MODIFY COLUMN`), so they're safe to re-run.
 
@@ -316,6 +319,9 @@ mysql -u root -p kafeh < backend/sql/kfb_migration_v5.sql
 mysql -u root -p kafeh < backend/sql/kfb_migration_v6.sql
 mysql -u root -p kafeh < backend/sql/kfb_migration_v7.sql
 mysql -u root -p kafeh < backend/sql/kfb_migration_v8.sql
+mysql -u root -p kafeh < backend/sql/kfb_migration_v9.sql
+mysql -u root -p kafeh < backend/sql/kfb_migration_v10.sql
+mysql -u root -p kafeh < backend/sql/kfb_migration_v11.sql
 ```
 
 ---

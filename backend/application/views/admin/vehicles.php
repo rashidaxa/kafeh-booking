@@ -8,9 +8,9 @@ $regions = [
 ];
 $rate_groups = [
     'hourly'       => 'Hourly rates',
-    'per_km'       => 'Per-kilometer rates',
-    'surcharge'    => 'Surcharge amounts',
-    'gratuity'     => 'Gratuity amounts',
+    'per_mile'     => 'Per-mile rates',
+    'surcharge'    => 'Surcharge (% of base fare)',
+    'gratuity'     => 'Gratuity (% of base fare)',
     'waiting'      => 'Waiting time (per minute)',
     'child_seat'   => 'Child-seat surcharge (flat fee per child seat)',
 ];
@@ -142,14 +142,23 @@ $rate_groups = [
             <?php
               $field = $group_key . '_' . $region_key;
               $val = $is_edit ? (float)($editing[$field] ?? 0) : 0;
+              $is_percent = in_array($group_key, ['surcharge', 'gratuity'], true);
             ?>
             <label class="kfb-field">
               <span><?= htmlspecialchars($region_label) ?></span>
+              <?php if ($is_percent): ?>
+              <div class="kfb-money">
+                <input type="number" name="<?= $field ?>" min="0" max="100" step="0.01"
+                       value="<?= number_format($val, 2, '.', '') ?>">
+                <span class="kfb-money-suffix">%</span>
+              </div>
+              <?php else: ?>
               <div class="kfb-money">
                 <span class="kfb-money-prefix">$</span>
                 <input type="number" name="<?= $field ?>" min="0" step="0.01"
                        value="<?= number_format($val, 2, '.', '') ?>">
               </div>
+              <?php endif; ?>
             </label>
           <?php endforeach; ?>
         </fieldset>

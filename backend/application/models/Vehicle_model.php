@@ -127,25 +127,27 @@ class Vehicle_model extends CI_Model
      * Reformat a DB row to the shape the embed widget expects:
      *   { id, name, desc, capacity, luggage, basePrice, perMile, emoji, image }
      *
-     * `basePrice` = the inside-Chicago per-km rate × 10 (fallback approximation
-     * to keep the embed widget's "all-inclusive" preview functional even when
-     * the embed hasn't been wired to the full rate model yet). `perMile` =
-     * inside-Chicago per-km rate × 1.609. These are placeholders — the embed
-     * should call the backend for real pricing once pricing APIs land.
+     * `basePrice` = the inside-Chicago per-mile rate × 10 (fallback
+     * approximation to keep the embed widget's "all-inclusive" preview
+     * functional even when the embed hasn't been wired to the full rate
+     * model yet). `perMile` = the inside-Chicago per-mile rate as-is (the
+     * column already stores $/mile — no unit conversion needed). These are
+     * placeholders — the embed should call the backend for real pricing
+     * once pricing APIs land.
      */
     public function to_public($row)
     {
         if (!$row) return NULL;
-        $perKm  = (float)($row['per_km_chicago'] ?? 0);
-        $hourly = (float)($row['hourly_chicago'] ?? 0);
+        $perMile = (float)($row['per_mile_chicago'] ?? 0);
+        $hourly  = (float)($row['hourly_chicago'] ?? 0);
         return [
             'id'        => $row['code'] ?: ('v' . $row['id']),
             'name'      => $row['name'],
             'desc'      => $row['description'] ?: '',
             'capacity'  => (int)($row['max_passengers'] ?? 0),
             'luggage'   => (int)($row['luggage_capacity'] ?? 0),
-            'basePrice' => round($hourly > 0 ? $hourly : ($perKm * 10), 2),
-            'perMile'   => round($perKm * 1.609344, 2),
+            'basePrice' => round($hourly > 0 ? $hourly : ($perMile * 10), 2),
+            'perMile'   => round($perMile, 2),
             'emoji'     => $row['emoji'] ?: '🚖',
             'image'     => $row['image'] ?: NULL,
         ];
@@ -200,7 +202,7 @@ class Vehicle_model extends CI_Model
         // Numeric rate fields — every region column must be a positive number.
         $rate_fields = [
             'hourly_chicago', 'hourly_america', 'hourly_worldwide',
-            'per_km_chicago', 'per_km_america', 'per_km_worldwide',
+            'per_mile_chicago', 'per_mile_america', 'per_mile_worldwide',
             'surcharge_chicago', 'surcharge_america', 'surcharge_worldwide',
             'gratuity_chicago', 'gratuity_america', 'gratuity_worldwide',
             'waiting_chicago', 'waiting_america', 'waiting_worldwide',
@@ -211,6 +213,13 @@ class Vehicle_model extends CI_Model
         // a global setting in v5 — see Settings_model — so it's no longer a
         // per-vehicle field.)
         $rate_fields[] = 'min_fare';
+        // Surcharge/gratuity are percentages of the base fare, not flat
+        // amounts — cap them at 100 so a fat-fingered entry can't multiply
+        // the fare instead of adding a slice of it.
+        $percent_fields = [
+            'surcharge_chicago', 'surcharge_america', 'surcharge_worldwide',
+            'gratuity_chicago', 'gratuity_america', 'gratuity_worldwide',
+        ];
         foreach ($rate_fields as $f) {
             $v = $data[$f] ?? NULL;
             if ($v === '' || $v === NULL) {
@@ -224,6 +233,8 @@ class Vehicle_model extends CI_Model
             }
             if ((float)$v < 0) {
                 $errors[$f] = ucfirst(str_replace('_', ' ', $f)) . ' must be zero or positive.';
+            } elseif (in_array($f, $percent_fields, true) && (float)$v > 100) {
+                $errors[$f] = ucfirst(str_replace('_', ' ', $f)) . ' must be 100 or less (it\'s a percentage of the base fare).';
             }
         }
 
@@ -391,9 +402,9 @@ class Vehicle_model extends CI_Model
             'hourly_america'   => (float)($data['hourly_america']   ?? 0),
             'hourly_worldwide' => (float)($data['hourly_worldwide'] ?? 0),
 
-            'per_km_chicago'   => (float)($data['per_km_chicago']   ?? 0),
-            'per_km_america'   => (float)($data['per_km_america']   ?? 0),
-            'per_km_worldwide' => (float)($data['per_km_worldwide'] ?? 0),
+            'per_mile_chicago'   => (float)($data['per_mile_chicago']   ?? 0),
+            'per_mile_america'   => (float)($data['per_mile_america']   ?? 0),
+            'per_mile_worldwide' => (float)($data['per_mile_worldwide'] ?? 0),
 
             'surcharge_chicago'   => (float)($data['surcharge_chicago']   ?? 0),
             'surcharge_america'   => (float)($data['surcharge_america']   ?? 0),

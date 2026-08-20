@@ -231,6 +231,45 @@ nav.kfb-stepper {
   box-shadow: 0 0 0 3px rgba(17,17,17,.08);
 }
 .kfb-field textarea { resize: vertical; min-height: 88px; }
+.kfb-field.is-invalid input,
+.kfb-field.is-invalid select,
+.kfb-field.is-invalid textarea {
+  border-color: var(--kfb-error);
+  background: var(--kfb-error-bg);
+}
+
+/* Time picker trigger — see enhanceTimeInputs() in booking.js. Chrome's
+   native calendar-picker-indicator is hidden (a no-op in Firefox, which
+   doesn't recognize -webkit- pseudo-elements and has no icon of its own
+   for type="time" anyway) so this one button opens the picker everywhere.
+   type="date" is untouched — Firefox already has its own native icon. */
+.kfb-dt-wrap { position: relative; }
+.kfb-dt-wrap input[type="time"] { padding-right: 38px; }
+.kfb-dt-wrap input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+.kfb-dt-trigger {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; background: none; padding: 0; margin: 0;
+  font-size: 16px; line-height: 1; cursor: pointer;
+  color: var(--kfb-text-soft);
+  border-radius: 0 var(--kfb-radius) var(--kfb-radius) 0;
+}
+.kfb-dt-trigger:hover { color: var(--kfb-text); background: rgba(17,17,17,.04); }
+.kfb-dt-trigger:focus-visible { outline: 2px solid var(--kfb-accent); outline-offset: -2px; }
+.kfb-dt-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40;
+  max-height: 220px; overflow-y: auto;
+  background: #fff; border: 1px solid var(--kfb-border-strong);
+  border-radius: var(--kfb-radius); box-shadow: var(--kfb-shadow);
+}
+.kfb-dt-option {
+  padding: 8px 12px; font-size: 14px; cursor: pointer;
+}
+.kfb-dt-option:hover { background: rgba(17,17,17,.05); }
+.kfb-dt-option.is-selected { background: var(--kfb-accent); color: #fff; font-weight: 600; }
 .kfb-field-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .kfb-field-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .kfb-optional { color: var(--kfb-text-muted); font-weight: 400; }

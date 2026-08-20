@@ -293,7 +293,7 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
     <img src="<?= htmlspecialchars($booking['signature_data']) ?>" alt="Customer signature"
          style="max-width:100%; width:340px; border:1px solid var(--kfb-border-strong); border-radius:6px; background:#fff">
   <?php else: ?>
-    <p class="kfb-empty">No signature on file — only required for bookings $500 and over.</p>
+    <p class="kfb-empty">No signature on file.</p>
   <?php endif; ?>
 </section>
 

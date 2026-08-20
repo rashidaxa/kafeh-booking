@@ -137,7 +137,7 @@
                 <!-- Stops -->
                 <div class="kfb-section">
                   <div class="kfb-stops-head">
-                    <span class="kfb-stops-label">Stops <span class="kfb-stops-hint">optional, up to 5</span></span>
+                    <span class="kfb-stops-label">Stops <span class="kfb-stops-hint" id="kfbStopsHint">optional, up to 5</span></span>
                     <button type="button" class="kfb-link-btn" id="kfbAddStopBtn">+ Add Stop</button>
                   </div>
                   <div id="kfbStopsContainer"></div>
@@ -399,20 +399,18 @@
                 <div class="kfb-pay-methods">
                   <div class="kfb-pay-method is-active"><span>🅿️</span> PayPal</div>
                 </div>
-                <p class="kfb-pay-note">🔒 Clicking "Book Now" takes you to PayPal to log in and approve the payment — nothing is charged there. Your card is authorized (held) once you approve, and only charged once your reservation is accepted. You'll be brought right back here.</p>
-
-                <!-- Terms & Conditions (v4) — required for > $500 -->
-                <div id="kfbTermsBlock" style="display:none">
+                <!-- Terms & Conditions (v4) — required on every booking -->
+                <div id="kfbTermsBlock">
                   <label class="kfb-check kfb-check-block" style="margin-top:14px">
                     <input type="checkbox" name="terms" required>
                     <span>I agree to the <a href="#" data-kfb-link>Terms &amp; Conditions</a> and <a href="#" data-kfb-link>Privacy Policy</a>.</span>
                   </label>
                 </div>
 
-                <!-- E-Signature (v4) — required for bookings > $500 -->
-                <div id="kfbSignatureBlock" class="kfb-section" hidden style="margin-top:14px">
+                <!-- E-Signature (v4) — required on every booking -->
+                <div id="kfbSignatureBlock" class="kfb-section" style="margin-top:14px">
                   <h3 class="kfb-section-title">E-Signature Required</h3>
-                  <p class="kfb-hint" style="margin:0 0 8px">Bookings over $500 require a signature. Please sign in the box below.</p>
+                  <p class="kfb-hint" style="margin:0 0 8px">Please sign in the box below to confirm your booking.</p>
                   <canvas id="kfbSignatureCanvas" width="600" height="160"
                           style="width:100%;max-width:600px;height:160px;background:#fff;border:1px solid var(--kfb-border-strong);border-radius:6px;touch-action:none;cursor:crosshair"></canvas>
                   <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">

@@ -17,7 +17,7 @@
      4. All places selected      → draws pickup → stops → dropoff
                                    route on the map
      5. Each route update        → console.log AND alert the
-                                   total km + minutes for a
+                                   total miles + minutes for a
                                    car / SUV (sum of all legs,
                                    so waypoints are included)
    ============================================================ */
@@ -39,7 +39,6 @@
   // Initialised to zeros — every successful DirectionsService call below
   // refreshes these so the embed widget always sees the latest values.
   window.kfbRoute = {
-    distanceKm:    0,
     distanceMiles: 0,
     durationMins:  0,
     stopCount:     0,
@@ -146,6 +145,12 @@
     } catch (e) {
       console.warn("[BookingMap] pickup autocomplete unavailable:", e && e.message);
     }
+    // Fallback for customers who type an address and tab/click away
+    // without picking a dropdown suggestion — place_changed never fires
+    // in that case, so the route (and therefore the price) would
+    // otherwise silently stay at zero. updateRoute() already falls back
+    // to the raw typed text when no place geometry is available.
+    el.addEventListener("blur", debouncedUpdateRoute);
   }
 
   // -------- Autocomplete: dropoff --------
@@ -164,6 +169,8 @@
     } catch (e) {
       console.warn("[BookingMap] dropoff autocomplete unavailable:", e && e.message);
     }
+    // Same fallback as pickup — see comment there.
+    el.addEventListener("blur", debouncedUpdateRoute);
   }
 
   // -------- Update autocomplete filter when location type changes --------
@@ -401,6 +408,12 @@
   }
 
   // -------- Route calculation --------
+  var routeDebounceTimer = null;
+  function debouncedUpdateRoute() {
+    clearTimeout(routeDebounceTimer);
+    routeDebounceTimer = setTimeout(updateRoute, 400);
+  }
+
   // Reads pickup, every non-empty stop, and dropoff. Sends them to
   // the Directions service as origin / waypoints[] / destination so
   // the polyline runs pickup → stop1 → stop2 → ... → dropoff.
@@ -438,7 +451,7 @@
         destination: destinationLoc,
         waypoints: waypoints,
         travelMode: google.maps.TravelMode.DRIVING, // car / SUV
-        unitSystem: google.maps.UnitSystem.METRIC,  // km
+        unitSystem: google.maps.UnitSystem.IMPERIAL, // miles
       },
       function (result, status) {
         if (status !== "OK") {
@@ -447,15 +460,18 @@
         }
         directionsRenderer.setDirections(result);
 
-        // Sum every leg so waypoints are reflected in the totals
-        var km = 0, seconds = 0;
+        // Sum every leg so waypoints are reflected in the totals.
+        // leg.distance.value is always metres from the API regardless of
+        // unitSystem (that option only affects leg.distance.text) — miles
+        // is our source of truth for distance, computed straight from it.
+        var miles = 0, seconds = 0;
         result.routes[0].legs.forEach(function (leg) {
-          km      += leg.distance.value / 1000;   // metres → km
-          seconds += leg.duration.value;          // seconds
+          miles   += leg.distance.value / 1609.344; // metres → miles
+          seconds += leg.duration.value;             // seconds
         });
-        var minutes = Math.round(seconds / 60);
-        var kmText   = km.toFixed(1) + " km";
-        var timeText = minutes + " min";
+        var minutes  = Math.round(seconds / 60);
+        var milesText = miles.toFixed(1) + " mi";
+        var timeText  = minutes + " min";
 
         // Determine service region from pickup + dropoff place objects.
         var pickupPlace  = pickupAC  ? pickupAC.getPlace()  : null;
@@ -466,8 +482,7 @@
         // Publish to the global route state so the booking widget can
         // read the latest distance / region without polling.
         if (!window.kfbRoute) window.kfbRoute = {};
-        window.kfbRoute.distanceKm    = km;
-        window.kfbRoute.distanceMiles = km * 0.621371192;
+        window.kfbRoute.distanceMiles = miles;
         window.kfbRoute.durationMins  = minutes;
         window.kfbRoute.stopCount     = stopCount;
         window.kfbRoute.region        = region;
@@ -483,7 +498,7 @@
         // Update the on-page badge if it's there
         var distEl = document.getElementById("kfbDistance");
         var durEl  = document.getElementById("kfbDuration");
-        if (distEl) distEl.textContent = kmText;
+        if (distEl) distEl.textContent = milesText;
         if (durEl)  durEl.textContent  = timeText;
         var info = document.getElementById("kfbRouteInfo");
         if (info) info.hidden = false;
@@ -492,7 +507,7 @@
         // can see that waypoints were actually taken into account, and
         // the service region so they know whether the trip is inside
         // Chicago, elsewhere in the USA, or worldwide.
-        var line = "Best route (car / SUV): " + kmText + " · " + timeText;
+        var line = "Best route (car / SUV): " + milesText + " · " + timeText;
         if (stopCount > 0) {
           line += " (via " + stopCount + " stop" + (stopCount > 1 ? "s" : "") + ")";
         }

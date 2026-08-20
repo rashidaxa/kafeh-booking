@@ -89,7 +89,6 @@
       fleet: DEFAULT_FLEET,
       addons: [],            // [{id, code, name, unit_price, quantity, line_total, region, ...}]
       addonsCatalog: [],     // fetched from backend at boot
-      distanceKm: 0,
       distanceMiles: 0,
       durationMins: 0,
       region: "Worldwide",
@@ -121,7 +120,7 @@
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
     function fmtMoney(n)  { return "$" + (Number(n) || 0).toFixed(2); }
-    function fmtKm(km)    { return (Number(km) || 0).toFixed(1); }
+    function fmtMiles(mi) { return (Number(mi) || 0).toFixed(1); }
     function fmtMins(m)   { return Math.max(0, Math.round(Number(m) || 0)); }
     // "YYYY-MM-DD" -> "MM/DD/YYYY"
     function fmtDateMDY(iso) {
@@ -153,6 +152,50 @@
       return btn.length ? btn.attr("data-value") : "Search All";
     }
 
+    // -------- Field format validation --------
+    function isValidEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email || "").trim());
+    }
+    // Accepts digits with optional +, spaces, dashes, dots, parens; 7-15 digits (E.164-ish).
+    function isValidPhone(phone) {
+      var s = String(phone || "").trim();
+      var digits = s.replace(/\D/g, "");
+      return /^[0-9+()\-.\s]+$/.test(s) && digits.length >= 7 && digits.length <= 15;
+    }
+    function isValidName(name) {
+      var s = String(name || "").trim();
+      return s.length >= 2 && /^[A-Za-z'\-. ]+$/.test(s);
+    }
+    function isValidCardNumber(num) {
+      var digits = String(num || "").replace(/[\s-]/g, "");
+      if (!/^\d{13,19}$/.test(digits)) return false;
+      // Luhn checksum.
+      var sum = 0, alt = false;
+      for (var i = digits.length - 1; i >= 0; i--) {
+        var n = digits.charCodeAt(i) - 48;
+        if (alt) { n *= 2; if (n > 9) n -= 9; }
+        sum += n; alt = !alt;
+      }
+      return sum % 10 === 0;
+    }
+    function isValidCardExpiry(exp) {
+      var m = /^(\d{2})\s*\/\s*(\d{2})$/.exec(String(exp || "").trim());
+      if (!m) return false;
+      var month = parseInt(m[1], 10);
+      if (month < 1 || month > 12) return false;
+      var year = 2000 + parseInt(m[2], 10);
+      var now = new Date();
+      var firstOfNextMonth = new Date(year, month, 1); // month is 0-indexed, so this = 1st of the month AFTER expiry
+      return firstOfNextMonth > now;
+    }
+    function isValidCVV(cvv) {
+      return /^\d{3,4}$/.test(String(cvv || "").trim());
+    }
+    // Toggle the red invalid state on a field's wrapping <label class="kfb-field">.
+    function markFieldValid($input, ok) {
+      $input.closest(".kfb-field").toggleClass("is-invalid", !ok);
+    }
+
     // -------- Toast --------
     function toast(msg, type) {
       type = type || "info";
@@ -176,6 +219,13 @@
     function gotoStep(n) {
       if (n < 1 || n > 3) return;
       if (!canAdvance(state.currentStep, n)) return;
+      // Safety net: a customer who types pickup/dropoff without clicking a
+      // Places dropdown suggestion never fires place_changed, so the route
+      // (and therefore the price) can otherwise stay stuck at zero. Force
+      // one last route computation on the way to Select Vehicle.
+      if (state.currentStep === 1 && n > 1 && window.KafehTestMap && typeof window.KafehTestMap.updateRoute === "function") {
+        window.KafehTestMap.updateRoute();
+      }
       state.currentStep = n;
       $(".kfb-panel").removeClass("is-active").attr("hidden", true);
       $('.kfb-panel[data-panel="' + n + '"]').addClass("is-active").removeAttr("hidden");
@@ -283,7 +333,12 @@
         var v = $(this).val();
         $(".kfb-service-pill").removeClass("is-active");
         $('.kfb-service-pill[data-service="' + v + '"]').addClass("is-active");
+        enforceStopsCap();
+        updateStopsHint();
       });
+    }
+    function updateStopsHint() {
+      $("#kfbStopsHint").text(isHourlyService() ? "optional, no limit" : "optional, up to " + TRANSFER_MAX_STOPS);
     }
 
     // -------- Location type BUTTONS (Search All / Address / Airport / Landmark) --------
@@ -336,10 +391,82 @@
       });
     }
 
+    // -------- Time picker (Firefox has no native dropdown for type="time" at all) --------
+    // Chrome/Edge/Safari draw a clickable clock icon that opens a native
+    // dropdown. Firefox draws no icon AND has no dropdown UI to open —
+    // confirmed by calling showPicker() directly: it doesn't throw, but
+    // nothing appears, because Firefox's time input is spinner/keyboard-only.
+    // So rather than depend on a native picker that doesn't exist in every
+    // browser, we build one small custom dropdown and use it everywhere —
+    // guarantees identical, working behavior regardless of browser.
+    // (type="date" is untouched — Firefox's native calendar dropdown for
+    // that type works fine, unlike type="time".)
+    var TIME_STEP_MINUTES = 30;
+    var TIME_OPTIONS = (function () {
+      var opts = [];
+      for (var mins = 0; mins < 24 * 60; mins += TIME_STEP_MINUTES) {
+        var value = String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0");
+        opts.push({ value: value, label: fmtTime12h(value).replace(/^Time: /, "") });
+      }
+      return opts;
+    })();
+    function closeAllTimeDropdowns() {
+      $(".kfb-dt-dropdown").remove();
+    }
+    function openTimeDropdown($input) {
+      var current = $input.val();
+      var $dd = $('<div class="kfb-dt-dropdown" role="listbox"></div>');
+      TIME_OPTIONS.forEach(function (o) {
+        var $item = $('<div class="kfb-dt-option" role="option" data-value="' + o.value + '">' + o.label + "</div>");
+        if (o.value === current) $item.addClass("is-selected");
+        $item.on("click", function () {
+          $input.val(o.value).trigger("change").trigger("input");
+          closeAllTimeDropdowns();
+        });
+        $dd.append($item);
+      });
+      $input.closest(".kfb-dt-wrap").append($dd);
+      var $sel = $dd.find(".is-selected");
+      if ($sel.length) $dd.scrollTop($sel[0].offsetTop - $dd.height() / 2 + $sel.height() / 2);
+    }
+    function enhanceTimeInputs() {
+      $('input[type="time"]').each(function () {
+        var $input = $(this);
+        if ($input.parent().hasClass("kfb-dt-wrap")) return; // already enhanced
+        var $wrap = $('<div class="kfb-dt-wrap"></div>');
+        var $btn = $(
+          '<button type="button" class="kfb-dt-trigger" aria-label="Open time picker" tabindex="-1">🕐</button>'
+        );
+        $input.before($wrap);
+        $wrap.append($input).append($btn);
+        $btn.on("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var isOpen = $wrap.find(".kfb-dt-dropdown").length > 0;
+          closeAllTimeDropdowns();
+          if (!isOpen) openTimeDropdown($input);
+        });
+      });
+      // Wire the document-level close handlers once, not once per input.
+      if (!enhanceTimeInputs._wired) {
+        enhanceTimeInputs._wired = true;
+        $(document).on("click", function (e) {
+          if (!$(e.target).closest(".kfb-dt-wrap").length) closeAllTimeDropdowns();
+        });
+        $(document).on("keydown", function (e) {
+          if (e.key === "Escape") closeAllTimeDropdowns();
+        });
+      }
+    }
+
     // -------- Stops --------
+    // Transfer service caps at 5 stops; Hourly/As-Directed has no cap —
+    // the customer is paying for the driver's time, not a fixed route.
+    var TRANSFER_MAX_STOPS = 5;
+    function maxStops() { return isHourlyService() ? Infinity : TRANSFER_MAX_STOPS; }
     var stopIndex = 0;
     function addStopRow() {
-      if (stopIndex >= 5) { toast("Maximum 5 extra stops."); return; }
+      if (stopIndex >= maxStops()) { toast("Maximum " + TRANSFER_MAX_STOPS + " extra stops for Transfer service."); return; }
       var $c = $("#kfbStopsContainer");
       if (!$c.length) return;
       var i = stopIndex;
@@ -371,6 +498,18 @@
     function wireStops() {
       $("#kfbAddStopBtn").on("click", addStopRow);
       renumberStops();
+    }
+    // Switching from Hourly back to Transfer can leave more stops than
+    // Transfer allows — trim the excess (from the end) rather than just
+    // blocking further additions, so the cap is actually enforced.
+    function enforceStopsCap() {
+      var cap = maxStops();
+      var $rows = $("#kfbStopsContainer .kfb-stop-row");
+      if ($rows.length > cap) {
+        $rows.slice(cap).remove();
+        renumberStops();
+        toast("Trimmed to " + cap + " stops for Transfer service.");
+      }
     }
 
     // -------- Steppers (− 1 +) --------
@@ -440,7 +579,6 @@
     // ============================================================
     function syncRouteFromMap() {
       var r = window.kfbRoute || {};
-      state.distanceKm    = +(r.distanceKm    || 0);
       state.distanceMiles = +(r.distanceMiles || 0);
       state.durationMins  = +(r.durationMins  || 0);
       state.region        = r.region || "Worldwide";
@@ -455,26 +593,30 @@
     // PRICING
     // ============================================================
     // For POINT-TO-POINT style services (Transfer, From/To Airport, etc.):
-    //   total = km × per_km_<region>
-    //         + surcharge_<region> + gratuity_<region>
+    //   total = miles × per_mile_<region>
+    //         + base × surcharge_<region>% + base × gratuity_<region>%
     //         + (child_seat_<region> × childSeats)
     //         - promoDiscount
     //
     // For HOURLY / As-Directed service:
-    //   total = hourly_<region> × hours         ← replaces km × per_km
-    //         + surcharge_<region> + gratuity_<region>
+    //   total = hourly_<region> × hours         ← replaces miles × per_mile
+    //         + base × surcharge_<region>% + base × gratuity_<region>%
     //         + (child_seat_<region> × childSeats)
     //         - promoDiscount
     //
+    // surcharge_<region> and gratuity_<region> are PERCENTAGES (e.g. 20
+    // means 20%), each applied independently to the base fare — not to
+    // each other, and not to child seats/add-ons/meet & greet.
+    //
     // (Hourly is a flat time-based rate — we don't double-charge the
-    //  per-km on top of it. The hourly amount IS the base.)
+    //  per-mile on top of it. The hourly amount IS the base.)
     function priceBreakdown(v) {
       syncRouteFromMap();
-      var km     = state.distanceKm || 0;
+      var miles  = state.distanceMiles || 0;
       var region = (state.region || "Worldwide").toLowerCase();
-      var perKm      = +(v['per_km_'    + region] || 0);
-      var surcharge  = +(v['surcharge_' + region] || 0);
-      var gratuity   = +(v['gratuity_'  + region] || 0);
+      var perMile      = +(v['per_mile_'  + region] || 0);
+      var surchargePct = +(v['surcharge_' + region] || 0);
+      var gratuityPct  = +(v['gratuity_'  + region] || 0);
       var hourlyRate = +(v['hourly_'    + region] || 0);
       var childSeatR = +(v['child_seat_' + region] || 0);
       var minFare      = +(v.min_fare || 0);
@@ -487,16 +629,16 @@
       var childCount = totalChildSeats();
       var childAdd  = childCount * childSeatR;
 
-      // Branch on service type — hourly replaces km-based, not stacks.
+      // Branch on service type — hourly replaces mileage-based, not stacks.
       var rawBase, hourlyAdd, baseLabel;
       if (isHourlyService()) {
         rawBase   = hourlyRate * hours;
         hourlyAdd = 0;
         baseLabel = "Hourly (" + hours.toFixed(1) + "h × $" + hourlyRate.toFixed(2) + ")";
       } else {
-        rawBase   = km * perKm;
+        rawBase   = miles * perMile;
         hourlyAdd = 0;
-        baseLabel = "Base (" + km.toFixed(1) + " km × $" + perKm.toFixed(2) + ")";
+        baseLabel = "Base (" + miles.toFixed(1) + " mi × $" + perMile.toFixed(2) + ")";
       }
       // Minimum fare floors the base fare itself — not disclosed to the
       // customer as a separate line, it just quietly becomes the Base
@@ -505,6 +647,12 @@
       // still apply on top exactly as normal.
       var minFareApplied = (rawBase < minFare) ? minFare : 0;
       var base = Math.max(rawBase, minFare);
+
+      // Surcharge and gratuity are percentages of the base fare (e.g.
+      // gratuityPct=20 on a $200 base adds $40), applied independently —
+      // gratuity isn't computed on top of surcharge or vice versa.
+      var surcharge = base * (surchargePct / 100);
+      var gratuity  = base * (gratuityPct / 100);
 
       // Meet & Greet surcharge: only when pickup is at an airport AND
       // the customer picked the "Meet & Greet" pickup type. Chicago
@@ -549,8 +697,9 @@
       var total = isReturnTrip ? oneWayTotal * 2 : oneWayTotal;
 
       return {
-        km: km, perKm: perKm, base: base,
+        miles: miles, perMile: perMile, base: base,
         surcharge: surcharge, gratuity: gratuity,
+        surchargePct: surchargePct, gratuityPct: gratuityPct,
         hourlyRate: hourlyRate, hours: hours, hourlyAdd: hourlyAdd,
         childSeatRate: childSeatR, childCount: childCount, childAdd: childAdd,
         meetGreetFee: meetGreetFee,
@@ -808,7 +957,7 @@
             '<div class="kfb-vehicle-price"><b>' + fmtMoney(price) + '</b><small>' +
               (isHourlyService()
                 ? bd.hours.toFixed(1) + 'h · ' + region
-                : fmtKm(bd.km) + ' km · ' + region
+                : fmtMiles(bd.miles) + ' mi · ' + region
               ) + (bd.isReturnTrip ? ' · round trip (× 2)' : '') + '</small></div>' +
           '</div>'
         );
@@ -838,7 +987,7 @@
         fmtTime12h($('input[name="pickupTime"]').val())
       );
       $("#kfbSumService").text(selectedServiceType() || "—");
-      $("#kfbSumDistance").text(fmtKm(state.distanceKm) + " km · " + fmtMins(state.durationMins) + " min");
+      $("#kfbSumDistance").text(fmtMiles(state.distanceMiles) + " mi · " + fmtMins(state.durationMins) + " min");
       $("#kfbSumPickup").text($('input[name="pickup"]').val() || "—");
       $("#kfbSumDropoff").text(
         $('#kfbReturnDifferent').is(":checked")
@@ -866,8 +1015,8 @@
         var bd = state.selectedVehicle.breakdown || priceBreakdown(state.selectedVehicle);
         $("#kfbBreakdown").show();
         $("#kfbSumBase").text(fmtMoney(bd.base));
-        $("#kfbSumSurcharge").text(fmtMoney(bd.surcharge));
-        $("#kfbSumGratuity").text(fmtMoney(bd.gratuity));
+        $("#kfbSumSurcharge").text(fmtMoney(bd.surcharge) + " (" + bd.surchargePct + "%)");
+        $("#kfbSumGratuity").text(fmtMoney(bd.gratuity) + " (" + bd.gratuityPct + "%)");
         // For hourly service, the hourly amount is already folded into the
         // "Base" line, so there's never a separate non-zero Hourly figure —
         // only show this row if one somehow exists.
@@ -1105,7 +1254,6 @@
         vehicle_id:      v.id || v.code,
         vehicle_name:    v.name,
         distanceMiles:   state.distanceMiles,
-        distanceKm:      state.distanceKm,
         durationMins:    state.durationMins,
         region:          state.region,
         amount:          v.breakdown.total,
@@ -1171,15 +1319,51 @@
       var v = state.selectedVehicle;
       if (!v) { toast("Choose a vehicle first."); return; }
 
-      var required = ["firstName", "lastName", "email", "phone"];
       var missing = [];
-      required.forEach(function (n) {
-        if (!($('input[name="' + n + '"]').val() || "").trim()) missing.push(n);
-      });
+      var invalid = [];
+      var $firstBad = null;
+
+      function requireField(name, label, validator) {
+        var $el = $('input[name="' + name + '"]');
+        var val = ($el.val() || "").trim();
+        var ok = !!val && (!validator || validator(val));
+        markFieldValid($el, ok);
+        if (!val) { missing.push(label); if (!$firstBad) $firstBad = $el; }
+        else if (!ok) { invalid.push(label); if (!$firstBad) $firstBad = $el; }
+      }
+      // Optional field — only checked (and flagged) if the customer filled it in.
+      function checkOptionalField(name, label, validator) {
+        var $el = $('input[name="' + name + '"]');
+        var val = ($el.val() || "").trim();
+        if (!val) { markFieldValid($el, true); return; }
+        var ok = validator(val);
+        markFieldValid($el, ok);
+        if (!ok) { invalid.push(label); if (!$firstBad) $firstBad = $el; }
+      }
+
+      requireField("firstName", "First Name", isValidName);
+      requireField("lastName", "Last Name", isValidName);
+      requireField("email", "Email", isValidEmail);
+      requireField("phone", "Phone", isValidPhone);
+      requireField("cardNumber", "Card Number", isValidCardNumber);
+      requireField("cardExpiry", "Card Expiry", isValidCardExpiry);
+      requireField("cvv", "CVV", isValidCVV);
+
       if ($("#kfbTermsBlock").is(":visible") && !$('input[name="terms"]').is(":checked")) {
         missing.push("Terms & Conditions");
       }
-      if (missing.length) { toast("Please fill: " + missing.join(", ")); return; }
+      if ($("#kfbSignatureBlock").is(":visible") && !state.signatureData) {
+        missing.push("Signature");
+      }
+
+      if (missing.length || invalid.length) {
+        var parts = [];
+        if (missing.length) parts.push("Please fill: " + missing.join(", "));
+        if (invalid.length) parts.push("Please check the format of: " + invalid.join(", "));
+        toast(parts.join(" — "));
+        if ($firstBad) $firstBad.focus();
+        return;
+      }
 
       var $btn = $("#kfbBookNowBtn");
       $btn.prop("disabled", true);
@@ -1306,10 +1490,8 @@
     }
 
     // ============================================================
-    // E-SIGNATURE (v4) — for bookings > $500
+    // E-SIGNATURE (v4) — required for every booking
     // ============================================================
-    var SIGNATURE_THRESHOLD = 500;
-
     function initSignaturePad() {
       var canvas = document.getElementById("kfbSignatureCanvas");
       if (!canvas) return;
@@ -1374,23 +1556,14 @@
     }
 
     /**
-     * Show / hide the signature pad based on the current total.
-     * Required only if total > $500.
+     * Show the signature pad + Terms & Conditions checkbox. Both are
+     * required on every booking, regardless of total.
      */
     function refreshSignatureVisibility() {
-      var v = state.selectedVehicle;
-      if (!v) return;
-      var total = v.breakdown ? v.breakdown.total : 0;
       var $sig = $("#kfbSignatureBlock");
       if (!$sig.length) return;
-      if (total > SIGNATURE_THRESHOLD) {
-        $sig.removeAttr("hidden");
-        // Also surface T&C acknowledgement
-        $("#kfbTermsBlock").show();
-      } else {
-        $sig.attr("hidden", true);
-        $("#kfbTermsBlock").hide();
-      }
+      $sig.removeAttr("hidden");
+      $("#kfbTermsBlock").show();
     }
 
     /**
@@ -1485,7 +1658,7 @@
       $("#kfbChildSeatsContainer").empty();
       $("#kfbAddonList").empty();
       $("#kfbAccountPrompt").attr("hidden", true);
-      $("#kfbSignatureBlock").attr("hidden", true);
+      $("#kfbSignatureClear").trigger("click"); // wipes the drawn ink + state.signatureData
       $("#kfbReturnDifferent").prop("checked", true).trigger("change");
       $('input[name="returnDate"], input[name="returnTime"], input[name="tailNumber"], input[name="dropoffTailNumber"], input[name="returnTailNumber"], input[name="returnDropoffTailNumber"]').val("");
       $(".kfb-airport-extras").hide();
@@ -1520,20 +1693,17 @@
       $('input[name="service"][value="Transfer"]').prop("checked", true);
       $(".kfb-service-pill[data-service='Transfer']").addClass("is-active");
 
-      // Default tomorrow's date
-      var t = new Date();
-      t.setDate(t.getDate() + 1);
-      var yyyy = t.getFullYear();
-      var mm = String(t.getMonth() + 1).padStart(2, "0");
-      var dd = String(t.getDate()).padStart(2, "0");
-      if (!$('input[name="pickupDate"]').val()) $('input[name="pickupDate"]').val(yyyy + "-" + mm + "-" + dd);
-      if (!$('input[name="pickupTime"]').val()) $('input[name="pickupTime"]').val("10:00");
+      // Pickup date/time start empty on purpose — a pre-filled default
+      // (previously "tomorrow at 10:00") let customers miss that they
+      // needed to change it, so they're now required to actively pick both.
 
       wireServiceType();
       wireLocationType();
       wireStops();
+      updateStopsHint();
       wireChildSeats();
       populateAirlines();
+      enhanceTimeInputs();
       makeStepper("#kfbStepperPassengers", function () { renderVehicles(); recalcSelectedVehicle(); });
       makeStepper("#kfbStepperBags");
 
@@ -1563,6 +1733,22 @@
 
       // Live recompute summary on contact-info edits
       $(document).on("input", 'input[name="firstName"], input[name="lastName"], input[name="email"], input[name="phone"]', renderSideSummary);
+
+      // Clear a field's red "invalid" state as soon as it passes again, so it
+      // doesn't stay flagged after the customer fixes it post-submit-attempt.
+      var FIELD_VALIDATORS = {
+        firstName: isValidName, lastName: isValidName,
+        email: isValidEmail, phone: isValidPhone,
+        cardNumber: isValidCardNumber, cardExpiry: isValidCardExpiry, cvv: isValidCVV,
+      };
+      $(document).on("input blur", Object.keys(FIELD_VALIDATORS).map(function (n) { return 'input[name="' + n + '"]'; }).join(", "), function () {
+        var $el = $(this);
+        var name = $el.attr("name");
+        var val = ($el.val() || "").trim();
+        if (!$el.closest(".kfb-field").hasClass("is-invalid")) return; // nothing to clear
+        if (!val) return; // still empty — leave as-is, submit will re-flag with the right message
+        markFieldValid($el, FIELD_VALIDATORS[name](val));
+      });
 
       loadFleet();
       loadSettings();
