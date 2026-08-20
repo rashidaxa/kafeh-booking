@@ -270,6 +270,7 @@ nav.kfb-stepper {
 }
 .kfb-dt-option:hover { background: rgba(17,17,17,.05); }
 .kfb-dt-option.is-selected { background: var(--kfb-accent); color: #fff; font-weight: 600; }
+.kfb-dt-empty { padding: 10px 12px; font-size: 13px; color: var(--kfb-text-muted); }
 .kfb-field-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .kfb-field-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .kfb-optional { color: var(--kfb-text-muted); font-weight: 400; }

@@ -136,6 +136,26 @@
       h = h % 12; if (h === 0) h = 12;
       return "Time: " + String(h).padStart(2, "0") + ":" + m[2] + " " + ampm;
     }
+    // Local "YYYY-MM-DD" for today (or an arbitrary Date), matching the
+    // format <input type="date"> uses — NOT toISOString(), which is UTC
+    // and can land on the wrong day depending on the visitor's timezone.
+    function todayDateString(d) {
+      d = d || new Date();
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+    // "HH:MM" for right now, in the visitor's local time.
+    function nowTimeString() {
+      var d = new Date();
+      return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    }
+    // dateStr "YYYY-MM-DD" + timeStr "HH:MM", both local — true if that
+    // moment has already passed. No timezone suffix on the constructed
+    // string, so JS parses it as local time (matching how the visitor
+    // entered it), not UTC.
+    function isPastDateTime(dateStr, timeStr) {
+      var dt = new Date(dateStr + "T" + timeStr + ":00");
+      return dt.getTime() < Date.now();
+    }
     function selectedServiceType() {
       return ($('input[name="service"]:checked').val() || "").toString().trim();
     }
@@ -212,6 +232,13 @@
       clearTimeout(el._hideTimer);
       el._hideTimer = setTimeout(function () { el.classList.remove("is-open"); }, 3200);
     }
+    // test-map.js can't reach this closure's toast() directly (separate
+    // script/IIFE), so it dispatches this event instead — e.g. when it
+    // rejects a too-vague (city/country-only) place selection.
+    window.addEventListener("kfb:toast", function (e) {
+      var d = e && e.detail;
+      if (d && d.message) toast(d.message, d.type);
+    });
 
     // ============================================================
     // STEPPER (3 STEPS)
@@ -267,6 +294,10 @@
       if (!$('input[name="service"]:checked').length) missing.push("Service type");
       if (!$('input[name="pickupDate"]').val()) missing.push("Pickup date");
       if (!$('input[name="pickupTime"]').val()) missing.push("Pickup time");
+      if ($('input[name="pickupDate"]').val() && $('input[name="pickupTime"]').val() &&
+          isPastDateTime($('input[name="pickupDate"]').val(), $('input[name="pickupTime"]').val())) {
+        missing.push("Pickup date/time (can't be in the past)");
+      }
 
       var pickupType = getLocType("pickup");
       if (!$('input[name="pickup"]').val().trim()) missing.push("Pickup location");
@@ -297,6 +328,10 @@
       if (state.isReturnTrip) {
         if (!$('input[name="returnDate"]').val()) missing.push("Return date");
         if (!$('input[name="returnTime"]').val()) missing.push("Return time");
+        if ($('input[name="returnDate"]').val() && $('input[name="returnTime"]').val() &&
+            isPastDateTime($('input[name="returnDate"]').val(), $('input[name="returnTime"]').val())) {
+          missing.push("Return date/time (can't be in the past)");
+        }
         var returnDifferent = $("#kfbReturnDifferent").is(":checked");
         var returnPickupIsAirport = (returnDifferent ? dropoffType : pickupType) === "Airport";
         if (returnPickupIsAirport) {
@@ -413,10 +448,29 @@
     function closeAllTimeDropdowns() {
       $(".kfb-dt-dropdown").remove();
     }
+    // Which date field a time field is "for" — when that date is today,
+    // times already in the past are filtered out of the dropdown instead
+    // of letting the customer pick one and only finding out at submit.
+    var TIME_TO_DATE_FIELD = { pickupTime: "pickupDate", returnTime: "returnDate" };
     function openTimeDropdown($input) {
       var current = $input.val();
+      var options = TIME_OPTIONS;
+      var dateField = TIME_TO_DATE_FIELD[$input.attr("name")];
+      if (dateField && $('input[name="' + dateField + '"]').val() === todayDateString()) {
+        var nowMin = nowTimeString();
+        options = TIME_OPTIONS.filter(function (o) { return o.value >= nowMin; });
+        // Don't yank away a value the customer already picked just because
+        // a few minutes have ticked by since — only filter for new picks.
+        if (current && !options.some(function (o) { return o.value === current; })) {
+          var existing = TIME_OPTIONS.filter(function (o) { return o.value === current; })[0];
+          if (existing) options = [existing].concat(options);
+        }
+      }
       var $dd = $('<div class="kfb-dt-dropdown" role="listbox"></div>');
-      TIME_OPTIONS.forEach(function (o) {
+      if (!options.length) {
+        $dd.append('<div class="kfb-dt-empty">No times left today — pick a later date</div>');
+      }
+      options.forEach(function (o) {
         var $item = $('<div class="kfb-dt-option" role="option" data-value="' + o.value + '">' + o.label + "</div>");
         if (o.value === current) $item.addClass("is-selected");
         $item.on("click", function () {
@@ -1696,6 +1750,13 @@
       // Pickup date/time start empty on purpose — a pre-filled default
       // (previously "tomorrow at 10:00") let customers miss that they
       // needed to change it, so they're now required to actively pick both.
+      //
+      // `min` stops the native date picker from offering past dates at all;
+      // validateStep1() below is the authoritative check (a typed/pasted
+      // date can bypass `min`, and `min` can't express "not before right
+      // now" for the time field).
+      var todayISO = todayDateString();
+      $('input[name="pickupDate"], input[name="returnDate"]').attr("min", todayISO);
 
       wireServiceType();
       wireLocationType();

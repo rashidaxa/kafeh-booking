@@ -110,7 +110,7 @@
   // If no filter is requested (or the type is "Search All"), we omit the
   // `types` field entirely so all categories are returned.
   function buildAutocompleteOptions(group) {
-    var fields = ["place_id", "geometry", "name", "formatted_address", "address_components"];
+    var fields = ["place_id", "geometry", "name", "formatted_address", "address_components", "types"];
     var typeFilter = getLocationTypeFilter(group);
     if (typeFilter) {
       return { fields: fields, types: typeFilter };
@@ -123,11 +123,45 @@
     var v = btn.getAttribute("data-value");
     switch (v) {
       case "Airport":    return ["airport"];
-      case "Address":    return ["geocode"];
+      // "geocode" still includes bare cities/regions/countries — "address"
+      // is the Places API's dedicated precise-street-address restriction.
+      case "Address":    return ["address"];
       case "Landmark":   return ["establishment"];
       case "Search All":
       default:           return null;
     }
+  }
+
+  // A selected place is "too vague" for a pickup/dropoff/stop point if
+  // Google's own classification of it is a city, state, country, or
+  // postal code and nothing more specific (no street_address/route/
+  // premise/establishment/airport component). "Search All" and "Landmark"
+  // deliberately don't restrict `types` up front (the Places API only
+  // allows one type-collection filter per request, and there's no
+  // "everything except cities" option) — so precise-address enforcement
+  // happens here instead, after a place is actually selected.
+  var VAGUE_PLACE_TYPES = [
+    "locality", "sublocality", "administrative_area_level_1",
+    "administrative_area_level_2", "administrative_area_level_3",
+    "country", "postal_code", "postal_town",
+  ];
+  function isPlaceTooVague(place) {
+    var types = (place && place.types) || [];
+    if (!types.length) return false; // no type data — don't block on it
+    return types.some(function (t) { return VAGUE_PLACE_TYPES.indexOf(t) !== -1; });
+  }
+  // If the selection is too vague, clear it (so it can't silently pass as
+  // "good enough" free text either) and tell the customer why. Returns
+  // true when the selection was rejected.
+  function rejectIfTooVague(el, place, label) {
+    if (!isPlaceTooVague(place)) return false;
+    el.value = "";
+    try {
+      window.dispatchEvent(new CustomEvent("kfb:toast", {
+        detail: { message: "Please choose a specific " + label + " address, not just a city or region.", type: "error" },
+      }));
+    } catch (e) { /* old browsers — the cleared field is still the important part */ }
+    return true;
   }
 
   function attachPickupAutocomplete() {
@@ -137,6 +171,7 @@
       pickupAC = new google.maps.places.Autocomplete(el, buildAutocompleteOptions("pickup"));
       pickupAC.addListener("place_changed", function () {
         var place = pickupAC.getPlace();
+        if (rejectIfTooVague(el, place, "pickup")) return;
         if (place && place.geometry && place.geometry.location) {
           dropPickupMarker(place.geometry.location, place.name || "Pickup");
         }
@@ -161,6 +196,7 @@
       dropoffAC = new google.maps.places.Autocomplete(el, buildAutocompleteOptions("dropoff"));
       dropoffAC.addListener("place_changed", function () {
         var place = dropoffAC.getPlace();
+        if (rejectIfTooVague(el, place, "drop-off")) return;
         if (place && place.geometry && place.geometry.location) {
           dropDropoffMarker(place.geometry.location, place.name || "Dropoff");
         }
@@ -243,10 +279,11 @@
 
     try {
       var ac = new google.maps.places.Autocomplete(input, {
-        fields: ["place_id", "geometry", "name", "formatted_address", "address_components"],
+        fields: ["place_id", "geometry", "name", "formatted_address", "address_components", "types"],
       });
       ac.addListener("place_changed", function () {
         var place = ac.getPlace();
+        if (rejectIfTooVague(input, place, "stop")) return;
         if (place && place.geometry && place.geometry.location) {
           updateStopMarker(stopRow, place.geometry.location, place.name || "Stop");
         }
