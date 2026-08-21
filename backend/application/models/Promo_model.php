@@ -112,8 +112,8 @@ class Promo_model extends CI_Model
             'ok'          => FALSE,
             'code'        => is_string($code) ? strtoupper(trim($code)) : '',
             'description' => NULL,
-            'discount'    => 0,
-            'final'       => (float)$subtotal,
+            'discount'    => '0.00',
+            'final'       => number_format((float)$subtotal, 2, '.', ''),
             'reason'      => 'not_found',
         ];
         if ($result['code'] === '') {
@@ -162,8 +162,14 @@ class Promo_model extends CI_Model
         $result['ok']          = TRUE;
         $result['code']        = $row['code'];
         $result['description'] = $row['description'];
-        $result['discount']    = round($discount, 2);
-        $result['final']       = round(max(0, $subtotal - $discount), 2);
+        // Formatted STRINGs, not floats — this server's php.ini has
+        // serialize_precision=100 (non-default; should be -1), so
+        // json_encode() expands any float that isn't exactly representable
+        // in binary out to ~100 digits regardless of round(). The frontend
+        // already does +(res.discount || 0) to consume this, so a string
+        // is safe here — same fix as Api::reservation_update()'s amount.
+        $result['discount']    = number_format($discount, 2, '.', '');
+        $result['final']       = number_format(max(0, $subtotal - $discount), 2, '.', '');
         $result['reason']      = 'ok';
         return $result;
     }

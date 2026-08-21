@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `card_last4`               VARCHAR(4)   NULL,
   `approved_at`              DATETIME     NULL COMMENT 'When an admin accepted or rejected this reservation',
   `approved_by`              VARCHAR(60)  NULL COMMENT 'Admin username who accepted/rejected',
+  `edited_by_customer_at`    DATETIME     NULL COMMENT 'Set each time the customer edits this reservation pre-acceptance',
+  `edit_count`               TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'How many times the customer has edited this reservation',
   `passengers`      TINYINT      NOT NULL DEFAULT 1,
   `luggage`         TINYINT      NOT NULL DEFAULT 0,
   `child_seats`     TINYINT      NOT NULL DEFAULT 0,
@@ -276,6 +278,38 @@ CREATE TABLE IF NOT EXISTS `kfb_customers` (
   `updated_at`     DATETIME NULL,
   UNIQUE KEY `uniq_customer_email` (`email`),
   KEY `idx_customer_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Customer bearer tokens (v12, login) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_customer_tokens` (
+  `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `customer_id`  INT UNSIGNED NOT NULL,
+  `token_hash`   CHAR(64)     NOT NULL COMMENT 'SHA-256 of the raw token — the raw token is only ever returned to the client once, at login',
+  `created_at`   DATETIME     NOT NULL,
+  `expires_at`   DATETIME     NOT NULL,
+  `last_used_at` DATETIME     NULL,
+  `revoked_at`   DATETIME     NULL COMMENT 'Set on logout or on password reset',
+  `user_agent`   VARCHAR(255) NULL,
+  `ip_address`   VARCHAR(45)  NULL,
+  UNIQUE KEY `uniq_token_hash` (`token_hash`),
+  KEY `idx_token_customer` (`customer_id`),
+  KEY `idx_token_expires` (`expires_at`),
+  CONSTRAINT `fk_token_customer` FOREIGN KEY (`customer_id`)
+    REFERENCES `kfb_customers`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Password reset tokens (v12) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_password_resets` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `customer_id` INT UNSIGNED NOT NULL,
+  `token_hash`  CHAR(64)     NOT NULL,
+  `created_at`  DATETIME     NOT NULL,
+  `expires_at`  DATETIME     NOT NULL COMMENT '1 hour from creation',
+  `used_at`     DATETIME     NULL COMMENT 'Single-use — set once the token is consumed',
+  UNIQUE KEY `uniq_reset_token_hash` (`token_hash`),
+  KEY `idx_reset_customer` (`customer_id`),
+  CONSTRAINT `fk_reset_customer` FOREIGN KEY (`customer_id`)
+    REFERENCES `kfb_customers`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------- Global settings (v5, key/value) -----------------

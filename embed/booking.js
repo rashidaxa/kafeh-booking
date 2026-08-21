@@ -111,6 +111,12 @@
       meetGreetFee: 0,       // added to total if pickup type = Meet & Greet
       dropoffMeetGreetFee: 0, // added to total if dropoff type = Meet & Greet
       settings: { meetGreetChicago: 65, meetGreetElsewhere: 95 }, // fetched from /api/settings
+
+      // -------- Customer accounts (v6) --------
+      view: "booking",        // "booking" | "login" | "register" | "forgot" | "reset" | "profile"
+      authToken: null,        // bearer token, mirrored in localStorage
+      customer: null,         // { id, email, first_name, last_name, ... } once logged in
+      editingBookingId: null, // set by startEditReservation() — routes submitBooking() to the update endpoint
     };
 
     // -------- Helpers --------
@@ -1238,8 +1244,14 @@
     // ============================================================
     // RESERVATION + PAYPAL
     // ============================================================
-    function createReservation() {
-      if (!state.selectedVehicle) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
+    /**
+     * Builds the reservation payload from the current form state — shared
+     * by createReservation() (POST /reservation) and updateReservation()
+     * (POST /reservation/:id/update), which are otherwise identical
+     * except for the URL/method. Returns NULL if no vehicle is selected.
+     */
+    function buildReservationPayload() {
+      if (!state.selectedVehicle) return null;
       // Force a fresh price/breakdown right before we charge — anything that
       // changed the route, add-ons, or child seats since the vehicle was
       // selected must be reflected in the amount we're about to bill.
@@ -1323,10 +1335,31 @@
         cvv:     $('input[name="cvv"]').val()     || null,
         cardBillingAddress:   $('input[name="cardBillingAddress"]').val()   || null,
       };
+      return payload;
+    }
+
+    function createReservation() {
+      var payload = buildReservationPayload();
+      if (!payload) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
       return $.ajax({
         url: API_BASE + "/reservation",
         method: "POST",
         contentType: "application/json",
+        data: JSON.stringify(payload),
+        dataType: "json",
+        timeout: 10000,
+      });
+    }
+
+    /** The edit counterpart to createReservation() — same payload, existing booking_id, auth required. */
+    function updateReservation() {
+      var payload = buildReservationPayload();
+      if (!payload) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
+      return $.ajax({
+        url: API_BASE + "/reservation/" + encodeURIComponent(state.editingBookingId) + "/update",
+        method: "POST",
+        contentType: "application/json",
+        headers: authHeaders(),
         data: JSON.stringify(payload),
         dataType: "json",
         timeout: 10000,
@@ -1421,24 +1454,43 @@
 
       var $btn = $("#kfbBookNowBtn");
       $btn.prop("disabled", true);
-      $("#kfbPaymentStatus").show().find("p").text("Creating your reservation…");
+      var isEditing = !!state.editingBookingId;
+      $("#kfbPaymentStatus").show().find("p").text(isEditing ? "Saving your changes…" : "Creating your reservation…");
 
-      createReservation()
+      // Captured across the .then() chain — updateReservation()'s
+      // price_changed flag decides whether we still need a PayPal
+      // round-trip, but that response is two steps back by the time
+      // saveSignature() resolves.
+      var editResult = null;
+
+      (isEditing ? updateReservation() : createReservation())
         .then(function (res) {
+          editResult = res;
           state.bookingId = res.booking_id;
+          // Signature is saved either way — the customer just drew a fresh
+          // one to confirm this submission, price-changing or not.
           return saveSignature();
         })
         .then(function () {
+          if (isEditing && editResult && editResult.price_changed === false) {
+            // No PayPal round-trip needed — the edit is already saved.
+            $("#kfbPaymentStatus").hide();
+            $btn.prop("disabled", false);
+            toast("Reservation updated ✓");
+            state.editingBookingId = null;
+            setView("profile");
+            return;
+          }
           $("#kfbPaymentStatus").find("p").text("Redirecting you to PayPal…");
-          return createPaypalOrder();
-        })
-        .then(function (res) {
-          window.location.href = res.approve_url;
-          // Browser navigates away here — nothing after this line runs.
+          return createPaypalOrder().then(function (res) {
+            window.location.href = res.approve_url;
+            // Browser navigates away here — nothing after this line runs.
+          });
         })
         .catch(function (err) {
           $("#kfbPaymentStatus").hide();
           $btn.prop("disabled", false);
+          if (isEditing && handleAuthFailure(err)) return;
           var msg = (err && err.responseJSON && err.responseJSON.error) || (err && err.message) || "Could not process payment.";
           toast(msg, "error");
         });
@@ -1470,7 +1522,7 @@
             if (res && res.first_name) $('input[name="firstName"]').val(res.first_name);
             if (res && res.email)      $('input[name="email"]').val(res.email);
             showSuccess(bookingId);
-            promptAccountCreation(bookingId);
+            if (!state.customer) promptAccountCreation(bookingId);
           })
           .catch(function () { showSuccess(bookingId); });
       } else if (status === "cancelled") {
@@ -1641,6 +1693,515 @@
     }
 
     // ============================================================
+    // CUSTOMER ACCOUNTS (v6) — login, profile, reservation editing
+    // ============================================================
+    var TOKEN_STORAGE_KEY = "kfb_token";
+
+    function authHeaders() {
+      return state.authToken ? { Authorization: "Bearer " + state.authToken } : {};
+    }
+    function saveToken(token) {
+      state.authToken = token;
+      try { localStorage.setItem(TOKEN_STORAGE_KEY, token); } catch (e) { /* storage disabled — token still works for this page load */ }
+    }
+    function clearAuth() {
+      state.authToken = null;
+      state.customer = null;
+      try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch (e) { /* ignore */ }
+      renderAccountBar();
+    }
+    function renderAccountBar() {
+      var loggedIn = !!state.customer;
+      $("#kfbAccountBarGuest").toggle(!loggedIn);
+      $("#kfbAccountBarUser").toggle(loggedIn);
+      if (loggedIn) {
+        $("#kfbAccountBarName").text(state.customer.first_name || state.customer.email || "there");
+      }
+    }
+
+    /**
+     * Pre-fills first/last name + phone from the logged-in customer's
+     * account and locks the email field to the account email — a
+     * logged-in customer can't create/edit a reservation under a
+     * different email, since that would silently detach it from their
+     * account (reservations are looked up by customer_id, not by the
+     * email typed into the form).
+     */
+    function prefillContactFromCustomer() {
+      if (!state.customer) return;
+      $('input[name="firstName"]').val(state.customer.first_name || "");
+      $('input[name="lastName"]').val(state.customer.last_name || "");
+      if (state.customer.phone) $('input[name="phone"]').val(state.customer.phone);
+      lockEmailToAccount(state.customer.email);
+    }
+
+    function lockEmailToAccount(email) {
+      $('input[name="email"]').val(email || "").prop("readonly", true).addClass("kfb-field-locked");
+    }
+
+    function unlockEmailField() {
+      $('input[name="email"]').prop("readonly", false).removeClass("kfb-field-locked");
+    }
+
+    /**
+     * Toggles between the 3-step booking wizard and the login/register/
+     * forgot/reset/profile views. Orthogonal to state.currentStep (1-3),
+     * which stays meaningful only while view === "booking" — gotoStep()
+     * itself is completely untouched.
+     */
+    function setView(view) {
+      state.view = view;
+      $("#kfbBookingView, .kfb-view").attr("hidden", true);
+      if (view === "booking") {
+        $("#kfbBookingView").removeAttr("hidden");
+      } else {
+        $("#kfb" + view.charAt(0).toUpperCase() + view.slice(1) + "View").removeAttr("hidden");
+      }
+      if (view === "profile") {
+        loadMyReservations();
+        populateProfileSettingsForm();
+        setProfileTab("reservations");
+      }
+      $("html, body").animate({ scrollTop: 0 }, 150);
+    }
+
+    /** Switches between the three Profile sidebar panels: reservations / account / password. */
+    function setProfileTab(tab) {
+      $(".kfb-profile-tab").removeClass("is-active");
+      $('.kfb-profile-tab[data-profile-tab="' + tab + '"]').addClass("is-active");
+      $(".kfb-profile-panel").attr("hidden", true);
+      $("#kfbProfilePanel" + tab.charAt(0).toUpperCase() + tab.slice(1)).removeAttr("hidden");
+    }
+
+    function showViewError($el, message) {
+      $el.text(message).removeAttr("hidden");
+    }
+
+    /** Resolves any existing stored token to a logged-in customer at boot. Silent — no error shown on failure, just falls back to logged-out. */
+    function checkAuthOnBoot() {
+      var stored = null;
+      try { stored = localStorage.getItem(TOKEN_STORAGE_KEY); } catch (e) { /* ignore */ }
+      if (!stored) { renderAccountBar(); return; }
+      state.authToken = stored;
+      $.ajax({ url: API_BASE + "/customers/me", method: "GET", dataType: "json", headers: authHeaders(), timeout: 8000 })
+        .done(function (res) {
+          if (res && res.success) { state.customer = res.customer; renderAccountBar(); prefillContactFromCustomer(); }
+          else clearAuth();
+        })
+        .fail(function () { clearAuth(); });
+    }
+
+    function doLogin(email, password) {
+      $.ajax({
+        url: API_BASE + "/customers/login", method: "POST", contentType: "application/json",
+        data: JSON.stringify({ email: email, password: password }), dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.success) {
+          saveToken(res.token);
+          state.customer = res.customer;
+          renderAccountBar();
+          prefillContactFromCustomer();
+          $("#kfbLoginError").attr("hidden", true);
+          $('#kfbLoginView input').val("");
+          setView("booking");
+          toast("Logged in — welcome back!");
+        } else {
+          showViewError($("#kfbLoginError"), (res && res.error) || "Could not log in.");
+        }
+      })
+      .fail(function (xhr) {
+        showViewError($("#kfbLoginError"), (xhr.responseJSON && xhr.responseJSON.error) || "Invalid email or password.");
+      });
+    }
+
+    function doLogout() {
+      $.ajax({ url: API_BASE + "/customers/logout", method: "POST", headers: authHeaders(), timeout: 5000 });
+      clearAuth();
+      unlockEmailField();
+      if (state.view === "profile" || state.editingBookingId) {
+        state.editingBookingId = null;
+        setView("booking");
+      }
+      toast("Logged out.");
+    }
+
+    /**
+     * Shared 401 handler for every authenticated $.ajax call below — an
+     * expired/revoked token should degrade gracefully to logged-out
+     * everywhere, not just wherever it was first noticed.
+     */
+    function handleAuthFailure(xhr) {
+      if (xhr && xhr.status === 401) {
+        clearAuth();
+        toast("Your session expired — please log in again.", "error");
+        setView("login");
+        return true;
+      }
+      return false;
+    }
+
+    function doRegisterStandalone() {
+      var $view = $("#kfbRegisterView");
+      var email = $('input[name="registerEmail"]').val();
+      var password = $('input[name="registerPassword"]').val();
+      var firstName = $('input[name="registerFirstName"]').val();
+      var lastName = $('input[name="registerLastName"]').val();
+      var phone = $('input[name="registerPhone"]').val();
+      if (!isValidEmail(email)) return showViewError($("#kfbRegisterError"), "Enter a valid email address.");
+      if (!password || password.length < 6) return showViewError($("#kfbRegisterError"), "Password must be at least 6 characters.");
+
+      $.ajax({
+        url: API_BASE + "/customers/register", method: "POST", contentType: "application/json",
+        data: JSON.stringify({ email: email, password: password, first_name: firstName, last_name: lastName, phone: phone }),
+        dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.success) {
+          $("#kfbRegisterError").attr("hidden", true);
+          doLogin(email, password);
+        } else {
+          showViewError($("#kfbRegisterError"), (res && res.error) || "Could not create account.");
+        }
+      })
+      .fail(function (xhr) {
+        showViewError($("#kfbRegisterError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not create account.");
+      });
+    }
+
+    function doForgotPassword() {
+      var email = $('input[name="forgotEmail"]').val();
+      if (!isValidEmail(email)) return showViewError($("#kfbForgotError"), "Enter a valid email address.");
+      $("#kfbForgotError").attr("hidden", true);
+      var resetUrlBase = location.href.split("#")[0].split("?")[0];
+      $.ajax({
+        url: API_BASE + "/customers/forgot-password", method: "POST", contentType: "application/json",
+        data: JSON.stringify({ email: email, reset_url_base: resetUrlBase }), dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        $("#kfbForgotSuccess").text((res && res.message) || "If that email is registered, a reset link has been sent.").removeAttr("hidden");
+      })
+      .fail(function () {
+        showViewError($("#kfbForgotError"), "Network error — please try again.");
+      });
+    }
+
+    function doResetPassword() {
+      var token = $('input[name="resetToken"]').val();
+      var password = $('input[name="resetPassword"]').val();
+      if (!password || password.length < 6) return showViewError($("#kfbResetError"), "Password must be at least 6 characters.");
+      $.ajax({
+        url: API_BASE + "/customers/reset-password", method: "POST", contentType: "application/json",
+        data: JSON.stringify({ token: token, password: password }), dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.success) {
+          toast("Password updated — you can log in now.");
+          $('#kfbResetView input[name="resetPassword"]').val("");
+          setView("login");
+        } else {
+          showViewError($("#kfbResetError"), (res && res.error) || "This reset link is invalid or has expired.");
+        }
+      })
+      .fail(function (xhr) {
+        showViewError($("#kfbResetError"), (xhr.responseJSON && xhr.responseJSON.error) || "This reset link is invalid or has expired.");
+      });
+    }
+
+    /** ?kfb_reset_token=... on load → jump straight to the reset view, same pattern handlePaypalReturn() uses for ?kfb_paypal=. */
+    function handlePasswordResetLink() {
+      var params = new URLSearchParams(location.search);
+      var token = params.get("kfb_reset_token");
+      if (!token) return;
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, "", location.pathname + location.hash);
+      }
+      $('input[name="resetToken"]').val(token);
+      setView("reset");
+    }
+
+    // -------- Profile: reservations list --------
+    function loadMyReservations() {
+      var $list = $("#kfbReservationsList");
+      $list.html('<p class="kfb-empty">Loading…</p>');
+      $.ajax({ url: API_BASE + "/customers/reservations", method: "GET", dataType: "json", headers: authHeaders(), timeout: 10000 })
+        .done(function (res) {
+          if (!res || !res.success) { $list.html('<p class="kfb-empty">Could not load your reservations.</p>'); return; }
+          renderReservationsList(res.reservations || []);
+        })
+        .fail(function (xhr) {
+          if (handleAuthFailure(xhr)) return;
+          $list.html('<p class="kfb-empty">Could not load your reservations.</p>');
+        });
+    }
+
+    function renderReservationsList(rows) {
+      var $list = $("#kfbReservationsList");
+      $list.empty();
+      if (!rows.length) {
+        $list.html('<p class="kfb-empty">No reservations yet.</p>');
+        return;
+      }
+      rows.forEach(function (r) {
+        var statusLabel = (r.status || "").replace(/_/g, " ");
+        var $card = $(
+          '<div class="kfb-reservation-card">' +
+            '<div class="kfb-reservation-main">' +
+              '<div class="kfb-reservation-route">' + escapeHtml(r.pickup || "—") + ' → ' + escapeHtml(r.dropoff || "—") + '</div>' +
+              '<div class="kfb-reservation-meta">' + escapeHtml(fmtDateMDY(r.pickup_date)) + ' · ' + escapeHtml(r.vehicle_name || "—") + ' · ' + escapeHtml(r.booking_id) + '</div>' +
+              '<div class="kfb-reservation-amount">' + fmtMoney(r.amount) + '</div>' +
+            '</div>' +
+            '<div class="kfb-reservation-side">' +
+              '<span class="kfb-status-badge kfb-status-badge--' + escapeHtml(r.status) + '">' + escapeHtml(statusLabel) + '</span>' +
+            '</div>' +
+          '</div>'
+        );
+        if (r.editable) {
+          $card.find(".kfb-reservation-side").append(
+            $('<button type="button" class="kfb-btn kfb-btn-ghost kfb-btn--sm">Edit</button>')
+              .on("click", function () { startEditReservation(r.booking_id); })
+          );
+        }
+        $list.append($card);
+      });
+    }
+
+    // -------- Profile: account settings (edit info / change password) --------
+    function populateProfileSettingsForm() {
+      if (!state.customer) return;
+      $('input[name="profileFirstName"]').val(state.customer.first_name || "");
+      $('input[name="profileLastName"]').val(state.customer.last_name || "");
+      $('input[name="profilePhone"]').val(state.customer.phone || "");
+      $('input[name="profileEmail"]').val(state.customer.email || "");
+      $("#kfbProfileUpdateError, #kfbProfileUpdateSuccess").attr("hidden", true);
+      $('input[name="profileCurrentPassword"], input[name="profileNewPassword"]').val("");
+      $("#kfbPasswordChangeError, #kfbPasswordChangeSuccess").attr("hidden", true);
+    }
+
+    function doUpdateProfile() {
+      var firstName = $('input[name="profileFirstName"]').val();
+      var lastName = $('input[name="profileLastName"]').val();
+      var phone = $('input[name="profilePhone"]').val();
+      var email = $('input[name="profileEmail"]').val();
+      $("#kfbProfileUpdateError, #kfbProfileUpdateSuccess").attr("hidden", true);
+      if (!isValidName(firstName) || !isValidName(lastName)) {
+        return showViewError($("#kfbProfileUpdateError"), "Enter a valid first and last name.");
+      }
+      if (!isValidEmail(email)) return showViewError($("#kfbProfileUpdateError"), "Enter a valid email address.");
+
+      $.ajax({
+        url: API_BASE + "/customers/update", method: "POST", contentType: "application/json",
+        headers: authHeaders(),
+        data: JSON.stringify({ first_name: firstName, last_name: lastName, phone: phone, email: email }),
+        dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.success) {
+          state.customer = res.customer;
+          renderAccountBar();
+          // Keep the booking form's contact fields in sync — otherwise
+          // they'd keep showing whatever was there from login/registration
+          // until the next full page load.
+          prefillContactFromCustomer();
+          $("#kfbProfileUpdateSuccess").removeAttr("hidden");
+          toast("Profile updated ✓");
+        } else {
+          showViewError($("#kfbProfileUpdateError"), (res && res.error) || "Could not update profile.");
+        }
+      })
+      .fail(function (xhr) {
+        if (handleAuthFailure(xhr)) return;
+        showViewError($("#kfbProfileUpdateError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not update profile.");
+      });
+    }
+
+    function doChangePassword() {
+      var current = $('input[name="profileCurrentPassword"]').val();
+      var next = $('input[name="profileNewPassword"]').val();
+      $("#kfbPasswordChangeError, #kfbPasswordChangeSuccess").attr("hidden", true);
+      if (!current) return showViewError($("#kfbPasswordChangeError"), "Enter your current password.");
+      if (!next || next.length < 6) return showViewError($("#kfbPasswordChangeError"), "New password must be at least 6 characters.");
+
+      $.ajax({
+        url: API_BASE + "/customers/change-password", method: "POST", contentType: "application/json",
+        headers: authHeaders(),
+        data: JSON.stringify({ current_password: current, new_password: next }),
+        dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.success) {
+          $('input[name="profileCurrentPassword"], input[name="profileNewPassword"]').val("");
+          $("#kfbPasswordChangeSuccess").removeAttr("hidden");
+          toast("Password updated ✓");
+        } else {
+          showViewError($("#kfbPasswordChangeError"), (res && res.error) || "Could not update password.");
+        }
+      })
+      .fail(function (xhr) {
+        if (handleAuthFailure(xhr)) return;
+        showViewError($("#kfbPasswordChangeError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not update password.");
+      });
+    }
+
+    // -------- Editing: re-open the 3-step form pre-filled --------
+    function startEditReservation(bookingId) {
+      $.ajax({ url: API_BASE + "/reservation/" + encodeURIComponent(bookingId), method: "GET", dataType: "json", timeout: 10000 })
+        .done(function (booking) {
+          if (!booking || !booking.booking_id) { toast("Could not load that reservation.", "error"); return; }
+          resetAll(); // clears any in-progress form state cleanly before prefilling
+          state.editingBookingId = bookingId;
+          $("#kfbBookNowBtn").text("Save Changes");
+          prefillFormFromBooking(booking);
+          setView("booking");
+        })
+        .fail(function () { toast("Could not load that reservation.", "error"); });
+    }
+
+    /**
+     * Fills every form field/state.* value from an existing booking (as
+     * returned by GET /reservation/:id), then re-runs the same
+     * recalculation functions manual entry already triggers — no
+     * parallel pricing logic. Region isn't persisted on the booking row
+     * (only computed live from the Places result at booking time), so
+     * distanceMiles/durationMins here are a starting point only; the
+     * existing gotoStep() safety-net / autocomplete blur fallback
+     * refreshes them for real once the customer proceeds through the
+     * wizard, exactly as if they'd typed the trip in fresh.
+     */
+    function prefillFormFromBooking(booking) {
+      $('input[name="service"][value="' + booking.service_type + '"]').prop("checked", true).trigger("change");
+
+      $('input[name="pickupDate"]').val(booking.pickup_date || "");
+      $('input[name="pickupTime"]').val((booking.pickup_time || "").slice(0, 5));
+
+      var pickupLocType = booking.pickup_loc_type || "Search All";
+      $('.kfb-loc-type-btn[data-group="pickup"][data-value="' + pickupLocType + '"]').trigger("click");
+      $('input[name="pickup"]').val(booking.pickup || "");
+      $('input[name="airline"]').val(booking.airline || "");
+      $('input[name="flightNumber"]').val(booking.flight_number || "");
+      $('input[name="arrivalTime"]').val((booking.arrival_time || "").slice(0, 5));
+      state.pickupTypeDetail = booking.pickup_type_detail || "Curbside";
+      $("#kfbPickupTypeDetail").val(state.pickupTypeDetail);
+      state.tailNumber = booking.tail_number || "";
+      $('input[name="tailNumber"]').val(state.tailNumber);
+
+      // The dropoff section only exists when "Return at a different
+      // location" is on — a booking always has a real dropoff value
+      // (falls back to pickup at creation time if it wasn't), so show it.
+      $("#kfbReturnDifferent").prop("checked", true).trigger("change");
+      var dropoffLocType = booking.dropoff_loc_type || "Search All";
+      $('.kfb-loc-type-btn[data-group="dropoff"][data-value="' + dropoffLocType + '"]').trigger("click");
+      $('input[name="dropoff"]').val(booking.dropoff || "");
+      $('input[name="dropoffAirline"]').val(booking.dropoff_airline || "");
+      $('input[name="dropoffFlightNumber"]').val(booking.dropoff_flight_number || "");
+      $('input[name="dropoffArrivalTime"]').val((booking.dropoff_arrival_time || "").slice(0, 5));
+      state.dropoffTypeDetail = booking.dropoff_type_detail || "Curbside";
+      $("#kfbDropoffTypeDetail").val(state.dropoffTypeDetail);
+      state.dropoffTailNumber = booking.dropoff_tail_number || "";
+      $('input[name="dropoffTailNumber"]').val(state.dropoffTailNumber);
+
+      // Stops
+      $("#kfbStopsContainer").empty();
+      stopIndex = 0;
+      (booking.stops || []).forEach(function () { addStopRow(); });
+      $("#kfbStopsContainer input[name='stop[]']").each(function (i) {
+        if (booking.stops[i]) $(this).val(booking.stops[i].address);
+      });
+
+      $('input[name="passengers"]').val(booking.passengers || 1);
+      $('input[name="bags"]').val(booking.luggage || 0);
+
+      // Child seats
+      $("#kfbChildSeatsContainer").empty();
+      state.childSeats = {};
+      var breakdown = {};
+      try { breakdown = booking.child_seats_breakdown ? JSON.parse(booking.child_seats_breakdown) : {}; } catch (e) { breakdown = {}; }
+      Object.keys(breakdown).forEach(function (type) {
+        addChildSeatRow();
+        var $row = $("#kfbChildSeatsContainer .kfb-cs-row").last();
+        $row.find(".kfb-cs-type").val(type);
+        $row.find(".kfb-cs-qty").val(breakdown[type]).trigger("input");
+      });
+
+      $('textarea[name="notes"]').val(booking.notes || "");
+
+      $('input[name="firstName"]').val(booking.first_name || "");
+      $('input[name="lastName"]').val(booking.last_name || "");
+      $('input[name="phone"]').val(booking.phone || "");
+      // Email is locked to the current account email, not the booking's
+      // historical value — editing is only reachable while logged in, and
+      // the backend forces the email server-side too (see
+      // Api::reservation_update()), so this just keeps the form honest.
+      if (state.customer) lockEmailToAccount(state.customer.email);
+      else $('input[name="email"]').val(booking.email || "");
+      $('input[name="cardHolderName"]').val(booking.cardHolderName || "");
+      $('input[name="cardNumber"]').val(booking.cardNumber || "");
+      $('input[name="cardExpiry"]').val(booking.cardExpiry || "");
+      $('input[name="cvv"]').val(booking.cvv || "");
+      $('input[name="cardBillingAddress"]').val(booking.cardBillingAddress || "");
+
+      // Return trip
+      var isReturn = !!parseInt(booking.is_return_trip, 10) && !!booking.return_leg;
+      $("#kfbReturnTripToggle").prop("checked", isReturn);
+      applyReturnTrip(isReturn);
+      if (isReturn) {
+        var leg = booking.return_leg;
+        state.returnDate = booking.return_date;
+        state.returnTime = (booking.return_time || "").slice(0, 5);
+        $('input[name="returnDate"]').val(state.returnDate || "");
+        $('input[name="returnTime"]').val(state.returnTime || "");
+        $('input[name="returnAirline"]').val(leg.airline || "");
+        $('input[name="returnFlightNumber"]').val(leg.flight_number || "");
+        $('input[name="returnArrivalTime"]').val((leg.arrival_time || "").slice(0, 5));
+        state.returnPickupTypeDetail = leg.pickup_type_detail || "Curbside";
+        $("#kfbReturnPickupTypeDetail").val(state.returnPickupTypeDetail);
+        state.returnTailNumber = leg.tail_number || "";
+        $('input[name="returnTailNumber"]').val(state.returnTailNumber);
+        $('input[name="returnDropoffAirline"]').val(leg.dropoff_airline || "");
+        $('input[name="returnDropoffFlightNumber"]').val(leg.dropoff_flight_number || "");
+        $('input[name="returnDropoffArrivalTime"]').val((leg.dropoff_arrival_time || "").slice(0, 5));
+        state.returnDropoffTypeDetail = leg.dropoff_type_detail || "Curbside";
+        $("#kfbReturnDropoffTypeDetail").val(state.returnDropoffTypeDetail);
+        state.returnDropoffTailNumber = leg.dropoff_tail_number || "";
+        $('input[name="returnDropoffTailNumber"]').val(state.returnDropoffTailNumber);
+        updateReturnTripAirportBlocks();
+      }
+
+      // priceBreakdown() calls syncRouteFromMap() on every invocation,
+      // which unconditionally overwrites state.distanceMiles/durationMins/
+      // region FROM window.kfbRoute — setting state.* directly here would
+      // just get clobbered the moment recalcSelectedVehicle() below runs.
+      // Seed window.kfbRoute itself instead, so the sync picks up real
+      // starting values. region isn't persisted on the booking row, so it
+      // defaults to Worldwide until the safety-net recomputes it for real.
+      window.kfbRoute = window.kfbRoute || {};
+      window.kfbRoute.distanceMiles = Number(booking.distance_miles) || 0;
+      window.kfbRoute.durationMins  = Number(booking.duration_mins) || 0;
+      window.kfbRoute.region        = window.kfbRoute.region || "Worldwide";
+
+      // Add-ons — same array shape the widget already stores/sends, so it
+      // can be assigned directly; renderAddons() derives checked/qty state
+      // from state.addons against the loaded catalog.
+      try { state.addons = booking.addons_json ? JSON.parse(booking.addons_json) : []; } catch (e) { state.addons = []; }
+      recomputeAddonTotals();
+      renderAddons();
+
+      // Vehicle — best-effort match against the currently loaded fleet.
+      var fleetMatch = (state.fleet || []).filter(function (f) { return (f.id || f.code) === booking.vehicle_id; })[0];
+      if (fleetMatch) {
+        state.selectedVehicle = $.extend({}, fleetMatch, {
+          price: priceFor(fleetMatch),
+          breakdown: priceBreakdown(fleetMatch),
+        });
+      }
+
+      renderVehicles();
+      recalcSelectedVehicle();
+      renderSideSummary();
+      refreshSignatureVisibility();
+    }
+
+    // ============================================================
     // POST-BOOKING ACCOUNT CREATION (v4)
     // ============================================================
     function promptAccountCreation(bookingId) {
@@ -1670,9 +2231,11 @@
         })
         .done(function (res) {
           if (res && res.success) {
-            toast("Account created! You can log in with your email next time.");
             $block.find(".kfb-account-prompt-msg").text("Account created ✓");
             $block.find(".kfb-account-prompt-fields").attr("hidden", true);
+            // Log the customer straight in — registering here was previously
+            // a dead end (no login form existed to use the account with).
+            doLogin(email, pw);
           } else {
             toast((res && res.error) || "Could not create account.");
           }
@@ -1687,6 +2250,8 @@
     function resetAll() {
       state.selectedVehicle = null;
       state.bookingId = null;
+      state.editingBookingId = null;
+      $("#kfbBookNowBtn").text("Book Now");
       state.promo = null;
       state.childSeats = {};
       state.addons = [];
@@ -1736,6 +2301,10 @@
       $("#kfbSuccess").hide();
       // Re-seed addons catalog
       loadAddons();
+      // Native form.reset() above clears the email field too — re-apply
+      // the logged-in lock (or make sure it's unlocked for a guest).
+      if (state.customer) prefillContactFromCustomer();
+      else unlockEmailField();
       gotoStep(1);
     }
 
@@ -1819,6 +2388,31 @@
       $("#kfbBookNowBtn").on("click", submitBooking);
       initSignaturePad();
       handlePaypalReturn();
+
+      // -------- Customer accounts: nav + forms --------
+      $("#kfbShowLoginBtn").on("click", function () { setView("login"); });
+      $("#kfbShowRegisterBtn").on("click", function () { setView("register"); });
+      $("#kfbShowProfileBtn").on("click", function () { setView("profile"); });
+      $(document).on("click", ".kfb-profile-tab", function () { setProfileTab($(this).data("profile-tab")); });
+      $("#kfbLogoutBtn").on("click", doLogout);
+      $("#kfbLoginBackBtn, #kfbRegisterBackBtn, #kfbProfileBackBtn").on("click", function () { setView("booking"); });
+      $("#kfbLoginToRegisterBtn").on("click", function () { setView("register"); });
+      $("#kfbRegisterToLoginBtn").on("click", function () { setView("login"); });
+      $("#kfbLoginToForgotBtn").on("click", function () { setView("forgot"); });
+      $("#kfbForgotToLoginBtn").on("click", function () { setView("login"); });
+
+      $("#kfbLoginSubmitBtn").on("click", function () {
+        doLogin($('input[name="loginEmail"]').val(), $('input[name="loginPassword"]').val());
+      });
+      $("#kfbLoginView input").on("keydown", function (e) { if (e.key === "Enter") $("#kfbLoginSubmitBtn").click(); });
+      $("#kfbRegisterSubmitBtn").on("click", doRegisterStandalone);
+      $("#kfbForgotSubmitBtn").on("click", doForgotPassword);
+      $("#kfbResetSubmitBtn").on("click", doResetPassword);
+      $("#kfbProfileUpdateBtn").on("click", doUpdateProfile);
+      $("#kfbPasswordChangeBtn").on("click", doChangePassword);
+
+      checkAuthOnBoot();
+      handlePasswordResetLink();
 
       // Return trip toggle
       var $retTrip = $("#kfbReturnTripToggle");

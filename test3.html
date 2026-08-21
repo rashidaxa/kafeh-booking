@@ -28,6 +28,25 @@
     <div class="kfb-widget" id="kafehBookingWidget">
       <div class="kfb-container">
 
+        <!-- ========== ACCOUNT BAR ========== -->
+        <div class="kfb-account-bar" id="kfbAccountBar">
+          <div class="kfb-account-bar-guest" id="kfbAccountBarGuest">
+            <button type="button" class="kfb-link-btn" id="kfbShowLoginBtn">Log in</button>
+            <span class="kfb-account-bar-sep">·</span>
+            <button type="button" class="kfb-link-btn" id="kfbShowRegisterBtn">Create account</button>
+          </div>
+          <div class="kfb-account-bar-user" id="kfbAccountBarUser" hidden>
+            <span>Hi, <b id="kfbAccountBarName">—</b></span>
+            <span class="kfb-account-bar-sep">·</span>
+            <button type="button" class="kfb-link-btn" id="kfbShowProfileBtn">Profile</button>
+            <span class="kfb-account-bar-sep">·</span>
+            <button type="button" class="kfb-link-btn" id="kfbLogoutBtn">Log out</button>
+          </div>
+        </div>
+
+        <!-- ========== BOOKING VIEW (3-step wizard) ========== -->
+        <div id="kfbBookingView">
+
         <!-- ========== STEPPER (top, outside the body) ========== -->
         <nav class="kfb-stepper" aria-label="Booking progress">
           <ol class="kfb-stepper-list" id="kfbStepperList">
@@ -478,8 +497,152 @@
           <p>Thank you, <b id="kfbSuccessName">rider</b>. Your PayPal payment has been authorized — you have <strong>not</strong> been charged yet.
             We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
           <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
+
+          <!-- Shown for guest checkouts only — promptAccountCreation() unhides
+               this and logs the customer straight in on success. -->
+          <div class="kfb-account-prompt" id="kfbAccountPrompt" hidden>
+            <p class="kfb-account-prompt-msg">Want to track this reservation and edit it later? Create an account — no need to re-enter your info.</p>
+            <div class="kfb-account-prompt-fields">
+              <label class="kfb-field"><span>Choose a password</span><input type="password" name="accountPassword" autocomplete="new-password"></label>
+              <button type="button" class="kfb-btn kfb-btn-ghost kfb-account-prompt-btn">Create Account</button>
+            </div>
+          </div>
+
           <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
         </section>
+
+        </div><!-- /#kfbBookingView -->
+
+        <!-- ========== LOG IN ========== -->
+        <section class="kfb-view" id="kfbLoginView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Log In</h2>
+            <label class="kfb-field"><span>Email</span><input type="email" name="loginEmail" autocomplete="username" required></label>
+            <label class="kfb-field"><span>Password</span><input type="password" name="loginPassword" autocomplete="current-password" required></label>
+            <div class="kfb-view-error" id="kfbLoginError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbLoginSubmitBtn">Log In</button>
+            </div>
+            <p class="kfb-view-links">
+              <button type="button" class="kfb-link-btn" id="kfbLoginToForgotBtn">Forgot password?</button>
+              &nbsp;·&nbsp; Don't have an account? <button type="button" class="kfb-link-btn" id="kfbLoginToRegisterBtn">Create one</button>
+              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbLoginBackBtn">Back to booking</button>
+            </p>
+          </div>
+        </section>
+
+        <!-- ========== CREATE ACCOUNT ========== -->
+        <section class="kfb-view" id="kfbRegisterView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Create Account</h2>
+            <div class="kfb-field-row-2">
+              <label class="kfb-field"><span>First Name</span><input type="text" name="registerFirstName" required></label>
+              <label class="kfb-field"><span>Last Name</span><input type="text" name="registerLastName" required></label>
+            </div>
+            <label class="kfb-field"><span>Phone</span><input type="tel" name="registerPhone"></label>
+            <label class="kfb-field"><span>Email</span><input type="email" name="registerEmail" autocomplete="username" required></label>
+            <label class="kfb-field"><span>Password</span><input type="password" name="registerPassword" autocomplete="new-password" required></label>
+            <div class="kfb-view-error" id="kfbRegisterError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbRegisterSubmitBtn">Create Account</button>
+            </div>
+            <p class="kfb-view-links">
+              Already have an account? <button type="button" class="kfb-link-btn" id="kfbRegisterToLoginBtn">Log in</button>
+              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbRegisterBackBtn">Back to booking</button>
+            </p>
+          </div>
+        </section>
+
+        <!-- ========== FORGOT PASSWORD ========== -->
+        <section class="kfb-view" id="kfbForgotView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Forgot Password</h2>
+            <p class="kfb-hint">Enter your email and we'll send you a link to reset your password.</p>
+            <label class="kfb-field"><span>Email</span><input type="email" name="forgotEmail" required></label>
+            <div class="kfb-view-error" id="kfbForgotError" hidden></div>
+            <div class="kfb-view-success" id="kfbForgotSuccess" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbForgotSubmitBtn">Send Reset Link</button>
+            </div>
+            <p class="kfb-view-links">
+              <button type="button" class="kfb-link-btn" id="kfbForgotToLoginBtn">Back to log in</button>
+            </p>
+          </div>
+        </section>
+
+        <!-- ========== RESET PASSWORD (arrived via ?kfb_reset_token=) ========== -->
+        <section class="kfb-view" id="kfbResetView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Reset Password</h2>
+            <input type="hidden" name="resetToken">
+            <label class="kfb-field"><span>New Password</span><input type="password" name="resetPassword" autocomplete="new-password" required></label>
+            <div class="kfb-view-error" id="kfbResetError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetSubmitBtn">Set New Password</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========== PROFILE ========== -->
+        <section class="kfb-view" id="kfbProfileView" hidden>
+          <div class="kfb-profile-layout">
+            <nav class="kfb-profile-sidebar">
+              <button type="button" class="kfb-profile-tab is-active" data-profile-tab="reservations">My Reservations</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="account">Account Settings</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="password">Reset Password</button>
+            </nav>
+
+            <div class="kfb-profile-content">
+              <div class="kfb-profile-panel" id="kfbProfilePanelReservations">
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">My Reservations</h2>
+                  <div id="kfbReservationsList">
+                    <p class="kfb-empty">Loading…</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelAccount" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Account Settings</h2>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>First Name</span><input type="text" name="profileFirstName" required></label>
+                    <label class="kfb-field"><span>Last Name</span><input type="text" name="profileLastName" required></label>
+                  </div>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Phone</span><input type="tel" name="profilePhone"></label>
+                    <label class="kfb-field"><span>Email</span><input type="email" name="profileEmail" required></label>
+                  </div>
+                  <div class="kfb-view-error" id="kfbProfileUpdateError" hidden></div>
+                  <div class="kfb-view-success" id="kfbProfileUpdateSuccess" hidden>Profile updated ✓</div>
+                  <div class="kfb-actions">
+                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbProfileUpdateBtn">Save Changes</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelPassword" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Reset Password</h2>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Current Password</span><input type="password" name="profileCurrentPassword" autocomplete="current-password"></label>
+                    <label class="kfb-field"><span>New Password</span><input type="password" name="profileNewPassword" autocomplete="new-password"></label>
+                  </div>
+                  <div class="kfb-view-error" id="kfbPasswordChangeError" hidden></div>
+                  <div class="kfb-view-success" id="kfbPasswordChangeSuccess" hidden>Password updated ✓</div>
+                  <div class="kfb-actions">
+                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbPasswordChangeBtn">Update Password</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="kfb-view-links">
+            <button type="button" class="kfb-link-btn" id="kfbProfileBackBtn">← Back to booking</button>
+          </p>
+        </section>
+
       </div>
     </div>
   </div>

@@ -177,6 +177,17 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
         <p><?= htmlspecialchars($booking['approved_at']) ?> by <?= htmlspecialchars($booking['approved_by'] ?: '—') ?></p>
       </div>
     <?php endif; ?>
+    <?php if (!empty($booking['edit_count'])): ?>
+      <div>
+        <span class="kfb-hint">Edited by customer</span>
+        <p>
+          <?= (int)$booking['edit_count'] ?>× — last edit <?= htmlspecialchars($booking['edited_by_customer_at'] ?: '—') ?>
+          <?php if (empty($booking['paypal_auth_transaction_id']) && $booking['status'] === 'pending'): ?>
+            <br><small class="kfb-hint">Price changed — awaiting the customer's re-approval on PayPal.</small>
+          <?php endif; ?>
+        </p>
+      </div>
+    <?php endif; ?>
     <div>
       <span class="kfb-hint">Submitted</span>
       <p><?= htmlspecialchars($booking['created_at']) ?><br>

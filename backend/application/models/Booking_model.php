@@ -36,18 +36,133 @@ class Booking_model extends CI_Model
             $return_booking_id = $this->_create_return_leg($data, $booking_id, $childSeats, $childSeatsBreakdown);
         }
 
-        // Normalize add-ons if provided
-        $addonsJson = NULL;
-        $addonsTotal = 0.0;
-        if (!empty($data['addons']) && is_array($data['addons'])) {
-            $addonsJson = json_encode(array_values($data['addons']), JSON_UNESCAPED_UNICODE);
-            foreach ($data['addons'] as $a) {
-                $addonsTotal += (float)($a['line_total'] ?? 0);
+        list($addonsJson, $addonsTotal) = $this->_normalize_addons($data);
+
+        $fields = $this->_shared_booking_fields($data, $childSeats, $childSeatsBreakdown, $addonsJson, $addonsTotal);
+        $fields['booking_id']        = $booking_id;
+        $fields['return_booking_id'] = $return_booking_id;
+        $fields['status']            = 'pending';
+        $fields['created_at']        = date('Y-m-d H:i:s');
+        $fields['ip_address']        = $this->input->ip_address();
+
+        $this->db->insert('kfb_bookings', $fields);
+
+        $this->_sync_stops($booking_id, $data);
+        $this->_sync_addons($booking_id, $data);
+
+        return $booking_id;
+    }
+
+    /**
+     * Update an existing (pre-acceptance) booking in place — the edit
+     * counterpart to create_booking(). Reuses the exact same field
+     * mapping via _shared_booking_fields() so the two flows can't drift
+     * apart. Reconciles the return-trip leg (create/update/delete as
+     * needed) and fully replaces stops/add-ons rather than diffing them,
+     * same as a fresh create.
+     */
+    public function update_booking($booking_id, array $data)
+    {
+        $existing = $this->db->get_where('kfb_bookings', ['booking_id' => $booking_id])->row_array();
+        if (!$existing) return FALSE;
+
+        list($childSeats, $childSeatsBreakdown) = $this->_normalize_child_seats($data);
+        list($addonsJson, $addonsTotal) = $this->_normalize_addons($data);
+
+        // Reconcile the return-trip leg before writing the outbound row,
+        // so its return_booking_id is correct in the same pass.
+        $return_booking_id = $existing['return_booking_id'];
+        if (!empty($data['isReturnTrip'])) {
+            $legFields = $this->_return_leg_fields($data, $booking_id, $childSeats, $childSeatsBreakdown);
+            if ($return_booking_id) {
+                $legFields['updated_at'] = date('Y-m-d H:i:s');
+                $this->db->where('booking_id', $return_booking_id)->update('kfb_bookings', $legFields);
+            } else {
+                $return_booking_id = $this->_create_return_leg($data, $booking_id, $childSeats, $childSeatsBreakdown);
             }
+        } elseif ($return_booking_id) {
+            // Return trip turned off in this edit — drop the linked leg.
+            // kfb_stops/kfb_booking_addons/kfb_payments all cascade on delete.
+            $this->db->where('booking_id', $return_booking_id)->delete('kfb_bookings');
+            $return_booking_id = NULL;
         }
 
-        $this->db->insert('kfb_bookings', [
-            'booking_id'            => $booking_id,
+        $fields = $this->_shared_booking_fields($data, $childSeats, $childSeatsBreakdown, $addonsJson, $addonsTotal);
+        $fields['return_booking_id'] = $return_booking_id;
+        $fields['updated_at']        = date('Y-m-d H:i:s');
+
+        $this->db->where('booking_id', $booking_id)->update('kfb_bookings', $fields);
+
+        $this->_sync_stops($booking_id, $data);
+        $this->_sync_addons($booking_id, $data);
+
+        return TRUE;
+    }
+
+    /** Stamp that the customer edited this reservation (pre-acceptance). */
+    public function mark_edited_by_customer($booking_id)
+    {
+        $this->db->set('edit_count', '`edit_count`+1', FALSE)
+            ->where('booking_id', $booking_id)
+            ->update('kfb_bookings', ['edited_by_customer_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /**
+     * Null out a booking's PayPal/card fields — called when an edit
+     * changes the price and the old authorization has just been voided,
+     * so a stale auth/capture id can't be mistaken for a live one.
+     * Clears the linked return leg too, for symmetry (it never carries
+     * its own payment info, but keep both rows consistent regardless).
+     */
+    public function clear_paypal_auth($booking_id)
+    {
+        $fields = [
+            'paypal_order_id'               => NULL,
+            'paypal_auth_transaction_id'    => NULL,
+            'paypal_capture_transaction_id' => NULL,
+            'card_brand'                    => NULL,
+            'card_last4'                    => NULL,
+            'updated_at'                    => date('Y-m-d H:i:s'),
+        ];
+        $this->db->where('booking_id', $booking_id)->update('kfb_bookings', $fields);
+
+        $row = $this->db->select('return_booking_id')->get_where('kfb_bookings', ['booking_id' => $booking_id])->row_array();
+        if (!empty($row['return_booking_id'])) {
+            $this->db->where('booking_id', $row['return_booking_id'])->update('kfb_bookings', $fields);
+        }
+    }
+
+    /**
+     * List a customer's own reservations for the widget's Profile view,
+     * with a server-computed `editable` flag (never re-derived from
+     * status client-side) — the same exclusion of synthetic return-trip
+     * rows list_all() uses.
+     */
+    public function list_for_customer($customer_id)
+    {
+        $rows = $this->db
+            ->where('customer_id', (int)$customer_id)
+            ->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE)
+            ->order_by('created_at', 'DESC')
+            ->get('kfb_bookings')
+            ->result_array();
+
+        foreach ($rows as &$row) {
+            $row['editable'] = !in_array($row['status'], ['paid', 'cancelled', 'refunded'], TRUE);
+        }
+        unset($row);
+        return $rows;
+    }
+
+    /**
+     * Field mapping shared by create_booking() and update_booking() for
+     * the outbound leg — everything except the creation-only columns
+     * (booking_id, status, created_at, ip_address) and return_booking_id
+     * (reconciled separately by the caller).
+     */
+    protected function _shared_booking_fields(array $data, $childSeats, $childSeatsBreakdown, $addonsJson, $addonsTotal)
+    {
+        return [
             'service_type'          => $data['service'] ?? NULL,
             'pickup_date'           => $data['pickupDate'] ?? NULL,
             'pickup_time'           => $data['pickupTime'] ?? NULL,
@@ -71,7 +186,6 @@ class Booking_model extends CI_Model
             'addons_total'          => $addonsTotal,
             'min_fare_applied'      => (float)($data['minFareApplied'] ?? 0),
             'is_return_trip'        => !empty($data['isReturnTrip']) ? 1 : 0,
-            'return_booking_id'     => $return_booking_id,
             'return_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
             'return_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,
             'passengers'            => (int)($data['passengers'] ?? 1),
@@ -91,17 +205,30 @@ class Booking_model extends CI_Model
             'last_name'             => $data['lastName'] ?? NULL,
             'email'                 => $data['email'] ?? NULL,
             'phone'                 => $data['phone'] ?? NULL,
-            'cardHolderName'          => !empty($data['cardHolderName']) ? trim($data['cardHolderName']) : NULL,
-            'cardNumber'       => !empty($data['cardNumber']) ? trim($data['cardNumber']) : NULL,
+            'cardHolderName'        => !empty($data['cardHolderName']) ? trim($data['cardHolderName']) : NULL,
+            'cardNumber'            => !empty($data['cardNumber']) ? trim($data['cardNumber']) : NULL,
             'cardExpiry'            => !empty($data['cardExpiry']) ? trim($data['cardExpiry']) : NULL,
             'cvv'                   => !empty($data['cvv']) ? trim($data['cvv']) : NULL,
-            'cardBillingAddress'     => !empty($data['cardBillingAddress']) ? trim($data['cardBillingAddress']) : NULL,
-            'status'                => 'pending',
-            'created_at'            => date('Y-m-d H:i:s'),
-            'ip_address'            => $this->input->ip_address(),
-        ]);
+            'cardBillingAddress'    => !empty($data['cardBillingAddress']) ? trim($data['cardBillingAddress']) : NULL,
+        ];
+    }
 
-        // Stops (outbound leg only — the widget doesn't collect separate return-leg stops)
+    /** Normalize add-ons if provided. Returns [json|NULL, total]. */
+    protected function _normalize_addons(array $data)
+    {
+        if (empty($data['addons']) || !is_array($data['addons'])) return [NULL, 0.0];
+        $addonsJson = json_encode(array_values($data['addons']), JSON_UNESCAPED_UNICODE);
+        $addonsTotal = 0.0;
+        foreach ($data['addons'] as $a) {
+            $addonsTotal += (float)($a['line_total'] ?? 0);
+        }
+        return [$addonsJson, $addonsTotal];
+    }
+
+    /** Replace a booking's kfb_stops rows wholesale (used by both create and update). */
+    protected function _sync_stops($booking_id, array $data)
+    {
+        $this->db->where('booking_id', $booking_id)->delete('kfb_stops');
         if (!empty($data['stops']) && is_array($data['stops'])) {
             foreach (array_values($data['stops']) as $i => $addr) {
                 $this->db->insert('kfb_stops', [
@@ -111,8 +238,12 @@ class Booking_model extends CI_Model
                 ]);
             }
         }
+    }
 
-        // Add-on line items (outbound leg only)
+    /** Replace a booking's kfb_booking_addons rows wholesale (used by both create and update). */
+    protected function _sync_addons($booking_id, array $data)
+    {
+        $this->db->where('booking_id', $booking_id)->delete('kfb_booking_addons');
         if (!empty($data['addons']) && is_array($data['addons'])) {
             foreach ($data['addons'] as $a) {
                 $this->db->insert('kfb_booking_addons', [
@@ -127,8 +258,6 @@ class Booking_model extends CI_Model
                 ]);
             }
         }
-
-        return $booking_id;
     }
 
     /**
@@ -146,8 +275,26 @@ class Booking_model extends CI_Model
     {
         $return_booking_id = $this->_new_booking_id('RT');
 
-        $this->db->insert('kfb_bookings', [
-            'booking_id'            => $return_booking_id,
+        $fields = $this->_return_leg_fields($data, $primary_booking_id, $childSeats, $childSeatsBreakdown);
+        $fields['booking_id'] = $return_booking_id;
+        $fields['status']     = 'pending';
+        $fields['created_at'] = date('Y-m-d H:i:s');
+        $fields['ip_address'] = $this->input->ip_address();
+
+        $this->db->insert('kfb_bookings', $fields);
+
+        return $return_booking_id;
+    }
+
+    /**
+     * Field mapping for a return leg — shared by _create_return_leg() and
+     * update_booking() (which updates an existing leg in place rather
+     * than recreating it). See _create_return_leg()'s docblock for why
+     * pickup/dropoff are swapped and fare/add-ons/promo stay at 0.
+     */
+    protected function _return_leg_fields(array $data, $primary_booking_id, $childSeats, $childSeatsBreakdown)
+    {
+        return [
             'service_type'          => $data['service'] ?? NULL,
             'pickup_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
             'pickup_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,
@@ -189,12 +336,7 @@ class Booking_model extends CI_Model
             'last_name'             => $data['lastName'] ?? NULL,
             'email'                 => $data['email'] ?? NULL,
             'phone'                 => $data['phone'] ?? NULL,
-            'status'                => 'pending',
-            'created_at'            => date('Y-m-d H:i:s'),
-            'ip_address'            => $this->input->ip_address(),
-        ]);
-
-        return $return_booking_id;
+        ];
     }
 
     /**

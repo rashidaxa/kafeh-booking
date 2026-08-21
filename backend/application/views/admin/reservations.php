@@ -80,7 +80,12 @@ if (!function_exists('kfb_reservations_page_url')) {
                   <span class="kfb-hint">—</span>
                 <?php endif; ?>
               </td>
-              <td><span class="kfb-badge kfb-badge--<?= $badge ?>"><?= htmlspecialchars($label) ?></span></td>
+              <td>
+                <span class="kfb-badge kfb-badge--<?= $badge ?>"><?= htmlspecialchars($label) ?></span>
+                <?php if (!empty($r['edit_count'])): ?>
+                  <span class="kfb-hint" title="Edited by the customer <?= (int)$r['edit_count'] ?>×">✎ edited</span>
+                <?php endif; ?>
+              </td>
               <td><small class="kfb-hint"><?= htmlspecialchars($r['created_at']) ?></small></td>
               <td><a href="<?= site_url('admin/reservations/' . $r['booking_id']) ?>" class="kfb-btn kfb-btn--ghost kfb-btn--sm">View →</a></td>
             </tr>

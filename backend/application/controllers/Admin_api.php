@@ -35,12 +35,20 @@ class Admin_api extends CI_Controller
         $this->load->helper('url');
         $this->_set_cors_headers();
 
-        // Block everything unless logged in
+        // Block everything unless logged in. A constructor can't stop
+        // CodeIgniter from still invoking the routed action method
+        // afterward — returning early here would NOT be enough — so this
+        // has to _display() the buffered 401 body and exit() outright.
+        // (CI's normal _display() call only happens after the controller
+        // method returns via CodeIgniter.php's own flow, not on a bare
+        // exit, so it must be triggered explicitly before exiting here.)
         if (!$this->session->userdata('logged_in')) {
             // For preflight OPTIONS, the constructor continues but we'll 401 below
             $method = $this->input->method();
             if (strtolower($method) !== 'options') {
                 $this->_error('Not authenticated', 401);
+                $this->output->_display();
+                exit;
             }
         }
     }
@@ -59,7 +67,7 @@ class Admin_api extends CI_Controller
     /** GET /admin/api/vehicles */
     public function vehicles_index()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $list = $this->Vehicle_model->list_all();
         // include the public shape so the embed widget can drop it straight in
         $with_public = array_map(function ($r) {
@@ -72,7 +80,7 @@ class Admin_api extends CI_Controller
     /** GET /admin/api/vehicles/:id */
     public function vehicles_get($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $row = $this->Vehicle_model->get($id);
         if (!$row) return $this->_error('Vehicle not found', 404);
@@ -83,7 +91,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/vehicles */
     public function vehicles_create()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
 
         $payload = $this->_collect_payload();
 
@@ -108,7 +116,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/vehicles/:id (used in place of PUT for HTML form compat) */
     public function vehicles_update($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $existing = $this->Vehicle_model->get($id);
         if (!$existing) return $this->_error('Vehicle not found', 404);
@@ -137,7 +145,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/vehicles/:id/delete */
     public function vehicles_delete($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $ok = $this->Vehicle_model->delete($id);
         if (!$ok) return $this->_error('Could not delete vehicle', 500);
@@ -147,7 +155,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/vehicles/:id/toggle */
     public function vehicles_toggle($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $ok = $this->Vehicle_model->toggle_status($id);
         if (!$ok) return $this->_error('Could not toggle vehicle', 500);
@@ -161,14 +169,14 @@ class Admin_api extends CI_Controller
     /** GET /admin/api/promos */
     public function promos_index()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $this->_json(['success' => TRUE, 'promos' => $this->Promo_model->list_all()]);
     }
 
     /** POST /admin/api/promos */
     public function promos_create()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $payload = $this->_collect_payload();
 
         $errors = $this->Promo_model->validate_form($payload, TRUE);
@@ -183,7 +191,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/promos/:id */
     public function promos_update($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $existing = $this->Promo_model->get($id);
         if (!$existing) return $this->_error('Promo code not found', 404);
@@ -201,7 +209,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/promos/:id/delete */
     public function promos_delete($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $ok = $this->Promo_model->delete($id);
         if (!$ok) return $this->_error('Could not delete promo code', 500);
@@ -211,7 +219,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/promos/:id/toggle */
     public function promos_toggle($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $ok = $this->Promo_model->toggle_status($id);
         if (!$ok) return $this->_error('Could not toggle promo code', 500);
@@ -223,14 +231,14 @@ class Admin_api extends CI_Controller
     /** GET /admin/api/addons */
     public function addons_index()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $this->_json(['success' => TRUE, 'addons' => $this->Addon_model->list_all()]);
     }
 
     /** POST /admin/api/addons */
     public function addons_create()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $payload = $this->_collect_payload();
         $errors = $this->Addon_model->validate_form($payload, TRUE);
         if (!empty($errors)) {
@@ -244,7 +252,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/addons/:id */
     public function addons_update($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $existing = $this->Addon_model->get($id);
         if (!$existing) return $this->_error('Add-on not found', 404);
@@ -261,7 +269,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/addons/:id/delete */
     public function addons_delete($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $ok = $this->Addon_model->delete($id);
         if (!$ok) return $this->_error('Could not delete add-on', 500);
@@ -271,7 +279,7 @@ class Admin_api extends CI_Controller
     /** POST /admin/api/addons/:id/toggle */
     public function addons_toggle($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $ok = $this->Addon_model->toggle_status($id);
         if (!$ok) return $this->_error('Could not toggle add-on', 500);
@@ -283,14 +291,14 @@ class Admin_api extends CI_Controller
     /** GET /admin/api/settings */
     public function settings_index()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $this->_json(['success' => TRUE, 'settings' => $this->Settings_model->meet_greet_fees()]);
     }
 
     /** POST /admin/api/settings/save — { meet_greet_chicago, meet_greet_elsewhere } */
     public function settings_update()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $payload = $this->_collect_payload();
 
         $chicago   = $payload['meet_greet_chicago']   ?? NULL;
@@ -318,7 +326,7 @@ class Admin_api extends CI_Controller
     /** GET /admin/api/reservations?status=&page=&per_page= */
     public function reservations_index()
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         $status  = trim((string)$this->input->get('status'));
         $filters = $status !== '' ? ['status' => $status] : [];
 
@@ -343,7 +351,7 @@ class Admin_api extends CI_Controller
     /** GET /admin/api/reservations/:id */
     public function reservations_get($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $row = $this->Booking_model->get_booking($id);
         if (!$row) return $this->_error('Reservation not found', 404);
@@ -357,7 +365,7 @@ class Admin_api extends CI_Controller
      */
     public function reservations_accept($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
@@ -401,7 +409,7 @@ class Admin_api extends CI_Controller
      */
     public function reservations_reject($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
@@ -442,7 +450,7 @@ class Admin_api extends CI_Controller
      */
     public function reservations_charge($id = NULL)
     {
-        $this->_require_login();
+        if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
@@ -524,11 +532,19 @@ class Admin_api extends CI_Controller
         @mail($to, $subject, $body, $headers);
     }
 
+    /**
+     * Returns TRUE when logged in. Callers MUST check the return value —
+     * `_error()` only buffers a response body, it doesn't halt execution,
+     * so `$this->_require_login();` alone (ignoring the return value) lets
+     * the action's own later `_json()` call silently overwrite the 401.
+     */
     protected function _require_login()
     {
         if (!$this->session->userdata('logged_in')) {
-            return $this->_error('Not authenticated', 401);
+            $this->_error('Not authenticated', 401);
+            return FALSE;
         }
+        return TRUE;
     }
 
     protected function _set_cors_headers()
