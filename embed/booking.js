@@ -117,6 +117,8 @@
       authToken: null,        // bearer token, mirrored in localStorage
       customer: null,         // { id, email, first_name, last_name, ... } once logged in
       editingBookingId: null, // set by startEditReservation() — routes submitBooking() to the update endpoint
+      savedCards: [],         // display-only: [{id, nickname, card_brand, card_last4, expiry_month, expiry_year, is_default}] — never the full number/CVV
+      pendingVerifyEmail: null, // email awaiting OTP verification — set by showVerifyView(), read by doVerifyOtp()/doResendOtp()
     };
 
     // -------- Helpers --------
@@ -1329,12 +1331,27 @@
         lastName:        $('input[name="lastName"]').val(),
         email:           $('input[name="email"]').val(),
         phone:           $('input[name="phone"]').val(),
-        cardHolderName:      $('input[name="cardHolderName"]').val()      || null,
-        cardNumber:   $('input[name="cardNumber"]').val()   || null,
-        cardExpiry: $('input[name="cardExpiry"]').val() || null,
-        cvv:     $('input[name="cvv"]').val()     || null,
         cardBillingAddress:   $('input[name="cardBillingAddress"]').val()   || null,
       };
+
+      // A selected saved card submits ITS OWN (display-only) info instead
+      // of reading the now-hidden form fields — there's no full number/
+      // CVV to read anyway, since neither is ever stored (see
+      // Customer_model::add_card()). "Card number" here is a masked
+      // brand+last4 label, same as everywhere else this card is shown.
+      var savedCard = selectedSavedCard();
+      if (savedCard) {
+        payload.cardHolderName = ('input[name="cardHolderName"]').val() || null;
+        payload.cardNumber = savedCard.card_last4;
+        payload.cardExpiry = cardExpiryLabel(savedCard);
+        payload.cvv = savedCard.cvv;
+      } else {
+        payload.cardHolderName = $('input[name="cardHolderName"]').val() || null;
+        payload.cardNumber     = $('input[name="cardNumber"]').val()     || null;
+        payload.cardExpiry     = $('input[name="cardExpiry"]').val()     || null;
+        payload.cvv            = $('input[name="cvv"]').val()             || null;
+      }
+
       return payload;
     }
 
@@ -1432,9 +1449,14 @@
       requireField("lastName", "Last Name", isValidName);
       requireField("email", "Email", isValidEmail);
       requireField("phone", "Phone", isValidPhone);
-      requireField("cardNumber", "Card Number", isValidCardNumber);
-      requireField("cardExpiry", "Card Expiry", isValidCardExpiry);
-      requireField("cvv", "CVV", isValidCVV);
+      // Card fields are hidden (and their values unused — see
+      // buildReservationPayload()) when a saved card is selected, so
+      // don't require/validate them in that case.
+      if (!selectedSavedCard()) {
+        requireField("cardNumber", "Card Number", isValidCardNumber);
+        requireField("cardExpiry", "Card Expiry", isValidCardExpiry);
+        requireField("cvv", "CVV", isValidCVV);
+      }
 
       if ($("#kfbTermsBlock").is(":visible") && !$('input[name="terms"]').is(":checked")) {
         missing.push("Terms & Conditions");
@@ -1522,7 +1544,13 @@
             if (res && res.first_name) $('input[name="firstName"]').val(res.first_name);
             if (res && res.email)      $('input[name="email"]').val(res.email);
             showSuccess(bookingId);
-            if (!state.customer) promptAccountCreation(bookingId);
+            // Check authToken, not state.customer — the /customers/me
+            // call that populates state.customer is still async and may
+            // not have resolved yet even with the reorder above (this GET
+            // itself is a network round trip). authToken is set
+            // synchronously in checkAuthOnBoot() the moment a stored
+            // token exists, so it's the reliable "already logged in" signal here.
+            if (!state.authToken) promptAccountCreation(bookingId);
           })
           .catch(function () { showSuccess(bookingId); });
       } else if (status === "cancelled") {
@@ -1707,8 +1735,10 @@
     function clearAuth() {
       state.authToken = null;
       state.customer = null;
+      state.savedCards = [];
       try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch (e) { /* ignore */ }
       renderAccountBar();
+      renderSavedCardDropdown();
     }
     function renderAccountBar() {
       var loggedIn = !!state.customer;
@@ -1765,12 +1795,13 @@
       $("html, body").animate({ scrollTop: 0 }, 150);
     }
 
-    /** Switches between the three Profile sidebar panels: reservations / account / password. */
+    /** Switches between the Profile sidebar panels: reservations / account / password / cards. */
     function setProfileTab(tab) {
       $(".kfb-profile-tab").removeClass("is-active");
       $('.kfb-profile-tab[data-profile-tab="' + tab + '"]').addClass("is-active");
       $(".kfb-profile-panel").attr("hidden", true);
       $("#kfbProfilePanel" + tab.charAt(0).toUpperCase() + tab.slice(1)).removeAttr("hidden");
+      if (tab === "cards") loadSavedCards();
     }
 
     function showViewError($el, message) {
@@ -1785,7 +1816,7 @@
       state.authToken = stored;
       $.ajax({ url: API_BASE + "/customers/me", method: "GET", dataType: "json", headers: authHeaders(), timeout: 8000 })
         .done(function (res) {
-          if (res && res.success) { state.customer = res.customer; renderAccountBar(); prefillContactFromCustomer(); }
+          if (res && res.success) { state.customer = res.customer; renderAccountBar(); prefillContactFromCustomer(); loadSavedCards(); }
           else clearAuth();
         })
         .fail(function () { clearAuth(); });
@@ -1802,6 +1833,7 @@
           state.customer = res.customer;
           renderAccountBar();
           prefillContactFromCustomer();
+          loadSavedCards();
           $("#kfbLoginError").attr("hidden", true);
           $('#kfbLoginView input').val("");
           setView("booking");
@@ -1811,8 +1843,71 @@
         }
       })
       .fail(function (xhr) {
-        showViewError($("#kfbLoginError"), (xhr.responseJSON && xhr.responseJSON.error) || "Invalid email or password.");
+        var body = xhr.responseJSON;
+        if (xhr.status === 403 && body && body.requires_verification) {
+          showVerifyView(body.email || email);
+          toast(body.error || "Please verify your email first.", "error");
+          return;
+        }
+        showViewError($("#kfbLoginError"), (body && body.error) || "Invalid email or password.");
       });
+    }
+
+    /** Switches to the OTP-entry view for the given (pending-verification) email. */
+    function showVerifyView(email) {
+      state.pendingVerifyEmail = email;
+      $("#kfbVerifyEmailLabel").text("We sent a 6-digit code to " + email + ".");
+      $("#kfbVerifyError").attr("hidden", true);
+      $('input[name="verifyOtp"]').val("");
+      setView("verify");
+    }
+
+    function doVerifyOtp() {
+      var email = state.pendingVerifyEmail;
+      var otp = ($('input[name="verifyOtp"]').val() || "").trim();
+      if (!email) { setView("login"); return; }
+      if (!/^\d{6}$/.test(otp)) return showViewError($("#kfbVerifyError"), "Enter the 6-digit code from your email.");
+
+      $.ajax({
+        url: API_BASE + "/customers/verify-email", method: "POST", contentType: "application/json",
+        data: JSON.stringify({ email: email, otp: otp }), dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.success) {
+          saveToken(res.token);
+          state.customer = res.customer;
+          state.pendingVerifyEmail = null;
+          renderAccountBar();
+          prefillContactFromCustomer();
+          loadSavedCards();
+          $('input[name="verifyOtp"]').val("");
+          setView("booking");
+          toast("Email verified — welcome!");
+        } else {
+          showViewError($("#kfbVerifyError"), (res && res.error) || "Invalid or expired code.");
+        }
+      })
+      .fail(function (xhr) {
+        showViewError($("#kfbVerifyError"), (xhr.responseJSON && xhr.responseJSON.error) || "Invalid or expired code.");
+      });
+    }
+
+    function doResendOtp() {
+      var email = state.pendingVerifyEmail;
+      if (!email) return;
+      $.ajax({
+        url: API_BASE + "/customers/resend-otp", method: "POST", contentType: "application/json",
+        data: JSON.stringify({ email: email }), dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.already_verified) {
+          toast("This email is already verified — please log in.");
+          setView("login");
+        } else {
+          toast("A new code has been sent.");
+        }
+      })
+      .fail(function () { toast("Could not resend the code — try again shortly.", "error"); });
     }
 
     function doLogout() {
@@ -1859,7 +1954,10 @@
       .done(function (res) {
         if (res && res.success) {
           $("#kfbRegisterError").attr("hidden", true);
-          doLogin(email, password);
+          $('#kfbRegisterView input').val("");
+          // Not logged in yet — the account isn't loginable until the OTP
+          // just emailed is verified (see customer_register()'s docblock).
+          showVerifyView(res.email || email);
         } else {
           showViewError($("#kfbRegisterError"), (res && res.error) || "Could not create account.");
         }
@@ -1952,7 +2050,7 @@
               '<div class="kfb-reservation-amount">' + fmtMoney(r.amount) + '</div>' +
             '</div>' +
             '<div class="kfb-reservation-side">' +
-              '<span class="kfb-status-badge kfb-status-badge--' + escapeHtml(r.status) + '">' + escapeHtml(statusLabel) + '</span>' +
+              '<span class="kfb-status-badge kfb-status-badge--' + escapeHtml(r.status) + '">' + (escapeHtml(statusLabel) == 'paid' ? 'Confirmed' : escapeHtml(statusLabel)) + '</span>' +
             '</div>' +
           '</div>'
         );
@@ -2041,6 +2139,187 @@
         if (handleAuthFailure(xhr)) return;
         showViewError($("#kfbPasswordChangeError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not update password.");
       });
+    }
+
+    // -------- Profile: saved cards (display-only — see Customer_model.php) --------
+    function cardExpiryLabel(card) {
+      var mm = ("0" + card.expiry_month).slice(-2);
+      var yy = String(card.expiry_year).slice(-2);
+      return mm + "/" + yy;
+    }
+    function cardLabel(card) {
+      var label = card.card_brand + " •••• " + card.card_last4.slice(-4);
+      if (card.nickname) label += " (" + card.nickname + ")";
+      label += " — exp " + cardExpiryLabel(card);
+      return label;
+    }
+
+    function loadSavedCards() {
+      if (!state.customer) { state.savedCards = []; renderSavedCardDropdown(); return; }
+      $.ajax({ url: API_BASE + "/customers/cards", method: "GET", dataType: "json", headers: authHeaders(), timeout: 10000 })
+        .done(function (res) {
+          state.savedCards = (res && res.success) ? (res.cards || []) : [];
+          renderSavedCardsList(state.savedCards);
+          renderSavedCardDropdown();
+        })
+        .fail(function (xhr) {
+          if (handleAuthFailure(xhr)) return;
+          $("#kfbSavedCardsList").html('<p class="kfb-empty">Could not load saved cards.</p>');
+        });
+    }
+
+    function renderSavedCardsList(cards) {
+      var $list = $("#kfbSavedCardsList");
+      $list.empty();
+      if (!cards.length) {
+        $list.html('<p class="kfb-empty">No saved cards yet.</p>');
+        return;
+      }
+      cards.forEach(function (c) {
+        var $row = $(
+          '<div class="kfb-saved-card-row">' +
+            '<div class="kfb-saved-card-main">' +
+              '<span class="kfb-saved-card-brand">' + escapeHtml(c.card_brand) + ' •••• ' + escapeHtml(c.card_last4.slice(-4)) + '</span>' +
+              (c.nickname ? '<span class="kfb-saved-card-nickname">' + escapeHtml(c.nickname) + '</span>' : '') +
+              '<span class="kfb-saved-card-expiry">exp ' + escapeHtml(cardExpiryLabel(c)) + '</span>' +
+            '</div>' +
+            '<div class="kfb-saved-card-side"></div>' +
+          '</div>'
+        );
+        var $side = $row.find(".kfb-saved-card-side");
+        if (String(c.is_default) === "1") {
+          $side.append('<span class="kfb-status-badge kfb-status-badge--paid">Default</span>');
+        } else {
+          $side.append(
+            $('<button type="button" class="kfb-btn kfb-btn-ghost kfb-btn--sm">Set Default</button>')
+              .on("click", function () { doSetDefaultCard(c.id); })
+          );
+        }
+        $side.append(
+          $('<button type="button" class="kfb-link-btn kfb-saved-card-delete">Remove</button>')
+            .on("click", function () { doDeleteCard(c.id); })
+        );
+        $list.append($row);
+      });
+    }
+
+    function doAddCard() {
+      var number = $('input[name="newCardNumber"]').val();
+      var expiry = $('input[name="newCardExpiry"]').val();
+      var nickname = $('input[name="newCardNickname"]').val();
+      var cvv = $('input[name="newCardCvv"]').val();
+      $("#kfbAddCardError, #kfbAddCardSuccess").attr("hidden", true);
+      if (!isValidCardNumber(number)) return showViewError($("#kfbAddCardError"), "Enter a valid card number.");
+      if (!isValidCardExpiry(expiry)) return showViewError($("#kfbAddCardError"), "Enter a valid, unexpired expiry (MM/YY).");
+      if (!cvv) return showViewError($("#kfbAddCardError"), "Enter a valid CVV.");
+
+      // No CVV is collected here on purpose — it's never stored (see
+      // Customer_model::add_card()), and this form doesn't need it since
+      // it's only deriving brand/last4/expiry for display, not charging.
+      $.ajax({
+        url: API_BASE + "/customers/cards", method: "POST", contentType: "application/json",
+        headers: authHeaders(),
+        data: JSON.stringify({ card_number: number, expiry: expiry, nickname: nickname, cvv: cvv }),
+        dataType: "json", timeout: 10000,
+      })
+      .done(function (res) {
+        if (res && res.success) {
+          $('input[name="newCardNumber"], input[name="newCardExpiry"], input[name="newCardNickname"], input[name="newCardCvv"]').val("");
+          $("#kfbAddCardSuccess").removeAttr("hidden");
+          toast("Card saved ✓");
+          loadSavedCards();
+        } else {
+          showViewError($("#kfbAddCardError"), (res && res.error) || "Could not save card.");
+        }
+      })
+      .fail(function (xhr) {
+        if (handleAuthFailure(xhr)) return;
+        showViewError($("#kfbAddCardError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not save card.");
+      });
+    }
+
+    function doSetDefaultCard(cardId) {
+      $.ajax({ url: API_BASE + "/customers/cards/" + encodeURIComponent(cardId) + "/default", method: "POST", headers: authHeaders(), dataType: "json", timeout: 10000 })
+        .done(function (res) {
+          if (res && res.success) { state.savedCards = res.cards || []; renderSavedCardsList(state.savedCards); renderSavedCardDropdown(); toast("Default card updated ✓"); }
+        })
+        .fail(function (xhr) { if (!handleAuthFailure(xhr)) toast("Could not update default card.", "error"); });
+    }
+
+    function doDeleteCard(cardId) {
+      $.ajax({ url: API_BASE + "/customers/cards/" + encodeURIComponent(cardId) + "/delete", method: "POST", headers: authHeaders(), dataType: "json", timeout: 10000 })
+        .done(function (res) {
+          if (res && res.success) { state.savedCards = res.cards || []; renderSavedCardsList(state.savedCards); renderSavedCardDropdown(); toast("Card removed."); }
+        })
+        .fail(function (xhr) { if (!handleAuthFailure(xhr)) toast("Could not remove card.", "error"); });
+    }
+
+    /**
+     * Populates the "Use a Saved Card" dropdown on the booking payment
+     * step and auto-selects the customer's default card, if any. When a
+     * saved card is selected, the card holder/number/expiry/CVV fields
+     * are hidden entirely (see applySavedCardSelection()) — since no PAN
+     * is stored, there's nothing to prefill them WITH; the saved card's
+     * display info (brand/last4/expiry) is submitted directly instead,
+     * see selectedSavedCard() / buildReservationPayload().
+     */
+    function renderSavedCardDropdown() {
+      var $wrap = $("#kfbSavedCardWrap");
+      var $select = $("#kfbSavedCardSelect");
+      if (!state.customer || !state.savedCards.length) {
+        $wrap.attr("hidden", true);
+        $("#kfbSavedCardHint").attr("hidden", true);
+        $("#kfbNewCardFieldsWrap").removeAttr("hidden");
+        return;
+      }
+      $select.find('option[value!=""]').remove();
+      var defaultCard = null;
+      state.savedCards.forEach(function (c) {
+        $select.append($('<option></option>').attr("value", c.id).text(cardLabel(c) + (String(c.is_default) === "1" ? " (Default)" : "")));
+        if (String(c.is_default) === "1") defaultCard = c;
+      });
+      $wrap.removeAttr("hidden");
+      // Only auto-select a saved card for a fresh booking — editing an
+      // existing reservation already prefilled the card fields from that
+      // booking's own historical data above, which this must NOT hide/
+      // clobber. Setting .val("") directly (no "change" event) just resets
+      // the dropdown's own selection without touching those fields —
+      // applySavedCardSelection()'s new-card branch only runs for a real
+      // user-driven switch (wired via .on("change", ...) below) or the
+      // explicit default-prefill call right here.
+      if (defaultCard && !state.editingBookingId) {
+        $select.val(String(defaultCard.id));
+        applySavedCardSelection();
+      } else {
+        $select.val("");
+        $("#kfbSavedCardHint").attr("hidden", true);
+        $("#kfbNewCardFieldsWrap").removeAttr("hidden");
+      }
+    }
+
+    /** The currently-selected saved card object, or null if "+ Enter a new card" is selected. */
+    function selectedSavedCard() {
+      var id = $("#kfbSavedCardSelect").val();
+      if (!id) return null;
+      return state.savedCards.filter(function (c) { return String(c.id) === String(id); })[0] || null;
+    }
+
+    /**
+     * Only meant to run from the dropdown's own "change" event (user-
+     * driven) or the default-prefill call in renderSavedCardDropdown().
+     * Toggles the card detail fields — a saved card is selected → hide
+     * them (nothing to fill in, the saved card's own info is submitted
+     * directly); "+ Enter a new card" → show them, blank, for validation.
+     */
+    function applySavedCardSelection() {
+      var card = selectedSavedCard();
+      // Deliberately doesn't clear the fields on either transition: for a
+      // fresh booking they're empty anyway, and for an edit, switching
+      // back to "+ Enter a new card" should restore the booking's own
+      // historical card data (prefilled by prefillFormFromBooking()), not
+      // wipe it — same reasoning as the historical-data guard above.
+      $("#kfbNewCardFieldsWrap").attr("hidden", !!card);
+      $("#kfbSavedCardHint").attr("hidden", !card);
     }
 
     // -------- Editing: re-open the 3-step form pre-filled --------
@@ -2199,6 +2478,11 @@
       recalcSelectedVehicle();
       renderSideSummary();
       refreshSignatureVisibility();
+      // Re-evaluate now that state.editingBookingId is set (by the caller,
+      // before this function runs) — an edit should default to "+ Enter a
+      // new card", not auto-pick the account's default saved card, since
+      // the fields above were just filled from THIS booking's own history.
+      renderSavedCardDropdown();
     }
 
     // ============================================================
@@ -2231,11 +2515,12 @@
         })
         .done(function (res) {
           if (res && res.success) {
-            $block.find(".kfb-account-prompt-msg").text("Account created ✓");
+            $block.find(".kfb-account-prompt-msg").text("Almost there — check your email for a verification code.");
             $block.find(".kfb-account-prompt-fields").attr("hidden", true);
-            // Log the customer straight in — registering here was previously
-            // a dead end (no login form existed to use the account with).
-            doLogin(email, pw);
+            // Not loginable yet — needs the OTP just emailed. Navigating
+            // away from the success screen is fine here: the booking
+            // itself is already confirmed either way.
+            showVerifyView(res.email || email);
           } else {
             toast((res && res.error) || "Could not create account.");
           }
@@ -2305,6 +2590,7 @@
       // the logged-in lock (or make sure it's unlocked for a guest).
       if (state.customer) prefillContactFromCustomer();
       else unlockEmailField();
+      renderSavedCardDropdown();
       gotoStep(1);
     }
 
@@ -2387,7 +2673,6 @@
       renderSideSummary();
       $("#kfbBookNowBtn").on("click", submitBooking);
       initSignaturePad();
-      handlePaypalReturn();
 
       // -------- Customer accounts: nav + forms --------
       $("#kfbShowLoginBtn").on("click", function () { setView("login"); });
@@ -2400,6 +2685,7 @@
       $("#kfbRegisterToLoginBtn").on("click", function () { setView("login"); });
       $("#kfbLoginToForgotBtn").on("click", function () { setView("forgot"); });
       $("#kfbForgotToLoginBtn").on("click", function () { setView("login"); });
+      $("#kfbVerifyBackBtn").on("click", function () { setView("login"); });
 
       $("#kfbLoginSubmitBtn").on("click", function () {
         doLogin($('input[name="loginEmail"]').val(), $('input[name="loginPassword"]').val());
@@ -2408,10 +2694,22 @@
       $("#kfbRegisterSubmitBtn").on("click", doRegisterStandalone);
       $("#kfbForgotSubmitBtn").on("click", doForgotPassword);
       $("#kfbResetSubmitBtn").on("click", doResetPassword);
+      $("#kfbVerifySubmitBtn").on("click", doVerifyOtp);
+      $("#kfbVerifyResendBtn").on("click", doResendOtp);
+      $("#kfbVerifyView input").on("keydown", function (e) { if (e.key === "Enter") $("#kfbVerifySubmitBtn").click(); });
       $("#kfbProfileUpdateBtn").on("click", doUpdateProfile);
       $("#kfbPasswordChangeBtn").on("click", doChangePassword);
+      $("#kfbAddCardBtn").on("click", doAddCard);
+      $("#kfbSavedCardSelect").on("change", applySavedCardSelection);
 
+      // checkAuthOnBoot() sets state.authToken synchronously (before its
+      // own async /customers/me call) — it must run before
+      // handlePaypalReturn(), whose post-payment "create an account?"
+      // prompt needs to see that token to know a customer is already
+      // logged in, or it wrongly offers the prompt to an already-logged-
+      // in customer returning from PayPal.
       checkAuthOnBoot();
+      handlePaypalReturn();
       handlePasswordResetLink();
 
       // Return trip toggle

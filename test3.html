@@ -400,13 +400,24 @@
 
                 <!-- Billing Information -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Payment Information</h3>
-                <div class="kfb-field-row-2">
-                  <label class="kfb-field"><span>Card Holder Name</span><input type="text" name="cardHolderName" placeholder="If different from passenger"></label>
-                  <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number"></label>
-                </div>
-                <div class="kfb-field-row-2">
-                  <label class="kfb-field"><span>Card Expiry</span><input type="text" name="cardExpiry" placeholder="Card Expiry (MM/YY)"></label>
-                  <label class="kfb-field"><span>CVV</span><input type="text" name="cvv" placeholder="CVV"></label>
+                <label class="kfb-field" id="kfbSavedCardWrap" hidden>
+                  <span>Use a Saved Card</span>
+                  <select id="kfbSavedCardSelect">
+                    <option value="">+ Enter a new card</option>
+                  </select>
+                </label>
+                <p class="kfb-field-hint" id="kfbSavedCardHint" hidden>
+                  Using this saved card — no need to re-enter the card details below.
+                </p>
+                <div id="kfbNewCardFieldsWrap">
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Card Holder Name</span><input type="text" name="cardHolderName" placeholder="If different from passenger"></label>
+                    <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number"></label>
+                  </div>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Card Expiry</span><input type="text" name="cardExpiry" placeholder="Card Expiry (MM/YY)"></label>
+                    <label class="kfb-field"><span>CVV</span><input type="text" name="cvv" placeholder="CVV"></label>
+                  </div>
                 </div>
                 <label class="kfb-field">
                   <span>Billing Address</span>
@@ -583,6 +594,26 @@
           </div>
         </section>
 
+        <!-- ========== VERIFY EMAIL (OTP) ========== -->
+        <section class="kfb-view" id="kfbVerifyView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Verify Your Email</h2>
+            <p class="kfb-hint" id="kfbVerifyEmailLabel">We sent a 6-digit code to your email.</p>
+            <label class="kfb-field">
+              <span>Verification Code</span>
+              <input type="text" name="verifyOtp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+            </label>
+            <div class="kfb-view-error" id="kfbVerifyError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbVerifySubmitBtn">Verify</button>
+            </div>
+            <p class="kfb-view-links">
+              <button type="button" class="kfb-link-btn" id="kfbVerifyResendBtn">Resend code</button>
+              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbVerifyBackBtn">Back to log in</button>
+            </p>
+          </div>
+        </section>
+
         <!-- ========== PROFILE ========== -->
         <section class="kfb-view" id="kfbProfileView" hidden>
           <div class="kfb-profile-layout">
@@ -590,6 +621,7 @@
               <button type="button" class="kfb-profile-tab is-active" data-profile-tab="reservations">My Reservations</button>
               <button type="button" class="kfb-profile-tab" data-profile-tab="account">Account Settings</button>
               <button type="button" class="kfb-profile-tab" data-profile-tab="password">Reset Password</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="cards">Saved Cards</button>
             </nav>
 
             <div class="kfb-profile-content">
@@ -632,6 +664,34 @@
                   <div class="kfb-view-success" id="kfbPasswordChangeSuccess" hidden>Password updated ✓</div>
                   <div class="kfb-actions">
                     <button type="button" class="kfb-btn kfb-btn-primary" id="kfbPasswordChangeBtn">Update Password</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelCards" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Saved Cards</h2>
+                  <p class="kfb-panel-sub" style="margin:-10px 0 16px">
+                    We only save the card type, last 4 digits, and expiry — never the full number or CVV. Pick a default to have it pre-selected at checkout.
+                  </p>
+                  <div id="kfbSavedCardsList">
+                    <p class="kfb-empty">Loading…</p>
+                  </div>
+
+                  <hr class="kfb-divider">
+
+                  <h3 class="kfb-view-subtitle">Add a Card</h3>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Card Number</span><input type="text" name="newCardNumber" placeholder="Credit Card Number" autocomplete="cc-number"></label>
+                    <label class="kfb-field"><span>Expiry</span><input type="text" name="newCardExpiry" placeholder="MM/YY" autocomplete="cc-exp"></label>
+                    <label class="kfb-field"><span>CVV</span><input type="text" name="newCardCvv" placeholder="CVV" autocomplete="cc-csc"></label>
+                  </div>
+                  <p class="kfb-field-hint">We only save the card type, last 4 digits, and expiry — never the full number or CVV.</p>
+                  <label class="kfb-field"><span>Nickname (optional)</span><input type="text" name="newCardNickname" placeholder="e.g. Work Visa"></label>
+                  <div class="kfb-view-error" id="kfbAddCardError" hidden></div>
+                  <div class="kfb-view-success" id="kfbAddCardSuccess" hidden>Card saved ✓</div>
+                  <div class="kfb-actions">
+                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbAddCardBtn">Save Card</button>
                   </div>
                 </div>
               </div>

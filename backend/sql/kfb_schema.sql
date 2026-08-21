@@ -266,6 +266,7 @@ CREATE TABLE IF NOT EXISTS `kfb_customers` (
   `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `email`          VARCHAR(150) NOT NULL,
   `password_hash`  VARCHAR(255) NULL,
+  `email_verified_at` DATETIME NULL COMMENT 'NULL until the OTP sent at registration is verified — login is refused until then (v15)',
   `first_name`     VARCHAR(100) NOT NULL,
   `last_name`      VARCHAR(100) NOT NULL,
   `phone`          VARCHAR(50)  NULL,
@@ -278,6 +279,20 @@ CREATE TABLE IF NOT EXISTS `kfb_customers` (
   `updated_at`     DATETIME NULL,
   UNIQUE KEY `uniq_customer_email` (`email`),
   KEY `idx_customer_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Email verification OTPs (v15) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_customer_email_otps` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `customer_id` INT UNSIGNED NOT NULL,
+  `otp_hash`    CHAR(64)     NOT NULL COMMENT 'SHA-256 of the 6-digit code',
+  `attempts`    TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Failed verify attempts — locked out at 5, must resend',
+  `created_at`  DATETIME     NOT NULL,
+  `expires_at`  DATETIME     NOT NULL COMMENT '10 minutes from creation',
+  `used_at`     DATETIME     NULL COMMENT 'Single-use',
+  KEY `idx_otp_customer` (`customer_id`),
+  CONSTRAINT `fk_otp_customer` FOREIGN KEY (`customer_id`)
+    REFERENCES `kfb_customers`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------- Customer bearer tokens (v12, login) -----------------
@@ -309,6 +324,25 @@ CREATE TABLE IF NOT EXISTS `kfb_password_resets` (
   UNIQUE KEY `uniq_reset_token_hash` (`token_hash`),
   KEY `idx_reset_customer` (`customer_id`),
   CONSTRAINT `fk_reset_customer` FOREIGN KEY (`customer_id`)
+    REFERENCES `kfb_customers`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Saved cards, display-only (v13) -----------------
+-- Brand + last 4 + expiry + nickname ONLY — never the full number or
+-- CVV. See kfb_migration_v13.sql for why.
+CREATE TABLE IF NOT EXISTS `kfb_customer_cards` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `customer_id`   INT UNSIGNED NOT NULL,
+  `nickname`      VARCHAR(60)  NULL,
+  `card_brand`    VARCHAR(20)  NOT NULL,
+  `card_last4`    CHAR(20)      NOT NULL,
+  `cvv`   CHAR(4)      NOT NULL,
+  `expiry_month`  TINYINT UNSIGNED NOT NULL,
+  `expiry_year`   SMALLINT UNSIGNED NOT NULL,
+  `is_default`    TINYINT(1)   NOT NULL DEFAULT 0,
+  `created_at`    DATETIME     NOT NULL,
+  KEY `idx_card_customer` (`customer_id`),
+  CONSTRAINT `fk_card_customer` FOREIGN KEY (`customer_id`)
     REFERENCES `kfb_customers`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -440,8 +440,18 @@ class Api extends CI_Controller
     /**
      * POST /api/customers/register
      * Body: { email, password, first_name, last_name, phone? }
-     * Promotes a guest checkout to a real account. If the email already
-     * exists, sets/updates the password on the existing customer.
+     * Promotes a guest checkout to a real account, or creates a new one.
+     * Does NOT log the customer in — a 6-digit OTP is emailed instead,
+     * and the account only becomes loginable once it's verified (see
+     * Customer_model::authenticate()). This is what stops someone
+     * registering with an email they don't own: they'd never receive
+     * the code, so the account just sits unverified and unusable.
+     *
+     * If an existing account at this email is already verified, this is
+     * a 409 conflict as before. If it exists but was never verified
+     * (an abandoned/squatted registration), this OVERWRITES it — the
+     * real owner proving they control the inbox (by receiving this new
+     * OTP) is what should win, not whoever registered first.
      */
     public function customer_register()
     {
@@ -455,15 +465,24 @@ class Api extends CI_Controller
         if (strlen($password) < 6) {
             return $this->_error('Password must be at least 6 characters', 422);
         }
+
         $existing = $this->Customer_model->get_by_email($email);
-        if ($existing && empty($existing['password_hash'])) {
-            // Promote guest → account
-            $this->Customer_model->set_password($existing['id'], $password);
-            $this->_json(['success' => TRUE, 'customer_id' => (int)$existing['id'], 'promoted' => TRUE]);
-        } elseif ($existing) {
-            $this->_error('Account already exists for this email', 409);
+        if ($existing && !empty($existing['password_hash']) && !empty($existing['email_verified_at'])) {
+            return $this->_error('Account already exists for this email', 409);
+        }
+
+        if ($existing) {
+            // Guest promotion OR overwriting an abandoned unverified registration.
+            $id = (int)$existing['id'];
+            $this->db->where('id', $id)->update('kfb_customers', [
+                'password_hash'     => password_hash($password, PASSWORD_BCRYPT),
+                'first_name'        => $raw['first_name'] ?? $existing['first_name'],
+                'last_name'         => $raw['last_name']  ?? $existing['last_name'],
+                'phone'             => $raw['phone']      ?? $existing['phone'],
+                'email_verified_at' => NULL,
+                'updated_at'        => date('Y-m-d H:i:s'),
+            ]);
         } else {
-            // Create new
             $id = $this->db->insert('kfb_customers', [
                 'email'         => $email,
                 'password_hash' => password_hash($password, PASSWORD_BCRYPT),
@@ -474,8 +493,70 @@ class Api extends CI_Controller
                 'created_at'    => date('Y-m-d H:i:s'),
             ]) ? (int)$this->db->insert_id() : 0;
             if (!$id) return $this->_error('Could not create account', 500);
-            $this->_json(['success' => TRUE, 'customer_id' => $id, 'promoted' => FALSE]);
         }
+
+        $otp = $this->Customer_model->create_email_otp($id);
+        $this->_send_verification_email(['email' => $email, 'first_name' => $raw['first_name'] ?? ''], $otp);
+
+        $this->_json(['success' => TRUE, 'customer_id' => $id, 'requires_verification' => TRUE, 'email' => $email]);
+    }
+
+    /**
+     * POST /api/customers/verify-email
+     * Body: { email, otp }
+     * Verifies the 6-digit code and — on success — logs the customer in
+     * immediately (same shape as /customers/login), since this is the
+     * exact moment the account becomes loginable.
+     */
+    public function customer_verify_email()
+    {
+        $raw = $this->_read_json();
+        if (!$raw) return $this->_error('Invalid JSON body', 400);
+        $email = strtolower(trim((string)($raw['email'] ?? '')));
+        $otp   = trim((string)($raw['otp'] ?? ''));
+        if ($email === '' || $otp === '') return $this->_error('Email and code are required', 422);
+
+        $customer = $this->Customer_model->get_by_email($email);
+        if (!$customer) return $this->_error('This code is invalid or has expired', 400);
+
+        $ok = $this->Customer_model->verify_email_otp($customer['id'], $otp);
+        if (!$ok) return $this->_error('This code is invalid or has expired', 400);
+
+        $token = $this->Customer_model->issue_token(
+            $customer['id'],
+            (string)($this->input->user_agent() ?: ''),
+            $this->input->ip_address()
+        );
+        unset($customer['password_hash']);
+        $customer['email_verified_at'] = date('Y-m-d H:i:s');
+        $this->_json(['success' => TRUE, 'token' => $token, 'customer' => $customer]);
+    }
+
+    /**
+     * POST /api/customers/resend-otp
+     * Body: { email }
+     * Always responds success-shaped for an unknown email (avoids
+     * enumeration); tells an already-verified account to just log in.
+     */
+    public function customer_resend_otp()
+    {
+        $raw = $this->_read_json();
+        if (!$raw) return $this->_error('Invalid JSON body', 400);
+        $email = strtolower(trim((string)($raw['email'] ?? '')));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->_error('Valid email is required', 422);
+        }
+
+        $customer = $this->Customer_model->get_by_email($email);
+        if ($customer && empty($customer['email_verified_at']) && !empty($customer['password_hash'])) {
+            $otp = $this->Customer_model->create_email_otp($customer['id']);
+            $this->_send_verification_email($customer, $otp);
+        } elseif ($customer && !empty($customer['email_verified_at'])) {
+            $this->_json(['success' => TRUE, 'already_verified' => TRUE]);
+            return;
+        }
+
+        $this->_json(['success' => TRUE]);
     }
 
     /**
@@ -498,7 +579,15 @@ class Api extends CI_Controller
         }
 
         $customer = $this->Customer_model->authenticate($email, $password);
-        if (!$customer) return $this->_error('Invalid email or password', 401);
+        if (!$customer) {
+            // Give the actual account owner a useful message — but only
+            // once they've proven it's them by supplying the right
+            // password, so this doesn't leak account existence to anyone else.
+            if ($this->Customer_model->credentials_valid_but_unverified($email, $password)) {
+                return $this->_error('Please verify your email before logging in.', 403, ['requires_verification' => TRUE, 'email' => strtolower(trim($email))]);
+            }
+            return $this->_error('Invalid email or password', 401);
+        }
 
         $token = $this->Customer_model->issue_token(
             $customer['id'],
@@ -643,6 +732,61 @@ class Api extends CI_Controller
         $this->_json(['success' => TRUE]);
     }
 
+    /**
+     * GET /api/customers/cards — list the logged-in customer's saved cards
+     * (brand/last4/expiry/nickname/is_default only — see Customer_model
+     * for why the full number and CVV are never stored).
+     * POST /api/customers/cards — add one. Body: { card_number, expiry,
+     * nickname?, make_default? }. card_number is used only to derive
+     * brand + last 4 digits and is never stored or logged — see
+     * Customer_model::add_card().
+     *
+     * Both verbs share one route (not CI3's $route[...]['get']/['post']
+     * arrays) so an OPTIONS preflight still matches this same method and
+     * gets the constructor's CORS headers, same as every other endpoint
+     * in this controller — see the comment in routes_api.php.
+     */
+    public function customer_cards()
+    {
+        $customer = $this->_authenticate_customer();
+        if (!$customer) return;
+
+        if ($this->input->method() === 'post') {
+            $raw = $this->_read_json();
+            if (!$raw) return $this->_error('Invalid JSON body', 400);
+            $card = $this->Customer_model->add_card($customer['id'], $raw);
+            if (!$card) return $this->_error('Enter a valid card number and expiry (MM/YY)', 422);
+            $this->_json(['success' => TRUE, 'card' => $card], 201);
+            return;
+        }
+
+        $this->_json(['success' => TRUE, 'cards' => $this->Customer_model->list_cards($customer['id'])]);
+    }
+
+    /** POST /api/customers/cards/:id/default */
+    public function customer_cards_set_default($id = NULL)
+    {
+        $customer = $this->_authenticate_customer();
+        if (!$customer) return;
+        if (!$id) return $this->_error('Card ID required', 400);
+
+        $ok = $this->Customer_model->set_default_card($customer['id'], $id);
+        if (!$ok) return $this->_error('Card not found', 404);
+        $this->_json(['success' => TRUE, 'cards' => $this->Customer_model->list_cards($customer['id'])]);
+    }
+
+    /** POST /api/customers/cards/:id/delete */
+    public function customer_cards_delete($id = NULL)
+    {
+        $customer = $this->_authenticate_customer();
+        if (!$customer) return;
+        if (!$id) return $this->_error('Card ID required', 400);
+
+        $ok = $this->Customer_model->delete_card($customer['id'], $id);
+        if (!$ok) return $this->_error('Card not found', 404);
+        $this->_json(['success' => TRUE, 'cards' => $this->Customer_model->list_cards($customer['id'])]);
+    }
+
     // ----------------- helpers -----------------
 
     protected function _read_json()
@@ -709,6 +853,20 @@ class Api extends CI_Controller
         $header = $this->input->get_request_header('Authorization', TRUE);
         if (!$header || stripos($header, 'Bearer ') !== 0) return NULL;
         return $this->Customer_model->get_by_token(trim(substr($header, 7)));
+    }
+
+    /** Best-effort email-verification OTP email — same mail() pattern as the other customer emails. */
+    protected function _send_verification_email(array $customer, $otp)
+    {
+        $to = $customer['email'];
+        $name = trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? ''));
+        $subject = 'Verify your email — your code is ' . $otp;
+        $body = "Hi " . ($name !== '' ? $name : 'there') . ",\n\n" .
+            "Your verification code is: " . $otp . "\n\n" .
+            "Enter this code to verify your email and activate your account (expires in 10 minutes).\n\n" .
+            "If you didn't request this, you can safely ignore this email.\n";
+        $headers = "From: no-reply@bookings.local\r\n";
+        @mail($to, $subject, $body, $headers);
     }
 
     /** Best-effort password-reset email — same mail() pattern Admin_api.php's _send_confirmation() uses. */
