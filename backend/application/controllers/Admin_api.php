@@ -31,7 +31,7 @@ class Admin_api extends CI_Controller
     {
         parent::__construct();
         $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Settings_model', 'Booking_model']);
-        $this->load->library(['session', 'paypal']);
+        $this->load->library(['session', 'paypal', 'legacy_reservations']);
         $this->load->helper('url');
         $this->_set_cors_headers();
 
@@ -399,7 +399,14 @@ class Admin_api extends CI_Controller
             $this->_send_confirmation($booking);
         }
 
-        $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);
+        // Re-fetch rather than reuse $booking — need the fresh
+        // capture id/status just saved above, plus stops/return_leg for
+        // the legacy portal push. Never blocks the response either way
+        // (see Legacy_reservations::sync()'s own docblock).
+        $freshBooking = $this->Booking_model->get_booking($id);
+        $this->legacy_reservations->sync($freshBooking);
+
+        $this->_json(['success' => TRUE, 'reservation' => $freshBooking]);
     }
 
     /**

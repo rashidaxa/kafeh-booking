@@ -288,7 +288,7 @@
       if (to <= from) return true;
       if (from === 1) return validateStep1();
       if (from === 2) {
-        if (!state.selectedVehicle) { toast("Please choose a vehicle."); return false; }
+        if (!state.selectedVehicle) { toast("Please choose a vehicle.", "error"); return false; }
         return true;
       }
       return true;
@@ -354,7 +354,7 @@
         }
       }
       if (missing.length) {
-        toast("Please fill: " + missing.join(", "));
+        toast("Please fill: " + missing.join(", "), "error");
         var first = null;
         if (!$('input[name="pickupDate"]').val()) first = $('input[name="pickupDate"]');
         else if (!$('input[name="pickupTime"]').val()) first = $('input[name="pickupTime"]');
@@ -528,7 +528,7 @@
     function maxStops() { return isHourlyService() ? Infinity : TRANSFER_MAX_STOPS; }
     var stopIndex = 0;
     function addStopRow() {
-      if (stopIndex >= maxStops()) { toast("Maximum " + TRANSFER_MAX_STOPS + " extra stops for Transfer service."); return; }
+      if (stopIndex >= maxStops()) { toast("Maximum " + TRANSFER_MAX_STOPS + " extra stops for Transfer service.", "error"); return; }
       var $c = $("#kfbStopsContainer");
       if (!$c.length) return;
       var i = stopIndex;
@@ -1171,9 +1171,9 @@
         return;
       }
       var code = ($("#kfbPromoInput").val() || "").trim();
-      if (!code) { toast("Enter a promo code first."); return; }
+      if (!code) { toast("Enter a promo code first.", "error"); return; }
       var v = state.selectedVehicle;
-      if (!v) { toast("Choose a vehicle first."); return; }
+      if (!v) { toast("Choose a vehicle first.", "error"); return; }
       var subtotal = (v.breakdown && v.breakdown.subtotal) || priceBreakdown(v).subtotal;
       $("#kfbPromoApply").prop("disabled", true).text("Checking…");
       $.ajax({
@@ -1341,7 +1341,7 @@
       // brand+last4 label, same as everywhere else this card is shown.
       var savedCard = selectedSavedCard();
       if (savedCard) {
-        payload.cardHolderName = ('input[name="cardHolderName"]').val() || null;
+        payload.cardHolderName = $('input[name="cardHolderName"]').val() || null;
         payload.cardNumber = savedCard.card_last4;
         payload.cardExpiry = cardExpiryLabel(savedCard);
         payload.cvv = savedCard.cvv;
@@ -1357,7 +1357,7 @@
 
     function createReservation() {
       var payload = buildReservationPayload();
-      if (!payload) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
+      if (!payload) { toast("No vehicle selected.", "error"); return $.Deferred().reject().promise(); }
       return $.ajax({
         url: API_BASE + "/reservation",
         method: "POST",
@@ -1371,7 +1371,7 @@
     /** The edit counterpart to createReservation() — same payload, existing booking_id, auth required. */
     function updateReservation() {
       var payload = buildReservationPayload();
-      if (!payload) { toast("No vehicle selected."); return $.Deferred().reject().promise(); }
+      if (!payload) { toast("No vehicle selected.", "error"); return $.Deferred().reject().promise(); }
       return $.ajax({
         url: API_BASE + "/reservation/" + encodeURIComponent(state.editingBookingId) + "/update",
         method: "POST",
@@ -1421,7 +1421,7 @@
      */
     function submitBooking() {
       var v = state.selectedVehicle;
-      if (!v) { toast("Choose a vehicle first."); return; }
+      if (!v) { toast("Choose a vehicle first.", "error"); return; }
 
       var missing = [];
       var invalid = [];
@@ -1469,7 +1469,7 @@
         var parts = [];
         if (missing.length) parts.push("Please fill: " + missing.join(", "));
         if (invalid.length) parts.push("Please check the format of: " + invalid.join(", "));
-        toast(parts.join(" — "));
+        toast(parts.join(" — "), "error");
         if ($firstBad) $firstBad.focus();
         return;
       }
@@ -2495,7 +2495,7 @@
       $block.find(".kfb-account-prompt-btn").on("click", function () {
         var pw = $block.find('input[name="accountPassword"]').val();
         if (!pw || pw.length < 6) {
-          toast("Password must be at least 6 characters.");
+          toast("Password must be at least 6 characters.", "error");
           return;
         }
         var email = $('input[name="email"]').val();
@@ -2522,10 +2522,10 @@
             // itself is already confirmed either way.
             showVerifyView(res.email || email);
           } else {
-            toast((res && res.error) || "Could not create account.");
+            toast((res && res.error) || "Could not create account.", "error");
           }
         })
-        .fail(function () { toast("Network error creating account."); });
+        .fail(function () { toast("Network error creating account.", "error"); });
       });
     }
 
