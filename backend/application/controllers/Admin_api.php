@@ -31,7 +31,7 @@ class Admin_api extends CI_Controller
     {
         parent::__construct();
         $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Settings_model', 'Booking_model']);
-        $this->load->library(['session', 'paypal', 'legacy_reservations']);
+        $this->load->library(['session', 'paypal', 'legacy_reservations', 'mailer']);
         $this->load->helper('url');
         $this->_set_cors_headers();
 
@@ -395,7 +395,14 @@ class Admin_api extends CI_Controller
         if (!empty($booking['promo_code'])) {
             $this->Promo_model->record_booking_use($booking['promo_code']);
         }
-        if ($this->config->item('send_confirmation_email', 'kafeh')) {
+        // No second arg here — CI_Config::item($item, $index) only looks
+        // inside $this->config[$index] when the config file was loaded
+        // with $use_sections = TRUE (load($file, TRUE)), which this app
+        // never does; config files here are always loaded flat. Passing
+        // 'kafeh' (the config file's old name, before it was renamed to
+        // crmsync.php) meant this always evaluated to NULL/false —
+        // _send_confirmation() has never actually run.
+        if ($this->config->item('send_confirmation_email')) {
             $this->_send_confirmation($booking);
         }
 
@@ -514,7 +521,7 @@ class Admin_api extends CI_Controller
         return $payload;
     }
 
-    /** Best-effort confirmation email, sent once a reservation is accepted. */
+    /** Best-effort confirmation email, sent once a reservation is accepted — sent via SMTP (see Mailer library), not mail(). */
     protected function _send_confirmation($booking)
     {
         $to      = $booking['email'];
@@ -533,10 +540,8 @@ class Admin_api extends CI_Controller
                 ? "Promo:      {$booking['promo_code']} (-\${$booking['discount_amount']})\n"
                 : "") .
             "\nThank you for choosing our chauffeur service.\n";
-        $headers = "From: no-reply@bookings.local\r\n";
 
-        // Best-effort. If your server doesn't have mail() configured, swap for SMTP.
-        @mail($to, $subject, $body, $headers);
+        $this->mailer->send($to, $subject, $body);
     }
 
     /**

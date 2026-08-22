@@ -49,7 +49,7 @@ class Api extends CI_Controller
     {
         parent::__construct();
         $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model']);
-        $this->load->library(['paypal', 'flights']);
+        $this->load->library(['paypal', 'flights', 'mailer']);
         $this->_set_cors_headers();
     }
 
@@ -855,7 +855,7 @@ class Api extends CI_Controller
         return $this->Customer_model->get_by_token(trim(substr($header, 7)));
     }
 
-    /** Best-effort email-verification OTP email — same mail() pattern as the other customer emails. */
+    /** Best-effort email-verification OTP email — sent via SMTP (see Mailer library), not mail(). */
     protected function _send_verification_email(array $customer, $otp)
     {
         $to = $customer['email'];
@@ -865,11 +865,10 @@ class Api extends CI_Controller
             "Your verification code is: " . $otp . "\n\n" .
             "Enter this code to verify your email and activate your account (expires in 10 minutes).\n\n" .
             "If you didn't request this, you can safely ignore this email.\n";
-        $headers = "From: no-reply@bookings.local\r\n";
-        @mail($to, $subject, $body, $headers);
+        $this->mailer->send($to, $subject, $body);
     }
 
-    /** Best-effort password-reset email — same mail() pattern Admin_api.php's _send_confirmation() uses. */
+    /** Best-effort password-reset email — sent via SMTP (see Mailer library), not mail(). */
     protected function _send_password_reset_email(array $customer, $resetLink)
     {
         $to = $customer['email'];
@@ -879,9 +878,7 @@ class Api extends CI_Controller
             "We received a request to reset your password. Click the link below to choose a new one " .
             "(this link expires in 1 hour):\n\n" . $resetLink . "\n\n" .
             "If you didn't request this, you can safely ignore this email.\n";
-        $headers = "From: no-reply@bookings.local\r\n";
-        // Best-effort. If your server doesn't have mail() configured, swap for SMTP.
-        @mail($to, $subject, $body, $headers);
+        $this->mailer->send($to, $subject, $body);
     }
 
     protected function _set_cors_headers()
