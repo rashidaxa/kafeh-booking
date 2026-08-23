@@ -144,6 +144,37 @@
       h = h % 12; if (h === 0) h = 12;
       return "Time: " + String(h).padStart(2, "0") + ":" + m[2] + " " + ampm;
     }
+    // -------- Date/time overlay display (see .kfb-dt-overlay-wrap in booking.css for why) --------
+    function updateDtOverlay($input) {
+      // Not .siblings() — on desktop, enhanceTimeInputs() re-wraps time
+      // inputs in their own nested .kfb-dt-wrap (for the custom picker
+      // trigger button), moving the input out from being a direct
+      // sibling of .kfb-dt-overlay-display. .closest(...).find(...)
+      // finds it regardless of that extra nesting.
+      var $overlay = $input.closest(".kfb-dt-overlay-wrap").find(".kfb-dt-overlay-display");
+      if (!$overlay.length) return;
+      var isDate = $input.attr("type") === "date";
+      var val = $input.val();
+      var text = isDate ? fmtDateMDY(val) : (function () {
+        var m = /^(\d{1,2}):(\d{2})/.exec(val || "");
+        if (!m) return "";
+        var h = parseInt(m[1], 10);
+        var ampm = h >= 12 ? "PM" : "AM";
+        h = h % 12; if (h === 0) h = 12;
+        return String(h).padStart(2, "0") + ":" + m[2] + " " + ampm;
+      })();
+      if (!text || text === "—") {
+        $overlay.text(isDate ? "Select date" : "Select time").addClass("is-placeholder");
+      } else {
+        $overlay.text(text).removeClass("is-placeholder");
+      }
+    }
+    function syncAllDtOverlays() {
+      $(".kfb-dt-overlay-wrap input[type=\"date\"], .kfb-dt-overlay-wrap input[type=\"time\"]").each(function () {
+        updateDtOverlay($(this));
+      });
+    }
+
     // Local "YYYY-MM-DD" for today (or an arbitrary Date), matching the
     // format <input type="date"> uses — NOT toISOString(), which is UTC
     // and can land on the wrong day depending on the visitor's timezone.
@@ -492,6 +523,16 @@
       if ($sel.length) $dd.scrollTop($sel[0].offsetTop - $dd.height() / 2 + $sel.height() / 2);
     }
     function enhanceTimeInputs() {
+      // Touch devices (phones/tablets) already open a full native time
+      // picker when the input itself is tapped — layering our own
+      // dropdown button on top just doubles up on iOS Safari, which
+      // (unlike Chrome) doesn't reliably let ::-webkit-calendar-picker-
+      // indicator{display:none} hide its own icon, so both end up
+      // visible side by side. Only add the custom trigger for
+      // mouse/trackpad users, where the native icon is small and easy
+      // to miss.
+      if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return;
+
       $('input[type="time"]').each(function () {
         var $input = $(this);
         if ($input.parent().hasClass("kfb-dt-wrap")) return; // already enhanced
@@ -1600,6 +1641,7 @@
         $("#kfbReturnPickupTypeDetail, #kfbReturnDropoffTypeDetail").val("Curbside");
         $("#kfbReturnTailNumberWrap, #kfbReturnDropoffTailNumberWrap").attr("hidden", true);
         $("#kfbReturnPickupFlightBlock, #kfbReturnDropoffFlightBlock").hide();
+        syncAllDtOverlays(); // returnDate/returnTime were just cleared via .val("")
       }
       // Price depends on isReturnTrip (round trip = double the one-way
       // fare) — refresh immediately rather than leaving a stale one-way
@@ -2478,6 +2520,7 @@
       recalcSelectedVehicle();
       renderSideSummary();
       refreshSignatureVisibility();
+      syncAllDtOverlays(); // pickupDate/pickupTime/returnDate/returnTime were just set via .val()
       // Re-evaluate now that state.editingBookingId is set (by the caller,
       // before this function runs) — an edit should default to "+ Enter a
       // new card", not auto-pick the account's default saved card, since
@@ -2591,6 +2634,7 @@
       if (state.customer) prefillContactFromCustomer();
       else unlockEmailField();
       renderSavedCardDropdown();
+      syncAllDtOverlays(); // form.reset() cleared pickupDate/pickupTime — refresh the overlay to the empty-state placeholder
       gotoStep(1);
     }
 
@@ -2612,6 +2656,40 @@
       // now" for the time field).
       var todayISO = todayDateString();
       $('input[name="pickupDate"], input[name="returnDate"]').attr("min", todayISO);
+
+      // `min` isn't reliably enforced by every mobile browser's native
+      // date picker (iOS Safari's wheel picker in particular still lets
+      // you scroll to a past date) — flag it the moment date+time are
+      // both set, rather than waiting for the customer to hit Next.
+      // validateStep1() (run on Next) stays the authoritative check;
+      // this is just faster feedback on top of it.
+      function checkPastDateTimeField(dateName, timeName, label) {
+        var $date = $('input[name="' + dateName + '"]');
+        var $time = $('input[name="' + timeName + '"]');
+        var d = $date.val(), t = $time.val();
+        if (!d || !t) { markFieldValid($date, true); markFieldValid($time, true); return; }
+        var invalid = isPastDateTime(d, t);
+        markFieldValid($date, !invalid);
+        markFieldValid($time, !invalid);
+        if (invalid) toast(label + " can't be in the past — please pick a different date/time.", "error");
+      }
+      $(document).on("change", 'input[name="pickupDate"], input[name="pickupTime"]', function () {
+        checkPastDateTimeField("pickupDate", "pickupTime", "Pickup date/time");
+      });
+      $(document).on("change", 'input[name="returnDate"], input[name="returnTime"]', function () {
+        checkPastDateTimeField("returnDate", "returnTime", "Return date/time");
+      });
+
+      // Keep the overlay display (see .kfb-dt-overlay-wrap) in sync with
+      // whatever the real (visually-hidden) input's value is — covers
+      // direct user interaction. Places that set these values
+      // programmatically (prefillFormFromBooking, resetAll, etc.) call
+      // syncAllDtOverlays() themselves afterward, since setting .val()
+      // doesn't fire "change".
+      $(document).on("change input", '.kfb-dt-overlay-wrap input[type="date"], .kfb-dt-overlay-wrap input[type="time"]', function () {
+        updateDtOverlay($(this));
+      });
+      syncAllDtOverlays();
 
       wireServiceType();
       wireLocationType();

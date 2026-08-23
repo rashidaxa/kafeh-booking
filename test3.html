@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="test.css">
 
   <!-- V3 Widget styles -->
-  <link rel="stylesheet" href="embed/booking.css">
+  <link rel="stylesheet" href="embed/booking3.css">
 
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
@@ -98,11 +98,17 @@
                   <div class="kfb-field-row-2">
                     <label class="kfb-field">
                       <span>Pick-Up Date</span>
-                      <input type="date" name="pickupDate" required>
+                      <div class="kfb-dt-overlay-wrap">
+                        <input type="date" name="pickupDate" required>
+                        <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                      </div>
                     </label>
                     <label class="kfb-field">
                       <span>Pick-Up Time</span>
-                      <input type="time" name="pickupTime" required>
+                      <div class="kfb-dt-overlay-wrap">
+                        <input type="time" name="pickupTime" required>
+                        <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                      </div>
                     </label>
                   </div>
                 </div>
@@ -248,11 +254,17 @@
                     <div class="kfb-field-row-2" style="margin-top:10px">
                       <label class="kfb-field">
                         <span>Return Date</span>
-                        <input type="date" name="returnDate">
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="date" name="returnDate">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
                       </label>
                       <label class="kfb-field">
                         <span>Return Time</span>
-                        <input type="time" name="returnTime">
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="time" name="returnTime">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
                       </label>
                     </div>
                     <p class="kfb-hint" style="margin:6px 0 0">On the return leg, the pickup &amp; drop-off are swapped.</p>

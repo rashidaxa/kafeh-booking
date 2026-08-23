@@ -231,6 +231,64 @@ nav.kfb-stepper {
   box-shadow: 0 0 0 3px rgba(17,17,17,.08);
 }
 .kfb-field textarea { resize: vertical; min-height: 88px; }
+
+/*
+ * iOS Safari centers the displayed value of date/time inputs and
+ * ignores text-align on them entirely — a genuine WebKit limitation,
+ * not something CSS alone can override (confirmed: Chromium's iPhone
+ * *emulation* respects text-align here, but real WebKit doesn't, so
+ * that's not a reliable way to verify this). color:transparent isn't
+ * enough either — Chromium (and reportedly Safari) don't consistently
+ * apply color/-webkit-text-fill-color to the internal date-segment
+ * pseudo-elements, so the native text can still show through.
+ * opacity:0 is the reliable version of this technique: it hides the
+ * ENTIRE rendered control (border included, regardless of internal
+ * sub-parts) while leaving it fully focusable/tappable — the native
+ * picker still opens normally. The overlay span behind it owns 100% of
+ * the visible appearance (border/background/focus ring included), kept
+ * in sync by updateDtOverlay()/syncAllDtOverlays() in booking.js. See
+ * the .kfb-dt-overlay-wrap markup around each date/time input in
+ * test3.html.
+ */
+.kfb-dt-overlay-wrap { position: relative; }
+.kfb-dt-overlay-wrap input[type="date"],
+.kfb-dt-overlay-wrap input[type="time"] {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+}
+.kfb-dt-overlay-display {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--kfb-border-strong);
+  border-radius: var(--kfb-radius);
+  background: #fff;
+  color: var(--kfb-text);
+  font-size: 14px;
+  pointer-events: none; /* clicks/taps pass through to the real (invisible) input above */
+  white-space: nowrap;
+  overflow: hidden;
+  transition: border-color .12s, box-shadow .12s;
+}
+.kfb-dt-overlay-display.is-placeholder { color: var(--kfb-text-muted); }
+/* :focus-within, not input:focus + ..., because enhanceTimeInputs()
+   re-wraps time inputs in their own nested .kfb-dt-wrap on desktop
+   (for the custom picker trigger button), so the input isn't always
+   the overlay's immediate sibling — :focus-within on the outer wrap
+   catches focus at any nesting depth. */
+.kfb-dt-overlay-wrap:focus-within .kfb-dt-overlay-display {
+  border-color: var(--kfb-accent);
+  box-shadow: 0 0 0 3px rgba(17,17,17,.08);
+}
+.kfb-field.is-invalid .kfb-dt-overlay-display {
+  border-color: var(--kfb-error);
+  background: var(--kfb-error-bg);
+}
+
 .kfb-field.is-invalid input,
 .kfb-field.is-invalid select,
 .kfb-field.is-invalid textarea {

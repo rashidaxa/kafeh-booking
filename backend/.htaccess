@@ -1,4 +1,15 @@
+# Forward the Authorization header to PHP. Most shared/cPanel hosting
+# runs PHP via CGI/FastCGI rather than mod_php, and that SAPI strips the
+# Authorization header by default for security reasons unless it's
+# explicitly passed through — without this, every Bearer-token request
+# (customer login, profile, saved reservations, etc.) looks
+# unauthenticated even with a completely valid token, which is why
+# login can appear to "expire" immediately right after succeeding on a
+# live server like this despite working fine locally under mod_php.
 RewriteEngine on
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
 RewriteCond $1 !^(index\.php|resources|robots\.txt)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
