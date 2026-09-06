@@ -1,0 +1,12 @@
+# Never expose a raw directory listing anywhere under this project.
+Options -Indexes
+
+RewriteEngine On
+
+# Any directory request (root, /embed, /docs, /vendor, ...) is served
+# the 404 page instead of a listing or a stray index.html some hosts
+# auto-drop in new folders. /backend is untouched — it has its own
+# index.php and .htaccess for the CI app.
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{REQUEST_FILENAME} !/backend(/|$)
+RewriteRule ^ 404.php [L]
