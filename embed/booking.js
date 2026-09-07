@@ -663,8 +663,7 @@
         if (k && q > 0) { breakdown[k] = (breakdown[k] || 0) + q; total += q; }
       });
       state.childSeats = breakdown;
-      if (typeof renderVehicles === "function") renderVehicles();
-      if (typeof recalcSelectedVehicle === "function") recalcSelectedVehicle();
+      requoteVehicles(); // child seat count is priced server-side (Pricing_engine)
     }
 
     // -------- Child seats: add row with [type dropdown] [− 1 +] [trash] --------
@@ -741,6 +740,7 @@
         transportation: 0, travel_fee: 0,
         surcharges: [], surcharges_total: 0,
         gratuity_pct: 0, gratuity_amount: 0,
+        child_seats_count: 0, child_seat_fee_used: 0, child_seats_total: 0,
         taxes_fees: 0, min_fare_applied: 0,
         one_way_total: 0, total: 0, is_return_trip: !!state.isReturnTrip,
       };
@@ -766,6 +766,10 @@
         // Legacy field names some call sites/markup still read.
         base: q.transportation, travelFee: q.travel_fee, surcharge: q.surcharges_total,
         gratuity: q.gratuity_amount, gratuityPct: q.gratuity_pct,
+        // Already folded into q.one_way_total server-side (Pricing_engine) —
+        // exposed here only for display, not added again in oneWayTotal above.
+        childSeatsCount: q.child_seats_count || 0, childSeatFee: q.child_seat_fee_used || 0,
+        childAdd: q.child_seats_total || 0,
         minFare: q.minimum_fare_used, minFareApplied: q.min_fare_applied,
         isReturnTrip: isReturnTrip, miles: q.route_miles,
         hours: isHourlyService() ? requestedHours() : Math.max(1, (state.durationMins || 0) / 60),
@@ -806,6 +810,8 @@
         isReturnTrip: !!state.isReturnTrip,
         pickupType: pickupType, pickupTypeDetail: state.pickupTypeDetail,
         dropoffType: dropoffType, dropoffTypeDetail: state.dropoffTypeDetail,
+        pickupTime: $('input[name="pickupTime"]').val() || "",
+        childSeats: totalChildSeats(),
         selectedSurchargeCodes: [],
       };
     }
@@ -1124,6 +1130,13 @@
         $("#kfbSumBase").text(fmtMoney(bd.base));
         $("#kfbSumGratuity").text(fmtMoney(bd.gratuity) + " (" + bd.gratuityPct + "%)");
         $("#kfbSumTaxesFees").text(fmtMoney(bd.taxes_fees || 0));
+        // Child seats — same rate per seat regardless of type, × count.
+        if (bd.childAdd > 0) {
+          $("#kfbSumChildSeatsRow").show();
+          $("#kfbSumChildSeats").text(fmtMoney(bd.childAdd) + " (" + bd.childSeatsCount + " seat" + (bd.childSeatsCount === 1 ? "" : "s") + ")");
+        } else {
+          $("#kfbSumChildSeatsRow").hide();
+        }
         // Travel fee — beyond the local service radius only.
         if (bd.travelFee > 0) {
           $("#kfbSumTravelFeeRow").show();
@@ -2718,6 +2731,9 @@
       $(document).on("change", 'input[name="returnDate"], input[name="returnTime"]', function () {
         checkPastDateTimeField("returnDate", "returnTime", "Return date/time");
       });
+      // Pickup time can trigger/clear the Late-Night / Early-Morning
+      // Pickup Fee surcharge (11 PM - 5 AM) — see Pricing_engine.
+      $(document).on("change", 'input[name="pickupTime"]', requoteVehicles);
 
       // Keep the overlay display (see .kfb-dt-overlay-wrap) in sync with
       // whatever the real (visually-hidden) input's value is — covers

@@ -3,10 +3,11 @@ $editing    = isset($editing) ? $editing : NULL;
 $is_edit    = !empty($editing);
 $surcharges = isset($surcharges) ? $surcharges : [];
 
-$trigger_labels = [
-    'airport'            => 'Auto-applies: Airport pickup/dropoff',
-    'airport_meet_greet' => 'Auto-applies: Meet & Greet at an airport',
-];
+// Surcharge_model::KNOWN_TRIGGERS is the single source of truth for both
+// this dropdown and server-side validation — add a new auto-trigger
+// condition there (and the matching branch in
+// Pricing_engine::_apply_surcharges()) and it shows up here automatically.
+$trigger_labels = Surcharge_model::KNOWN_TRIGGERS;
 ?>
 
 <section class="kfb-split">
@@ -34,7 +35,7 @@ $trigger_labels = [
                       : '$' . number_format($amount, 2);
                 ?>
                 <?php if (!empty($s['auto_trigger'])): ?>
-                  · <?= htmlspecialchars($trigger_labels[$s['auto_trigger']] ?? ('Auto-applies: ' . $s['auto_trigger'])) ?>
+                  · Auto: <?= htmlspecialchars($trigger_labels[$s['auto_trigger']] ?? $s['auto_trigger']) ?>
                 <?php else: ?>
                   · Manual selection
                 <?php endif; ?>
@@ -93,20 +94,18 @@ $trigger_labels = [
                  <?= (!$is_edit || (int)$editing['status'] === 1) ? 'checked' : '' ?>>
           <span>Enabled</span>
         </label>
-        <?php if ($is_edit): ?>
-          <div class="kfb-field kfb-field--full">
-            <span>Trigger</span>
-            <p class="kfb-hint">
-              <?php if (!empty($editing['auto_trigger'])): ?>
-                <span class="kfb-badge kfb-badge--ok"><?= htmlspecialchars($trigger_labels[$editing['auto_trigger']] ?? ('Auto-applies: ' . $editing['auto_trigger'])) ?></span>
-                — this surcharge is applied automatically by the pricing engine; it cannot be reassigned here.
-              <?php else: ?>
-                <span class="kfb-badge">Manual selection</span>
-                — this surcharge is only applied when explicitly selected on a booking.
-              <?php endif; ?>
-            </p>
-          </div>
-        <?php endif; ?>
+        <label class="kfb-field kfb-field--full">
+          <span>Trigger <small class="kfb-hint">when this surcharge applies automatically — leave as Manual to require explicit selection on a booking</small></span>
+          <select name="auto_trigger">
+            <option value="" <?= (!$is_edit || empty($editing['auto_trigger'])) ? 'selected' : '' ?>>Manual selection only</option>
+            <?php foreach ($trigger_labels as $trigger_key => $trigger_label): ?>
+              <option value="<?= htmlspecialchars($trigger_key) ?>"
+                <?= ($is_edit && ($editing['auto_trigger'] ?? '') === $trigger_key) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($trigger_label) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </label>
       </fieldset>
 
       <!-- Pricing -->

@@ -294,6 +294,9 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
     <?php if ((float)($booking['gratuity_amount'] ?? 0) > 0): ?>
       <div><span class="kfb-hint">Gratuity</span><p>$<?= number_format((float)$booking['gratuity_amount'], 2) ?> (<?= number_format((float)$booking['gratuity_pct'], 2) ?>%)</p></div>
     <?php endif; ?>
+    <?php if ((float)($booking['child_seats_fee_amount'] ?? 0) > 0): ?>
+      <div><span class="kfb-hint">Child seat fee</span><p>$<?= number_format((float)$booking['child_seats_fee_amount'], 2) ?> (<?= (int)$booking['child_seats'] ?> seat<?= (int)$booking['child_seats'] === 1 ? '' : 's' ?>)</p></div>
+    <?php endif; ?>
     <?php if ((float)$booking['addons_total'] > 0): ?>
       <div><span class="kfb-hint">Add-ons subtotal</span><p>$<?= number_format((float)$booking['addons_total'], 2) ?></p></div>
     <?php endif; ?>

@@ -397,6 +397,7 @@ class Admin_api extends CI_Controller
             'pricing_garage_lat',
             'pricing_garage_lng',
             'pricing_worldwide_quote_threshold_miles',
+            'pricing_child_seat_fee',
         ];
 
         $errors = [];

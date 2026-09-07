@@ -194,6 +194,7 @@ class Booking_model extends CI_Model
             'surcharges_total_amount' => (float)($data['surchargesTotalAmount'] ?? 0),
             'gratuity_pct'            => (float)($data['gratuityPct'] ?? 0),
             'gratuity_amount'         => (float)($data['gratuityAmount'] ?? 0),
+            'child_seats_fee_amount'  => (float)($data['childSeatsFeeAmount'] ?? 0),
             'is_return_trip'        => !empty($data['isReturnTrip']) ? 1 : 0,
             'return_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
             'return_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,

@@ -103,6 +103,18 @@ $g = function ($key, $default) use ($settings) {
     </fieldset>
 
     <fieldset class="kfb-fieldset">
+      <legend>Child seats</legend>
+      <label class="kfb-field">
+        <span>Fee per child seat <em>*</em> <small class="kfb-hint">same rate for every seat type, × number of seats requested</small></span>
+        <div class="kfb-money">
+          <span class="kfb-money-prefix">$</span>
+          <input type="number" name="pricing_child_seat_fee" required min="0" step="0.01"
+                 value="<?= number_format($g('pricing_child_seat_fee', 15), 2, '.', '') ?>">
+        </div>
+      </label>
+    </fieldset>
+
+    <fieldset class="kfb-fieldset">
       <legend>Garage location</legend>
       <label class="kfb-field">
         <span>Latitude <em>*</em></span>

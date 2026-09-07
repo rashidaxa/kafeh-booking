@@ -27,6 +27,7 @@ class Settings_model extends CI_Model
         'pricing_garage_lat'                     => '41.98429380078823',
         'pricing_garage_lng'                     => '-87.9099405503354',
         'pricing_worldwide_quote_threshold_miles'=> '5000.00',
+        'pricing_child_seat_fee'                 => '15.00',
     ];
 
     public function __construct()
@@ -103,6 +104,7 @@ class Settings_model extends CI_Model
             'pricing_garage_lat',
             'pricing_garage_lng',
             'pricing_worldwide_quote_threshold_miles',
+            'pricing_child_seat_fee',
         ];
         $out = [];
         foreach ($keys as $k) {

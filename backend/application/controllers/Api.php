@@ -913,6 +913,8 @@ class Api extends CI_Controller
             'pickup_type_detail'      => $raw['pickupTypeDetail'] ?? NULL,
             'dropoff_is_airport'      => strcasecmp($dropoffType, 'Airport') === 0,
             'dropoff_type_detail'     => $raw['dropoffTypeDetail'] ?? NULL,
+            'pickup_time'             => (string)($raw['pickupTime'] ?? ''),
+            'child_seats'             => (int)($raw['childSeats'] ?? 0),
             'selected_surcharge_codes'=> is_array($raw['selectedSurchargeCodes'] ?? NULL) ? $raw['selectedSurchargeCodes'] : [],
         ];
     }
@@ -948,6 +950,7 @@ class Api extends CI_Controller
         $raw['gratuityPct']           = $quote['gratuity_pct'];
         $raw['gratuityAmount']        = $quote['gratuity_amount'];
         $raw['minFareApplied']        = $quote['min_fare_applied'];
+        $raw['childSeatsFeeAmount']   = $quote['child_seats_total'];
     }
 
     protected function _read_json()

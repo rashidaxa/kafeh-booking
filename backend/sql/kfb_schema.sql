@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `surcharges_total_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `gratuity_pct`            DECIMAL(5,2) NOT NULL DEFAULT 0.00,
   `gratuity_amount`         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `child_seats_fee_amount`  DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Child seat fee actually charged (pricing_child_seat_fee x child_seats)',
   `is_return_trip`          TINYINT(1) NOT NULL DEFAULT 0,
   `return_booking_id`       VARCHAR(32)  NULL,
   `return_date`             DATE         NULL,
@@ -230,7 +231,10 @@ VALUES
   ('WAITING_TIME',             'Waiting time',              NULL, 'flat', 0.00,  NULL,                 70, 0, NOW()),
   ('HOLIDAY_SURCHARGE',        'Holiday surcharge',        NULL, 'flat', 0.00,  NULL,                 80, 0, NOW()),
   ('SPECIAL_EVENT_SURCHARGE',  'Special event surcharge',  NULL, 'flat', 0.00,  NULL,                 90, 0, NOW()),
-  ('OTHER_FEES',               'Other fees',               NULL, 'flat', 0.00,  NULL,                100, 0, NOW());
+  ('OTHER_FEES',               'Other fees',               NULL, 'flat', 0.00,  NULL,                100, 0, NOW()),
+  ('LATE_NIGHT_FEE', 'Late-Night / Early-Morning Pickup Fee',
+   'Applied automatically when the pickup time is between 11:00 PM and 5:00 AM.',
+   'flat', 25.00, 'late_night_pickup', 55, 1, NOW());
 
 -- ----------------- Add-ons (v4) -----------------
 CREATE TABLE IF NOT EXISTS `kfb_addons` (
@@ -381,4 +385,5 @@ INSERT IGNORE INTO `kfb_settings` (`setting_key`, `setting_value`, `updated_at`)
   ('pricing_default_gratuity_pct',          '20.00',              NOW()),
   ('pricing_garage_lat',                    '41.98429380078823',  NOW()),
   ('pricing_garage_lng',                    '-87.9099405503354',  NOW()),
-  ('pricing_worldwide_quote_threshold_miles','5000.00',           NOW());
+  ('pricing_worldwide_quote_threshold_miles','5000.00',           NOW()),
+  ('pricing_child_seat_fee',                '15.00',              NOW());

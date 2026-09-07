@@ -71,6 +71,10 @@ class Pricing_engine
      *   is_return_trip (bool)
      *   pickup_is_airport, dropoff_is_airport (bool)
      *   pickup_type_detail, dropoff_type_detail (string, e.g. 'Meet & Greet')
+     *   pickup_time (string 'HH:MM' — drives the late-night/early-morning
+     *     pickup surcharge auto-trigger)
+     *   child_seats (int — count of child seats requested; priced at
+     *     pricing_child_seat_fee per seat, same rate regardless of type)
      *   selected_surcharge_codes (array of manually-selected surcharge codes)
      *
      * Returns ['success'=>false,'error'=>'vehicle_not_found'] or the full
@@ -212,6 +216,22 @@ class Pricing_engine
     }
 
     /**
+     * True for a pickup time of 11:00 PM through 5:00 AM inclusive, per
+     * the customer's spec ("the fee should apply to any pickup time
+     * within the specified window, including 11:00 PM through 5:00 AM").
+     * $pickupTime is 'HH:MM' (24h), the same format the pickup-time
+     * <input type="time"> already submits.
+     */
+    protected function _is_late_night_pickup($pickupTime)
+    {
+        if (!$pickupTime || !preg_match('/^(\d{1,2}):(\d{2})/', (string)$pickupTime, $m)) {
+            return FALSE;
+        }
+        $minutesSinceMidnight = ((int)$m[1]) * 60 + (int)$m[2];
+        return $minutesSinceMidnight >= (23 * 60) || $minutesSinceMidnight <= (5 * 60);
+    }
+
+    /**
      * Evaluate every enabled surcharge against this trip's context.
      * Percent-type surcharges and gratuity both compute off the same
      * base ($base = transportation + travel fee — "applicable
@@ -225,15 +245,26 @@ class Pricing_engine
         $dropoffAirport   = !empty($context['dropoff_is_airport']);
         $pickupMeetGreet  = $pickupAirport  && (($context['pickup_type_detail']  ?? '') === 'Meet & Greet');
         $dropoffMeetGreet = $dropoffAirport && (($context['dropoff_type_detail'] ?? '') === 'Meet & Greet');
+        $lateNightPickup  = $this->_is_late_night_pickup($context['pickup_time'] ?? NULL);
 
         $items = [];
         $total = 0.0;
         foreach ($this->CI->Surcharge_model->list_all(TRUE) as $row) {
             $trigger = $row['auto_trigger'];
-            if ($trigger === 'airport') {
+            if ($trigger === 'always') {
+                $applies = TRUE;
+            } elseif ($trigger === 'airport') {
                 $applies = $pickupAirport || $dropoffAirport;
             } elseif ($trigger === 'airport_meet_greet') {
                 $applies = $pickupMeetGreet || $dropoffMeetGreet;
+            } elseif ($trigger === 'late_night_pickup') {
+                $applies = $lateNightPickup;
+            } elseif ($trigger) {
+                // A recognized-looking but unhandled trigger key somehow
+                // stored on a row (e.g. Surcharge_model::KNOWN_TRIGGERS grew
+                // a value this method hasn't been taught yet) — never silently
+                // auto-apply an unevaluated condition.
+                $applies = FALSE;
             } else {
                 $applies = in_array(strtoupper($row['code']), $selected, TRUE);
             }
@@ -347,9 +378,17 @@ class Pricing_engine
         $gratuityPct    = $settings['pricing_default_gratuity_pct'];
         $gratuityAmount = $this->_apply_gratuity($transportation + $travelFee, $gratuityPct);
 
+        // Child seats (v17) — one flat rate regardless of seat type, times
+        // however many the customer requested. Not part of the gratuity or
+        // percent-surcharge base (same treatment as add-ons — not
+        // "transportation charges" per the spec's gratuity definition).
+        $childSeatCount = max(0, (int)($input['child_seats'] ?? 0));
+        $childSeatFee   = $settings['pricing_child_seat_fee'];
+        $childSeatsTotal = round($childSeatFee * $childSeatCount, 2);
+
         $taxesFees = 0.00; // No tax concept exists anywhere in this system yet — explicit placeholder line.
 
-        $oneWayTotal = round($transportation + $travelFee + $surchargesTotal + $gratuityAmount + $taxesFees, 2);
+        $oneWayTotal = round($transportation + $travelFee + $surchargesTotal + $gratuityAmount + $childSeatsTotal + $taxesFees, 2);
         $total       = $isReturnTrip ? round($oneWayTotal * 2, 2) : $oneWayTotal;
 
         // Formatted STRINGs, not floats — this server's php.ini has
@@ -382,6 +421,9 @@ class Pricing_engine
             'surcharges_total'       => $fmt($surchargesTotal),
             'gratuity_pct'           => $fmt($gratuityPct),
             'gratuity_amount'        => $fmt($gratuityAmount),
+            'child_seats_count'      => $childSeatCount,
+            'child_seat_fee_used'    => $fmt($childSeatFee),
+            'child_seats_total'      => $fmt($childSeatsTotal),
             'taxes_fees'             => $fmt($taxesFees),
             'subtotal'               => $fmt($oneWayTotal),
             'is_return_trip'         => $isReturnTrip,

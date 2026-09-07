@@ -6,17 +6,30 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * Admin-manageable fee line items (Airport fee, Fuel surcharge, Toll,
  * Parking, Meet & greet, Additional stop, Waiting time, Holiday
- * surcharge, Special event surcharge, Other fees). Each surcharge is
- * either a flat $ amount or a percent of the transportation+travel-fee
- * base, and can auto-apply via a known `auto_trigger` key (airport |
- * airport_meet_greet) or be manually selected on a booking.
+ * surcharge, Special event surcharge, Other fees, Late-night pickup fee).
+ * Each surcharge is either a flat $ amount or a percent of the
+ * transportation+travel-fee base, and can auto-apply via a known
+ * `auto_trigger` key (see KNOWN_TRIGGERS) — admin-selectable in the
+ * Surcharges form (v17) — or be left NULL for manual selection on a
+ * booking.
  *
  * Consumed by Pricing_engine::_apply_surcharges() via resolve_amount().
  */
 class Surcharge_model extends CI_Model
 {
-    /** auto_trigger values Pricing_engine knows how to evaluate. */
-    const KNOWN_TRIGGERS = ['airport', 'airport_meet_greet'];
+    /**
+     * auto_trigger values Pricing_engine knows how to evaluate, and the
+     * admin-facing label for each — both the Surcharges form's dropdown
+     * and validate_form() are driven off this single list, so adding a
+     * new trigger condition means updating this array + the matching
+     * branch in Pricing_engine::_apply_surcharges(), nothing else.
+     */
+    const KNOWN_TRIGGERS = [
+        'always'             => 'Automatical (applies to every booking)',
+        'airport'            => 'Airport pickup or dropoff',
+        'airport_meet_greet' => 'Meet & Greet at an airport',
+        'late_night_pickup'  => 'Late-night / early-morning pickup (11:00 PM - 5:00 AM)',
+    ];
 
     public function __construct()
     {
@@ -128,6 +141,11 @@ class Surcharge_model extends CI_Model
             $errors['amount'] = 'Percent amount cannot exceed 100.';
         }
 
+        $trigger = trim((string)($data['auto_trigger'] ?? ''));
+        if ($trigger !== '' && !array_key_exists($trigger, self::KNOWN_TRIGGERS)) {
+            $errors['auto_trigger'] = 'Not a recognized trigger.';
+        }
+
         $status = isset($data['status']) ? (int)$data['status'] : 1;
         if (!in_array($status, [0, 1], TRUE)) {
             $errors['status'] = 'Status must be enabled or disabled.';
@@ -148,10 +166,9 @@ class Surcharge_model extends CI_Model
             'description'  => trim((string)($data['description'] ?? '')) ?: NULL,
             'pricing_type' => in_array($data['pricing_type'] ?? 'flat', ['flat', 'percent'], TRUE) ? $data['pricing_type'] : 'flat',
             'amount'       => (float)$data['amount'],
-            // auto_trigger is admin read-only (rendered as a badge, not a
-            // free-text field) — preserve the existing value rather than
-            // ever accept it from the form.
-            'auto_trigger' => $existing['auto_trigger'] ?? NULL,
+            // Admin-selected from a closed dropdown (validated above against
+            // KNOWN_TRIGGERS) — empty string means "manual selection only".
+            'auto_trigger' => (trim((string)($data['auto_trigger'] ?? '')) !== '') ? trim((string)$data['auto_trigger']) : NULL,
             'sort_order'   => (int)($data['sort_order'] ?? 0),
             'status'       => isset($data['status']) ? ((int)$data['status'] ? 1 : 0) : 1,
         ];
