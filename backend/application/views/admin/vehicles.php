@@ -201,6 +201,12 @@ $is_edit = !empty($editing);
           <?= $is_edit ? 'Save changes' : 'Create vehicle' ?>
         </button>
         <a href="<?= site_url('admin/vehicles') ?>" class="kfb-btn kfb-btn--ghost" id="kfbCancelEditBottom">Cancel</a>
+        <?php if ($is_edit): ?>
+          <button type="button" class="kfb-btn kfb-btn--danger kfb-btn--sm" id="kfbDeleteVehicle"
+                  data-endpoint="<?= site_url('admin/api/vehicles/' . (int)$editing['id'] . '/delete') ?>">
+            Delete
+          </button>
+        <?php endif; ?>
       </div>
 
       <div class="kfb-form-errors" id="kfbFormErrors" hidden></div>

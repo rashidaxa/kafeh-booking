@@ -230,6 +230,46 @@
     });
   }
 
+  // -------- Vehicle delete button --------
+  var delVehicleBtn = $("#kfbDeleteVehicle");
+  if (delVehicleBtn) {
+    delVehicleBtn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var msg = "Delete this vehicle? Customers will no longer be able to book it, and its uploaded image will be removed. This can't be undone.";
+      var proceed = function () { doVehicleDelete(); };
+      if (window.KFB && typeof window.KFB.confirm === "function") {
+        Promise.resolve(window.KFB.confirm(msg)).then(function (ok) { if (ok) proceed(); });
+      } else if (window.confirm(msg)) {
+        proceed();
+      }
+    });
+  }
+  function doVehicleDelete() {
+    if (!delVehicleBtn) return;
+    var endpoint = delVehicleBtn.getAttribute("data-endpoint");
+    if (!endpoint) { alert("Delete endpoint not configured."); return; }
+    delVehicleBtn.disabled = true;
+    var oldLabel = delVehicleBtn.textContent;
+    delVehicleBtn.textContent = "Deleting…";
+    var fd = new FormData();
+    fetch(endpoint, { method: "POST", body: fd, credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
+      .then(function (j) {
+        if (j && j.success) {
+          window.location.href = BASE + "index.php/admin/vehicles";
+        } else {
+          alert((j && j.error) || "Delete failed.");
+          delVehicleBtn.disabled = false;
+          delVehicleBtn.textContent = oldLabel;
+        }
+      })
+      .catch(function (err) {
+        alert("Network error: " + (err && err.message ? err.message : err));
+        delVehicleBtn.disabled = false;
+        delVehicleBtn.textContent = oldLabel;
+      });
+  }
+
   // -------- Promo form (create / update via fetch + FormData) --------
   // Same pattern as the vehicle form — prevents the browser from
   // navigating to the API endpoint and showing raw JSON, and
