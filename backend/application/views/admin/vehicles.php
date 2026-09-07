@@ -1,19 +1,6 @@
 <?php
 $editing = isset($editing) ? $editing : NULL;
 $is_edit = !empty($editing);
-$regions = [
-    'chicago'   => 'Inside Chicago',
-    'america'   => 'Inside America',
-    'worldwide' => 'Worldwide',
-];
-$rate_groups = [
-    'hourly'       => 'Hourly rates',
-    'per_mile'     => 'Per-mile rates',
-    'surcharge'    => 'Surcharge (% of base fare)',
-    'gratuity'     => 'Gratuity (% of base fare)',
-    'waiting'      => 'Waiting time (per minute)',
-    'child_seat'   => 'Child-seat surcharge (flat fee per child seat)',
-];
 ?>
 
 <section class="kfb-split">
@@ -42,7 +29,8 @@ $rate_groups = [
               <strong><?= htmlspecialchars($v['name']) ?></strong>
               <small>
                 <?= (int)$v['min_passengers'] ?>–<?= (int)$v['max_passengers'] ?> pax
-                · $<?= number_format((float)$v['hourly_chicago'], 2) ?>/hr
+                · $<?= number_format((float)$v['local_per_mile_rate'], 2) ?>/mi
+                · $<?= number_format((float)$v['local_hourly_rate'], 2) ?>/hr
               </small>
             </div>
             <div class="kfb-list-actions">
@@ -134,50 +122,49 @@ $rate_groups = [
         </label>
       </fieldset>
 
-      <!-- ============ Rates by region ============ -->
-      <?php foreach ($rate_groups as $group_key => $group_label): ?>
-        <fieldset class="kfb-fieldset">
-          <legend><?= htmlspecialchars($group_label) ?></legend>
-          <?php foreach ($regions as $region_key => $region_label): ?>
-            <?php
-              $field = $group_key . '_' . $region_key;
-              $val = $is_edit ? (float)($editing[$field] ?? 0) : 0;
-              $is_percent = in_array($group_key, ['surcharge', 'gratuity'], true);
-            ?>
-            <label class="kfb-field">
-              <span><?= htmlspecialchars($region_label) ?></span>
-              <?php if ($is_percent): ?>
-              <div class="kfb-money">
-                <input type="number" name="<?= $field ?>" min="0" max="100" step="0.01"
-                       value="<?= number_format($val, 2, '.', '') ?>">
-                <span class="kfb-money-suffix">%</span>
-              </div>
-              <?php else: ?>
-              <div class="kfb-money">
-                <span class="kfb-money-prefix">$</span>
-                <input type="number" name="<?= $field ?>" min="0" step="0.01"
-                       value="<?= number_format($val, 2, '.', '') ?>">
-              </div>
-              <?php endif; ?>
-            </label>
-          <?php endforeach; ?>
-        </fieldset>
-      <?php endforeach; ?>
-
-      <!-- ============ Minimum fare (v4) ============ -->
+      <!-- ============ Local rates ============ -->
       <fieldset class="kfb-fieldset">
-        <legend>Minimum fare</legend>
+        <legend>Local rates <small class="kfb-hint">regional / long-distance / worldwide prices are derived from these automatically — see Pricing Settings</small></legend>
+
         <label class="kfb-field">
-          <span>Minimum fare <small class="kfb-hint">USD — bill at least this regardless of distance</small></span>
+          <span>Per-mile rate <em>*</em></span>
           <div class="kfb-money">
             <span class="kfb-money-prefix">$</span>
-            <input type="number" name="min_fare" min="0" step="0.01"
-                   value="<?= $is_edit ? number_format((float)($editing['min_fare'] ?? 0), 2, '.', '') : '0.00' ?>">
+            <input type="number" name="local_per_mile_rate" required min="0" step="0.01"
+                   value="<?= $is_edit ? number_format((float)($editing['local_per_mile_rate'] ?? 0), 2, '.', '') : '0.00' ?>">
+            <span class="kfb-money-suffix">/mi</span>
           </div>
         </label>
+
+        <label class="kfb-field">
+          <span>Point-to-point minimum <em>*</em> <small class="kfb-hint">bill at least this regardless of distance</small></span>
+          <div class="kfb-money">
+            <span class="kfb-money-prefix">$</span>
+            <input type="number" name="local_min_fare" required min="0" step="0.01"
+                   value="<?= $is_edit ? number_format((float)($editing['local_min_fare'] ?? 0), 2, '.', '') : '0.00' ?>">
+          </div>
+        </label>
+
+        <label class="kfb-field">
+          <span>Hourly rate <em>*</em></span>
+          <div class="kfb-money">
+            <span class="kfb-money-prefix">$</span>
+            <input type="number" name="local_hourly_rate" required min="0" step="0.01"
+                   value="<?= $is_edit ? number_format((float)($editing['local_hourly_rate'] ?? 0), 2, '.', '') : '0.00' ?>">
+            <span class="kfb-money-suffix">/hr</span>
+          </div>
+        </label>
+
+        <label class="kfb-field">
+          <span>Hourly minimum (hours) <small class="kfb-hint">blank = use the global default in Pricing Settings</small></span>
+          <input type="number" name="local_hourly_min_hours" min="0" step="0.5"
+                 value="<?= ($is_edit && $editing['local_hourly_min_hours'] !== NULL) ? number_format((float)$editing['local_hourly_min_hours'], 2, '.', '') : '' ?>">
+        </label>
+
         <p class="kfb-hint">
-          The Meet &amp; Greet fee is now a global setting — manage it under
-          <a href="<?= site_url('admin/settings') ?>">Settings</a> instead of per vehicle.
+          Airport fee, Meet &amp; Greet, and other add-on fees are managed under
+          <a href="<?= site_url('admin/surcharges') ?>">Surcharges</a>, and gratuity/travel-fee/
+          multipliers under <a href="<?= site_url('admin/settings') ?>">Settings</a> — not per vehicle.
         </p>
       </fieldset>
 

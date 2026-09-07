@@ -11,6 +11,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $route['api/health']                 = 'api/health';
 $route['api/fleet']                  = 'api/fleet';
 $route['api/settings']               = 'api/settings';
+$route['api/pricing/quote']          = 'api/pricing_quote';
+$route['api/surcharges']             = 'api/surcharges';
 $route['api/addons']                 = 'api/addons';
 $route['api/flights/validate']       = 'api/flights_validate';
 $route['api/reservation']            = 'api/reservation_create';

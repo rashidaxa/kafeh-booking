@@ -185,6 +185,15 @@ class Booking_model extends CI_Model
             'addons_json'           => $addonsJson,
             'addons_total'          => $addonsTotal,
             'min_fare_applied'      => (float)($data['minFareApplied'] ?? 0),
+            // Price breakdown (v16) — populated by Pricing_engine::quote() in
+            // Api::reservation_create() before this method is called, so the
+            // server-computed breakdown (not just the final amount) is
+            // always what gets persisted.
+            'pricing_zone'            => $data['pricingZone'] ?? NULL,
+            'travel_fee_amount'       => (float)($data['travelFeeAmount'] ?? 0),
+            'surcharges_total_amount' => (float)($data['surchargesTotalAmount'] ?? 0),
+            'gratuity_pct'            => (float)($data['gratuityPct'] ?? 0),
+            'gratuity_amount'         => (float)($data['gratuityAmount'] ?? 0),
             'is_return_trip'        => !empty($data['isReturnTrip']) ? 1 : 0,
             'return_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
             'return_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,
@@ -562,33 +571,23 @@ class Booking_model extends CI_Model
                 'min_passengers' => (int)$row['min_passengers'],
                 'max_passengers' => (int)$row['max_passengers'],
 
-                // Region-scoped rates (used by the widget's priceFor()).
-                // Keys are <field>_<region> with region ∈ chicago/america/worldwide.
-                'hourly_chicago'   => (float)$row['hourly_chicago'],
-                'hourly_america'   => (float)$row['hourly_america'],
-                'hourly_worldwide' => (float)$row['hourly_worldwide'],
-
-                'per_mile_chicago'   => (float)$row['per_mile_chicago'],
-                'per_mile_america'   => (float)$row['per_mile_america'],
-                'per_mile_worldwide' => (float)$row['per_mile_worldwide'],
-
-                'surcharge_chicago'   => (float)$row['surcharge_chicago'],
-                'surcharge_america'   => (float)$row['surcharge_america'],
-                'surcharge_worldwide' => (float)$row['surcharge_worldwide'],
-
-                'gratuity_chicago'   => (float)$row['gratuity_chicago'],
-                'gratuity_america'   => (float)$row['gratuity_america'],
-                'gratuity_worldwide' => (float)$row['gratuity_worldwide'],
-
-                'waiting_chicago'   => (float)$row['waiting_chicago'],
-                'waiting_america'   => (float)$row['waiting_america'],
-                'waiting_worldwide' => (float)$row['waiting_worldwide'],
-
-                'child_seat_chicago'   => (float)($row['child_seat_chicago']   ?? 0),
-                'child_seat_america'   => (float)($row['child_seat_america']   ?? 0),
-                'child_seat_worldwide' => (float)($row['child_seat_worldwide'] ?? 0),
-
-                'min_fare'             => (float)($row['min_fare']             ?? 0),
+                // Local rates (v16) — informational only ("starting at $X").
+                // Real pricing for any trip is computed server-side by
+                // Pricing_engine via POST /api/pricing/quote, which derives
+                // regional/long-distance/worldwide prices from these via
+                // global multipliers rather than the widget doing any math.
+                //
+                // Formatted STRINGs, not floats — this server's php.ini has
+                // serialize_precision=100 (non-default; should be -1), so
+                // json_encode() expands any float that isn't exactly
+                // representable in binary out to ~100 digits regardless of
+                // round(). number_format() sidesteps the float serializer —
+                // same fix as Api::reservation_update()'s amount.
+                'local_per_mile_rate'    => number_format((float)$row['local_per_mile_rate'], 2, '.', ''),
+                'local_hourly_rate'      => number_format((float)$row['local_hourly_rate'], 2, '.', ''),
+                'local_hourly_min_hours' => isset($row['local_hourly_min_hours']) && $row['local_hourly_min_hours'] !== NULL
+                                                ? number_format((float)$row['local_hourly_min_hours'], 2, '.', '') : NULL,
+                'local_min_fare'         => number_format((float)($row['local_min_fare'] ?? 0), 2, '.', ''),
             ];
         }, $rows);
     }

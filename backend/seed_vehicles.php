@@ -25,9 +25,10 @@ $CI->load->model('Vehicle_model');
 $CI->load->database();
 
 // ---- Default fleet ----
-// Each row mirrors what the Booking_model::get_fleet() static list used
-// to return, plus region-scoped rates so the widget's priceBreakdown()
-// produces non-zero prices for any region.
+// Each row mirrors what Booking_model::get_fleet() returns — a single
+// local $/mile rate, $/hour rate, and point-to-point minimum (v16).
+// Regional/long-distance/worldwide prices are derived from these via the
+// global multipliers in Pricing_engine, not stored per vehicle.
 $vehicles = [
     [
         'code'    => 'sedan',
@@ -39,36 +40,9 @@ $vehicles = [
         'min_passengers' => 1,
         'max_passengers' => 3,
         'luggage_capacity' => 3,
-
-        // Hourly rates
-        'hourly_chicago'   => 75.00,
-        'hourly_america'   => 95.00,
-        'hourly_worldwide' => 120.00,
-
-        // Per-mile rates
-        'per_mile_chicago'   => 4.02,
-        'per_mile_america'   => 5.15,
-        'per_mile_worldwide' => 6.44,
-
-        // Surcharges (% of base fare)
-        'surcharge_chicago'   => 5.00,
-        'surcharge_america'   => 8.00,
-        'surcharge_worldwide' => 12.00,
-
-        // Gratuity
-        'gratuity_chicago'   => 15.00,
-        'gratuity_america'   => 18.00,
-        'gratuity_worldwide' => 25.00,
-
-        // Waiting per minute
-        'waiting_chicago'   => 0.75,
-        'waiting_america'   => 1.00,
-        'waiting_worldwide' => 1.50,
-
-        // Child-seat surcharge (flat fee per child seat)
-        'child_seat_chicago'   => 10.00,
-        'child_seat_america'   => 12.00,
-        'child_seat_worldwide' => 15.00,
+        'local_per_mile_rate' => 4.02,
+        'local_hourly_rate'   => 75.00,
+        'local_min_fare'      => 119.00,
     ],
     [
         'code'    => 'suv',
@@ -80,30 +54,9 @@ $vehicles = [
         'min_passengers' => 1,
         'max_passengers' => 6,
         'luggage_capacity' => 6,
-
-        'hourly_chicago'   => 95.00,
-        'hourly_america'   => 120.00,
-        'hourly_worldwide' => 150.00,
-
-        'per_mile_chicago'   => 5.63,
-        'per_mile_america'   => 6.76,
-        'per_mile_worldwide' => 8.37,
-
-        'surcharge_chicago'   => 7.00,
-        'surcharge_america'   => 10.00,
-        'surcharge_worldwide' => 15.00,
-
-        'gratuity_chicago'   => 18.00,
-        'gratuity_america'   => 22.00,
-        'gratuity_worldwide' => 30.00,
-
-        'waiting_chicago'   => 1.00,
-        'waiting_america'   => 1.25,
-        'waiting_worldwide' => 1.75,
-
-        'child_seat_chicago'   => 10.00,
-        'child_seat_america'   => 12.00,
-        'child_seat_worldwide' => 15.00,
+        'local_per_mile_rate' => 5.63,
+        'local_hourly_rate'   => 95.00,
+        'local_min_fare'      => 139.00,
     ],
     [
         'code'    => 'sprinter',
@@ -115,30 +68,9 @@ $vehicles = [
         'min_passengers' => 4,
         'max_passengers' => 12,
         'luggage_capacity' => 10,
-
-        'hourly_chicago'   => 130.00,
-        'hourly_america'   => 165.00,
-        'hourly_worldwide' => 210.00,
-
-        'per_mile_chicago'   => 6.76,
-        'per_mile_america'   => 8.21,
-        'per_mile_worldwide' => 10.30,
-
-        'surcharge_chicago'   => 9.00,
-        'surcharge_america'   => 13.00,
-        'surcharge_worldwide' => 18.00,
-
-        'gratuity_chicago'   => 22.00,
-        'gratuity_america'   => 28.00,
-        'gratuity_worldwide' => 38.00,
-
-        'waiting_chicago'   => 1.25,
-        'waiting_america'   => 1.50,
-        'waiting_worldwide' => 2.00,
-
-        'child_seat_chicago'   => 10.00,
-        'child_seat_america'   => 12.00,
-        'child_seat_worldwide' => 15.00,
+        'local_per_mile_rate' => 6.76,
+        'local_hourly_rate'   => 130.00,
+        'local_min_fare'      => 159.00,
     ],
     [
         'code'    => 'limo',
@@ -150,30 +82,9 @@ $vehicles = [
         'min_passengers' => 4,
         'max_passengers' => 10,
         'luggage_capacity' => 6,
-
-        'hourly_chicago'   => 175.00,
-        'hourly_america'   => 220.00,
-        'hourly_worldwide' => 280.00,
-
-        'per_mile_chicago'   => 8.05,
-        'per_mile_america'   => 9.66,
-        'per_mile_worldwide' => 12.07,
-
-        'surcharge_chicago'   => 12.00,
-        'surcharge_america'   => 18.00,
-        'surcharge_worldwide' => 25.00,
-
-        'gratuity_chicago'   => 28.00,
-        'gratuity_america'   => 35.00,
-        'gratuity_worldwide' => 45.00,
-
-        'waiting_chicago'   => 1.50,
-        'waiting_america'   => 1.75,
-        'waiting_worldwide' => 2.50,
-
-        'child_seat_chicago'   => 10.00,
-        'child_seat_america'   => 12.00,
-        'child_seat_worldwide' => 15.00,
+        'local_per_mile_rate' => 8.05,
+        'local_hourly_rate'   => 175.00,
+        'local_min_fare'      => 199.00,
     ],
 ];
 

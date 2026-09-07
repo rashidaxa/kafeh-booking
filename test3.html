@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="test.css">
 
   <!-- V3 Widget styles -->
-  <link rel="stylesheet" href="embed/booking3.css">
+  <link rel="stylesheet" href="embed/booking.css">
 
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
@@ -242,6 +242,14 @@
                     <button type="button" class="kfb-link-btn" id="kfbAddChildSeatBtn">+ Add Child Seat</button>
                     <div id="kfbChildSeatsContainer"></div>
                   </div>
+                </div>
+
+                <!-- Hourly service: customer-requested hours (v16 pricing engine) -->
+                <div class="kfb-section" id="kfbHoursWrap" hidden>
+                  <label class="kfb-field">
+                    <span>Hours needed <em>*</em> <small class="kfb-hint">billed at least the service's hourly minimum</small></span>
+                    <input type="number" name="hours" id="kfbHoursInput" min="1" step="0.5" value="4">
+                  </label>
                 </div>
 
                 <!-- Return Trip toggle + return date/time (v4) -->
@@ -496,13 +504,11 @@
                 <div class="kfb-srow"><span>Vehicle</span><b id="kfbSumVehicle">—</b></div>
 
                 <div class="kfb-sbreakdown" id="kfbBreakdown" hidden>
-                  <div class="kfb-srow"><span>Base</span><b id="kfbSumBase">—</b></div>
-                  <div class="kfb-srow"><span>Surcharge</span><b id="kfbSumSurcharge">—</b></div>
+                  <div class="kfb-srow"><span>Transportation</span><b id="kfbSumBase">—</b></div>
+                  <div class="kfb-srow" id="kfbSumTravelFeeRow" hidden><span>Travel Fee</span><b id="kfbSumTravelFee">—</b></div>
+                  <div class="kfb-srow kfb-srow--addons" id="kfbSumSurchargesRow" hidden><span>Surcharges</span><b id="kfbSumSurcharges">—</b></div>
                   <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
-                  <div class="kfb-srow" id="kfbSumHourlyRow" hidden><span>Hourly</span><b id="kfbSumHourly">—</b></div>
-                  <div class="kfb-srow" id="kfbSumChildSeatsRow" hidden><span>Child Seats</span><b id="kfbSumChildSeats">—</b></div>
-                  <div class="kfb-srow" id="kfbSumMeetGreetRow" hidden><span>Meet &amp; Greet (Pickup)</span><b id="kfbSumMeetGreet">—</b></div>
-                  <div class="kfb-srow" id="kfbSumDropoffMeetGreetRow" hidden><span>Meet &amp; Greet (Drop-off)</span><b id="kfbSumDropoffMeetGreet">—</b></div>
+                  <div class="kfb-srow"><span>Taxes/Fees</span><b id="kfbSumTaxesFees">$0.00</b></div>
                   <div class="kfb-srow kfb-srow--addons" id="kfbSumAddonsRow" hidden><span>Add-ons</span><b id="kfbSumAddons">—</b></div>
                   <div class="kfb-srow" id="kfbSumDiscountRow" hidden><span>Discount</span><b id="kfbSumDiscount">—</b></div>
                   <div class="kfb-srow" id="kfbSumReturnTripRow" hidden><span>Round trip (× 2)</span><b id="kfbSumReturnTrip">—</b></div>

@@ -312,12 +312,21 @@ input.kfb-field-locked {
    for type="time" anyway) so this one button opens the picker everywhere.
    type="date" is untouched — Firefox already has its own native icon. */
 .kfb-dt-wrap { position: relative; }
-.kfb-dt-wrap input[type="time"] { padding-right: 38px; }
-.kfb-dt-wrap input[type="time"]::-webkit-calendar-picker-indicator {
+.kfb-dt-wrap input[type="time"],
+.kfb-dt-wrap input[type="date"] { padding-right: 38px; }
+.kfb-dt-wrap input[type="time"]::-webkit-calendar-picker-indicator,
+.kfb-dt-wrap input[type="date"]::-webkit-calendar-picker-indicator {
   display: none;
 }
 .kfb-dt-trigger {
   position: absolute; top: 0; right: 0; bottom: 0;
+  /* Must outrank the real (opacity:0) time input's z-index:1 — see the
+     .kfb-dt-overlay-wrap input[type="time"] rule above — otherwise that
+     invisible input, which spans the full field width including this
+     button's 38px slice, intercepts every click meant for this button
+     and the picker never opens (confirmed: Chrome/Firefox report the
+     input "intercepts pointer events" here without this). */
+  z-index: 2;
   width: 38px;
   display: flex; align-items: center; justify-content: center;
   border: 0; background: none; padding: 0; margin: 0;

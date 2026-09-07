@@ -20,7 +20,7 @@ class Admin extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Settings_model', 'Booking_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model']);
         $this->load->library('session');
         $this->load->helper(['url', 'form']);
         $this->_require_login();
@@ -193,13 +193,57 @@ class Admin extends CI_Controller
     public function settings()
     {
         $data = [
-            'page_title' => 'Settings',
+            'page_title' => 'Pricing Settings',
             'admin'      => $this->_current_admin(),
-            'settings'   => $this->Settings_model->meet_greet_fees(),
+            'settings'   => $this->Settings_model->pricing_settings(),
             'flash'      => $this->session->flashdata('flash'),
         ];
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/settings', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    // ----------------- Surcharges -----------------
+
+    /** GET /admin/surcharges — list + inline create/edit */
+    public function surcharges()
+    {
+        $data = [
+            'page_title' => 'Surcharges',
+            'admin'      => $this->_current_admin(),
+            'surcharges' => $this->Surcharge_model->list_all(),
+            'editing'    => NULL,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/surcharges', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** GET /admin/surcharges/new — blank create form */
+    public function surcharge_new()
+    {
+        return $this->surcharges();
+    }
+
+    /** GET /admin/surcharges/:id — pre-filled edit form */
+    public function surcharge_edit($id = NULL)
+    {
+        if (!$id) return redirect('admin/surcharges');
+        $surcharge = $this->Surcharge_model->get($id);
+        if (!$surcharge) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Surcharge not found.']);
+            return redirect('admin/surcharges');
+        }
+        $data = [
+            'page_title' => 'Edit Surcharge',
+            'admin'      => $this->_current_admin(),
+            'surcharges' => $this->Surcharge_model->list_all(),
+            'editing'    => $surcharge,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/surcharges', $data);
         $this->load->view('admin/_layout_footer', $data);
     }
 

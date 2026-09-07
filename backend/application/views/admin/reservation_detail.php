@@ -270,11 +270,29 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
 
 <section class="kfb-card">
   <header class="kfb-card-head"><h2>Pricing breakdown</h2></header>
+  <?php if (empty($booking['pricing_zone'])): ?>
+    <p class="kfb-hint" style="margin: -4px 0 12px;">
+      <span class="kfb-badge">Legacy pricing</span> — booked before the v16 rate engine; the zone/travel-fee/
+      surcharges breakdown below isn't available for this reservation, only the final amount charged.
+    </p>
+  <?php endif; ?>
   <div class="kfb-detail-grid">
     <div><span class="kfb-hint">Distance</span><p><?= number_format((float)$booking['distance_miles'], 1) ?> mi</p></div>
     <div><span class="kfb-hint">Duration</span><p><?= (int)$booking['duration_mins'] ?> min</p></div>
+    <?php if (!empty($booking['pricing_zone'])): ?>
+      <div><span class="kfb-hint">Pricing zone</span><p><?= htmlspecialchars(ucwords(str_replace('_', ' ', $booking['pricing_zone']))) ?></p></div>
+    <?php endif; ?>
     <?php if ((float)$booking['min_fare_applied'] > 0): ?>
       <div><span class="kfb-hint">Minimum fare applied</span><p>$<?= number_format((float)$booking['min_fare_applied'], 2) ?></p></div>
+    <?php endif; ?>
+    <?php if ((float)($booking['travel_fee_amount'] ?? 0) > 0): ?>
+      <div><span class="kfb-hint">Travel fee</span><p>$<?= number_format((float)$booking['travel_fee_amount'], 2) ?></p></div>
+    <?php endif; ?>
+    <?php if ((float)($booking['surcharges_total_amount'] ?? 0) > 0): ?>
+      <div><span class="kfb-hint">Surcharges</span><p>$<?= number_format((float)$booking['surcharges_total_amount'], 2) ?></p></div>
+    <?php endif; ?>
+    <?php if ((float)($booking['gratuity_amount'] ?? 0) > 0): ?>
+      <div><span class="kfb-hint">Gratuity</span><p>$<?= number_format((float)$booking['gratuity_amount'], 2) ?> (<?= number_format((float)$booking['gratuity_pct'], 2) ?>%)</p></div>
     <?php endif; ?>
     <?php if ((float)$booking['addons_total'] > 0): ?>
       <div><span class="kfb-hint">Add-ons subtotal</span><p>$<?= number_format((float)$booking['addons_total'], 2) ?></p></div>

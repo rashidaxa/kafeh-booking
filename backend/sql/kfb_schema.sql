@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `addons_json`             TEXT         NULL,
   `addons_total`            DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `min_fare_applied`        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `pricing_zone`            VARCHAR(20)  NULL COMMENT 'local | regional | long_distance | worldwide — NULL on bookings priced before v16',
+  `travel_fee_amount`       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `surcharges_total_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `gratuity_pct`            DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+  `gratuity_amount`         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `is_return_trip`          TINYINT(1) NOT NULL DEFAULT 0,
   `return_booking_id`       VARCHAR(32)  NULL,
   `return_date`             DATE         NULL,
@@ -173,44 +178,16 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   `max_passengers`   TINYINT UNSIGNED NOT NULL DEFAULT 1,
   `luggage_capacity` TINYINT UNSIGNED NULL,
 
-  -- Hourly rates (per service region)
-  `hourly_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `hourly_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `hourly_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  -- Local rates (v16) — the single root $/mile and $/hour rate. Regional,
+  -- long-distance and worldwide prices are DERIVED from these via global
+  -- multipliers/travel fee in Pricing_engine, not stored per vehicle.
+  `local_per_mile_rate`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `local_hourly_rate`     DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `local_hourly_min_hours` DECIMAL(5,2) NULL COMMENT 'Per-vehicle override of kfb_settings.pricing_local_hourly_minimum_hours — NULL means use the global default',
 
-  -- Per-mile rates (per service region)
-  `per_mile_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `per_mile_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `per_mile_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-
-  -- Surcharge (per service region, PERCENT of the base fare, e.g. 20.00 = 20%)
-  `surcharge_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `surcharge_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `surcharge_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-
-  -- Gratuity (per service region, PERCENT of the base fare, e.g. 20.00 = 20%)
-  `gratuity_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `gratuity_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `gratuity_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-
-  -- Waiting time (per minute, per service region)
-  `waiting_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `waiting_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `waiting_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-
-  -- Child-seat surcharge (flat fee per child seat, per service region)
-  `child_seat_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `child_seat_america`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `child_seat_worldwide` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-
-  -- Minimum fare (v4) — bill at least this amount regardless of distance
-  `min_fare`             DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-
-  -- Meet & Greet fee (v4) — DEPRECATED as of v5: the fee is now a single
-  -- global setting (see `kfb_settings`), not per-vehicle. Columns kept
-  -- for backward compatibility but no longer read or written.
-  `meet_greet_chicago`   DECIMAL(10,2) NOT NULL DEFAULT 65.00,
-  `meet_greet_elsewhere` DECIMAL(10,2) NOT NULL DEFAULT 95.00,
+  -- Local point-to-point minimum charge (v4, renamed from min_fare in v16)
+  -- — MAX(route_miles * local_per_mile_rate, local_min_fare)
+  `local_min_fare`        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
   -- Image (filename only — actual file lives in /uploads/vehicles/)
   `image`           VARCHAR(255) NULL,
@@ -222,6 +199,38 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   INDEX `idx_sort`       (`sort_order`),
   INDEX `idx_code`       (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------- Surcharges (v16) -----------------
+CREATE TABLE IF NOT EXISTS `kfb_surcharges` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `code`          VARCHAR(40)  NOT NULL COMMENT 'Stable identifier, e.g. AIRPORT_FEE — referenced by Pricing_engine, not the display name',
+  `name`          VARCHAR(120) NOT NULL,
+  `description`   VARCHAR(500) NULL,
+  `pricing_type`  ENUM('flat','percent') NOT NULL DEFAULT 'flat' COMMENT 'flat = $ amount; percent = % of (transportation + travel fee)',
+  `amount`        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `auto_trigger`  VARCHAR(40)  NULL COMMENT 'NULL = manual selection only; else a Pricing_engine-recognized trigger key (airport | airport_meet_greet)',
+  `sort_order`    INT NOT NULL DEFAULT 0,
+  `status`        TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at`    DATETIME NOT NULL,
+  `updated_at`    DATETIME NULL,
+  UNIQUE KEY `uniq_surcharge_code` (`code`),
+  KEY `idx_surcharge_status` (`status`),
+  KEY `idx_surcharge_sort`   (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `kfb_surcharges`
+  (`code`, `name`, `description`, `pricing_type`, `amount`, `auto_trigger`, `sort_order`, `status`, `created_at`)
+VALUES
+  ('AIRPORT_FEE',              'Airport fee',              NULL, 'flat', 0.00,  'airport',            10, 0, NOW()),
+  ('FUEL_SURCHARGE',           'Fuel surcharge',           NULL, 'flat', 0.00,  NULL,                 20, 0, NOW()),
+  ('TOLL',                     'Toll',                     NULL, 'flat', 0.00,  NULL,                 30, 0, NOW()),
+  ('PARKING',                  'Parking',                  NULL, 'flat', 0.00,  NULL,                 40, 0, NOW()),
+  ('MEET_GREET',               'Meet & greet',             NULL, 'flat', 65.00, 'airport_meet_greet', 50, 1, NOW()),
+  ('ADDITIONAL_STOP',          'Additional stop',          NULL, 'flat', 0.00,  NULL,                 60, 0, NOW()),
+  ('WAITING_TIME',             'Waiting time',              NULL, 'flat', 0.00,  NULL,                 70, 0, NOW()),
+  ('HOLIDAY_SURCHARGE',        'Holiday surcharge',        NULL, 'flat', 0.00,  NULL,                 80, 0, NOW()),
+  ('SPECIAL_EVENT_SURCHARGE',  'Special event surcharge',  NULL, 'flat', 0.00,  NULL,                 90, 0, NOW()),
+  ('OTHER_FEES',               'Other fees',               NULL, 'flat', 0.00,  NULL,                100, 0, NOW());
 
 -- ----------------- Add-ons (v4) -----------------
 CREATE TABLE IF NOT EXISTS `kfb_addons` (
@@ -359,3 +368,17 @@ SELECT * FROM (
   UNION ALL SELECT 'meet_greet_elsewhere', '95.00', NOW()
 ) AS seed
 WHERE NOT EXISTS (SELECT 1 FROM `kfb_settings` LIMIT 1);
+
+-- ----------------- Global pricing settings (v16) -----------------
+INSERT IGNORE INTO `kfb_settings` (`setting_key`, `setting_value`, `updated_at`) VALUES
+  ('pricing_local_service_radius_miles',    '75.00',              NOW()),
+  ('pricing_regional_travel_fee_per_mile',  '1.50',               NOW()),
+  ('pricing_long_distance_multiplier',      '3.00',               NOW()),
+  ('pricing_worldwide_multiplier',          '3.00',               NOW()),
+  ('pricing_local_hourly_minimum_hours',    '4.00',               NOW()),
+  ('pricing_regional_hourly_minimum_hours', '5.00',               NOW()),
+  ('pricing_worldwide_hourly_minimum_hours','5.00',               NOW()),
+  ('pricing_default_gratuity_pct',          '20.00',              NOW()),
+  ('pricing_garage_lat',                    '41.98429380078823',  NOW()),
+  ('pricing_garage_lng',                    '-87.9099405503354',  NOW()),
+  ('pricing_worldwide_quote_threshold_miles','5000.00',           NOW());

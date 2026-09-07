@@ -7,6 +7,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Routes (defined in application/config/routes_api.php):
  *   GET  /api/fleet                       → list vehicles
  *   GET  /api/settings                    → global settings (Meet & Greet fees)
+ *   POST /api/pricing/quote               → price one vehicle, or every enabled vehicle (Pricing_engine)
+ *   GET  /api/surcharges                  → enabled surcharge catalog
  *   POST /api/reservation                 → create booking (returns booking_id)
  *   GET  /api/reservation/:id             → fetch booking detail
  *   POST /api/reservation/:id/update      → edit a pre-acceptance booking (customer, auth required)
@@ -48,8 +50,8 @@ class Api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model']);
-        $this->load->library(['paypal', 'flights', 'mailer']);
+        $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model', 'Surcharge_model']);
+        $this->load->library(['paypal', 'flights', 'mailer', 'pricing_engine']);
         $this->_set_cors_headers();
     }
 
@@ -68,6 +70,65 @@ class Api extends CI_Controller
     public function settings()
     {
         $this->_json(array_merge(['success' => TRUE], $this->Settings_model->meet_greet_fees()));
+    }
+
+    /**
+     * POST /api/pricing/quote
+     * Body: same trip fields as POST /api/reservation (pickup/dropoff
+     * lat-lng + state/country, distanceMiles, service, hours,
+     * isReturnTrip, pickup/dropoff type + type detail,
+     * selectedSurchargeCodes), plus vehicle_id.
+     *
+     * With vehicle_id set: prices that one vehicle → { success, quote }.
+     * Without it: prices every enabled vehicle in one call (what the
+     * customer-facing vehicle-selection step uses, so it isn't one round
+     * trip per card) → { success, quotes: { vehicle_id: quote } }.
+     *
+     * This is the ONLY place pricing math is implemented (Pricing_engine)
+     * — both this live-estimate endpoint and reservation_create()'s
+     * authoritative recompute call the same library, so the price a
+     * customer sees is always the price that gets charged.
+     */
+    public function pricing_quote()
+    {
+        $raw = $this->_read_json();
+        if (!$raw) return $this->_error('Invalid JSON body', 400);
+
+        $input = $this->_pricing_engine_input($raw);
+
+        if (!empty($raw['vehicle_id'])) {
+            $quote = $this->pricing_engine->quote($input);
+            if (empty($quote['success'])) return $this->_error('Vehicle not found', 404);
+            $this->_json(['success' => TRUE, 'quote' => $quote]);
+            return;
+        }
+
+        $this->_json(['success' => TRUE, 'quotes' => $this->pricing_engine->quote_all($input)]);
+    }
+
+    /**
+     * GET /api/surcharges
+     * Enabled surcharges the widget can label (auto-applied ones like
+     * Meet & Greet) or offer for manual selection.
+     */
+    public function surcharges()
+    {
+        $rows = $this->Surcharge_model->list_all(TRUE);
+        $out = array_map(function ($s) {
+            return [
+                'code'         => $s['code'],
+                'name'         => $s['name'],
+                'description'  => $s['description'],
+                'pricing_type' => $s['pricing_type'],
+                // Formatted STRING, not a float — see the note in
+                // _pricing_engine_input()'s neighboring methods; this
+                // server's php.ini serialize_precision=100 otherwise
+                // expands the float out to ~100 digits in the JSON body.
+                'amount'       => number_format((float)$s['amount'], 2, '.', ''),
+                'auto_applied' => $s['auto_trigger'] !== NULL,
+            ];
+        }, $rows);
+        $this->_json(['success' => TRUE, 'surcharges' => $out]);
     }
 
     public function health()
@@ -101,6 +162,23 @@ class Api extends CI_Controller
 
         // dropoff can be missing if "return at same location" — fall back to pickup
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
+
+        // Authoritative server-side recompute (v16) — the client's `amount`
+        // is only ever an estimate. Pricing_engine is the single source of
+        // truth for what actually gets charged, closing the gap where a
+        // tampered client-submitted amount used to be trusted outright.
+        $quote = $this->pricing_engine->quote($this->_pricing_engine_input($raw));
+        if (empty($quote['success'])) {
+            return $this->_error('Could not price this vehicle', 422);
+        }
+        if (!empty($quote['requiresQuote'])) {
+            return $this->_error(
+                $quote['requiresQuoteReason'] ?: 'This trip requires a custom quote — please contact us.',
+                422,
+                ['requiresQuote' => TRUE]
+            );
+        }
+        $this->_apply_quote_to_payload($raw, $quote);
 
         $booking_id = $this->Booking_model->create_booking($raw);
 
@@ -177,6 +255,22 @@ class Api extends CI_Controller
         $err = $this->_validate_reservation_payload($raw);
         if ($err) return $this->_error($err[0], $err[1]);
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
+
+        // Same authoritative recompute as reservation_create() — an edit
+        // can change vehicle/distance/hours just as much as a fresh
+        // booking can, so it needs the same server-side price of record.
+        $quote = $this->pricing_engine->quote($this->_pricing_engine_input($raw));
+        if (empty($quote['success'])) {
+            return $this->_error('Could not price this vehicle', 422);
+        }
+        if (!empty($quote['requiresQuote'])) {
+            return $this->_error(
+                $quote['requiresQuoteReason'] ?: 'This trip requires a custom quote — please contact us.',
+                422,
+                ['requiresQuote' => TRUE]
+            );
+        }
+        $this->_apply_quote_to_payload($raw, $quote);
 
         $oldAmount = (float)$booking['amount'];
         $oldAuthId = $booking['paypal_auth_transaction_id'];
@@ -788,6 +882,73 @@ class Api extends CI_Controller
     }
 
     // ----------------- helpers -----------------
+
+    /**
+     * Maps the trip fields the widget submits (same shape for a live quote
+     * or a real reservation) into Pricing_engine::quote()'s input array.
+     * Shared by pricing_quote() and reservation_create()/reservation_update()
+     * so the live estimate and the authoritative charge can never drift
+     * apart from mapping differences alone.
+     */
+    protected function _pricing_engine_input(array $raw)
+    {
+        $isHourly = stripos((string)($raw['service'] ?? ''), 'hourly') !== FALSE;
+        $pickupType  = (string)($raw['pickupType']  ?? $raw['pickup_loc_type']  ?? '');
+        $dropoffType = (string)($raw['dropoffType'] ?? $raw['dropoff_loc_type'] ?? '');
+        return [
+            'vehicle_id'              => $raw['vehicle_id'] ?? NULL,
+            'pickup_lat'              => (float)($raw['pickupLat']  ?? 0),
+            'pickup_lng'              => (float)($raw['pickupLng']  ?? 0),
+            'dropoff_lat'             => (float)($raw['dropoffLat'] ?? 0),
+            'dropoff_lng'             => (float)($raw['dropoffLng'] ?? 0),
+            'pickup_state'            => (string)($raw['pickupState']    ?? ''),
+            'pickup_country'          => (string)($raw['pickupCountry']  ?? ''),
+            'dropoff_state'           => (string)($raw['dropoffState']   ?? ''),
+            'dropoff_country'         => (string)($raw['dropoffCountry'] ?? ''),
+            'route_miles'             => (float)($raw['distanceMiles'] ?? 0),
+            'service_type'            => $isHourly ? 'hourly' : 'point_to_point',
+            'hours'                   => (float)($raw['hours'] ?? 0),
+            'is_return_trip'          => !empty($raw['isReturnTrip']),
+            'pickup_is_airport'       => strcasecmp($pickupType, 'Airport') === 0,
+            'pickup_type_detail'      => $raw['pickupTypeDetail'] ?? NULL,
+            'dropoff_is_airport'      => strcasecmp($dropoffType, 'Airport') === 0,
+            'dropoff_type_detail'     => $raw['dropoffTypeDetail'] ?? NULL,
+            'selected_surcharge_codes'=> is_array($raw['selectedSurchargeCodes'] ?? NULL) ? $raw['selectedSurchargeCodes'] : [],
+        ];
+    }
+
+    /**
+     * Folds a Pricing_engine quote into the reservation payload as the
+     * final authoritative `amount`, plus the breakdown columns
+     * Booking_model persists. Add-ons and the promo discount are NOT
+     * things Pricing_engine knows about (they're separate systems —
+     * kfb_addons and Promo_model — deliberately left untouched here), so
+     * they're folded in at the same point the old client-side
+     * priceBreakdown() applied them: onto the ONE-WAY total, before
+     * round-trip doubling — otherwise a round trip would double the
+     * transportation fare but not the add-ons/discount, silently
+     * changing what a round-trip customer is charged relative to today.
+     */
+    protected function _apply_quote_to_payload(array &$raw, array $quote)
+    {
+        $addonsTotal = 0.0;
+        if (!empty($raw['addons']) && is_array($raw['addons'])) {
+            foreach ($raw['addons'] as $a) {
+                $addonsTotal += (float)($a['line_total'] ?? 0);
+            }
+        }
+        $discount = (float)($raw['discountAmount'] ?? 0);
+
+        $oneWay = max(0, $quote['one_way_total'] + $addonsTotal - $discount);
+        $raw['amount'] = round(!empty($quote['is_return_trip']) ? $oneWay * 2 : $oneWay, 2);
+
+        $raw['pricingZone']           = $quote['zone'];
+        $raw['travelFeeAmount']       = $quote['travel_fee'];
+        $raw['surchargesTotalAmount'] = $quote['surcharges_total'];
+        $raw['gratuityPct']           = $quote['gratuity_pct'];
+        $raw['gratuityAmount']        = $quote['gratuity_amount'];
+        $raw['minFareApplied']        = $quote['min_fare_applied'];
+    }
 
     protected function _read_json()
     {

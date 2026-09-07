@@ -91,7 +91,10 @@
       addonsCatalog: [],     // fetched from backend at boot
       distanceMiles: 0,
       durationMins: 0,
-      region: "Worldwide",
+      pickup:  { lat: null, lng: null, state: "", country: "" },
+      dropoff: { lat: null, lng: null, state: "", country: "" },
+      quotesByVehicleId: {}, // { vehicleId: quote } — POST /api/pricing/quote (batched), see fetchQuotes()
+      pricingZone: null,     // "local" | "regional" | "long_distance" | "worldwide" from the latest quote
       promo: null,
       childSeats: {},
       stops: [],             // [{address, lat, lng}] — ordered, with edit support
@@ -107,10 +110,7 @@
       dropoffTypeDetail: "Curbside", // Curbside | Meet & Greet | Private Terminal (FBO)
       dropoffTailNumber: "",  // for FBO / private terminal dropoffs
       signatureData: null,   // base64 PNG of customer signature (>$500)
-      minFareApplied: 0,     // 0 if subtotal > min, else the min amount
-      meetGreetFee: 0,       // added to total if pickup type = Meet & Greet
-      dropoffMeetGreetFee: 0, // added to total if dropoff type = Meet & Greet
-      settings: { meetGreetChicago: 65, meetGreetElsewhere: 95 }, // fetched from /api/settings
+      minFareApplied: 0,     // 0 if subtotal > min, else the min amount (mirrors the latest quote)
 
       // -------- Customer accounts (v6) --------
       view: "booking",        // "booking" | "login" | "register" | "forgot" | "reset" | "profile"
@@ -146,9 +146,9 @@
     }
     // -------- Date/time overlay display (see .kfb-dt-overlay-wrap in booking.css for why) --------
     function updateDtOverlay($input) {
-      // Not .siblings() — on desktop, enhanceTimeInputs() re-wraps time
-      // inputs in their own nested .kfb-dt-wrap (for the custom picker
-      // trigger button), moving the input out from being a direct
+      // Not .siblings() — on desktop, enhanceDateTimeInputs() re-wraps
+      // date/time inputs in their own nested .kfb-dt-wrap (for the custom
+      // picker trigger button), moving the input out from being a direct
       // sibling of .kfb-dt-overlay-display. .closest(...).find(...)
       // finds it regardless of that extra nesting.
       var $overlay = $input.closest(".kfb-dt-overlay-wrap").find(".kfb-dt-overlay-display");
@@ -409,7 +409,10 @@
         $('.kfb-service-pill[data-service="' + v + '"]').addClass("is-active");
         enforceStopsCap();
         updateStopsHint();
+        $("#kfbHoursWrap").prop("hidden", !isHourlyService());
+        requoteVehicles();
       });
+      $("#kfbHoursInput").on("input change", requoteVehicles);
     }
     function updateStopsHint() {
       $("#kfbStopsHint").text(isHourlyService() ? "optional, no limit" : "optional, up to " + TRANSFER_MAX_STOPS);
@@ -446,6 +449,7 @@
         }));
 
         updateReturnTripAirportBlocks();
+        requoteVehicles(); // Airport fee / Meet & Greet auto-surcharges depend on location type
       });
     }
 
@@ -465,16 +469,25 @@
       });
     }
 
-    // -------- Time picker (Firefox has no native dropdown for type="time" at all) --------
-    // Chrome/Edge/Safari draw a clickable clock icon that opens a native
-    // dropdown. Firefox draws no icon AND has no dropdown UI to open —
-    // confirmed by calling showPicker() directly: it doesn't throw, but
-    // nothing appears, because Firefox's time input is spinner/keyboard-only.
-    // So rather than depend on a native picker that doesn't exist in every
-    // browser, we build one small custom dropdown and use it everywhere —
-    // guarantees identical, working behavior regardless of browser.
-    // (type="date" is untouched — Firefox's native calendar dropdown for
-    // that type works fine, unlike type="time".)
+    // -------- Date & time pickers --------
+    // Both date and time inputs are rendered fully invisible (opacity:0 —
+    // see .kfb-dt-overlay-wrap in booking.css) so a styled overlay span can
+    // own their visible appearance. That also hides each input's OWN
+    // native picker icon, with no visual affordance left for where to
+    // click to open it — and Chrome/Edge only open a date/time input's
+    // native picker when you click that specific (now invisible) icon,
+    // not anywhere else in the field, unlike Firefox's date input. So
+    // every date/time field gets an explicit, always-visible trigger
+    // button layered on top instead of depending on an invisible native
+    // hit target:
+    //   - date:  button calls input.showPicker() (Chrome/Edge/Firefox
+    //            101+) to open the browser's own native calendar.
+    //   - time:  Firefox's <input type="time"> has no dropdown UI at all
+    //            (confirmed: showPicker() doesn't throw, but nothing
+    //            appears — it's spinner/keyboard-only there), so time
+    //            gets a fully custom dropdown built here instead of
+    //            relying on any native picker, guaranteeing identical
+    //            behavior across every browser.
     var TIME_STEP_MINUTES = 30;
     var TIME_OPTIONS = (function () {
       var opts = [];
@@ -522,37 +535,46 @@
       var $sel = $dd.find(".is-selected");
       if ($sel.length) $dd.scrollTop($sel[0].offsetTop - $dd.height() / 2 + $sel.height() / 2);
     }
-    function enhanceTimeInputs() {
-      // Touch devices (phones/tablets) already open a full native time
-      // picker when the input itself is tapped — layering our own
-      // dropdown button on top just doubles up on iOS Safari, which
+    function enhanceDateTimeInputs() {
+      // Touch devices (phones/tablets) already open a full native
+      // date/time picker when the input itself is tapped — layering our
+      // own trigger button on top just doubles up on iOS Safari, which
       // (unlike Chrome) doesn't reliably let ::-webkit-calendar-picker-
       // indicator{display:none} hide its own icon, so both end up
       // visible side by side. Only add the custom trigger for
-      // mouse/trackpad users, where the native icon is small and easy
-      // to miss.
+      // mouse/trackpad users, where a native icon (if any) is small and
+      // easy to miss anyway.
       if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return;
 
-      $('input[type="time"]').each(function () {
+      $('input[type="time"], input[type="date"]').each(function () {
         var $input = $(this);
         if ($input.parent().hasClass("kfb-dt-wrap")) return; // already enhanced
+        var isDate = $input.attr("type") === "date";
         var $wrap = $('<div class="kfb-dt-wrap"></div>');
         var $btn = $(
-          '<button type="button" class="kfb-dt-trigger" aria-label="Open time picker" tabindex="-1">🕐</button>'
+          '<button type="button" class="kfb-dt-trigger" aria-label="Open ' + (isDate ? "date" : "time") +
+          ' picker" tabindex="-1">' + (isDate ? "📅" : "🕐") + '</button>'
         );
         $input.before($wrap);
         $wrap.append($input).append($btn);
         $btn.on("click", function (e) {
           e.preventDefault();
           e.stopPropagation();
+          if (isDate) {
+            if (typeof $input[0].showPicker === "function") {
+              try { $input[0].showPicker(); return; } catch (err) { /* fall through to focus below */ }
+            }
+            $input.trigger("focus");
+            return;
+          }
           var isOpen = $wrap.find(".kfb-dt-dropdown").length > 0;
           closeAllTimeDropdowns();
           if (!isOpen) openTimeDropdown($input);
         });
       });
       // Wire the document-level close handlers once, not once per input.
-      if (!enhanceTimeInputs._wired) {
-        enhanceTimeInputs._wired = true;
+      if (!enhanceDateTimeInputs._wired) {
+        enhanceDateTimeInputs._wired = true;
         $(document).on("click", function (e) {
           if (!$(e.target).closest(".kfb-dt-wrap").length) closeAllTimeDropdowns();
         });
@@ -684,138 +706,135 @@
       var r = window.kfbRoute || {};
       state.distanceMiles = +(r.distanceMiles || 0);
       state.durationMins  = +(r.durationMins  || 0);
-      state.region        = r.region || "Worldwide";
+      state.pickup  = r.pickup  || { lat: null, lng: null, state: "", country: "" };
+      state.dropoff = r.dropoff || { lat: null, lng: null, state: "", country: "" };
     }
     window.addEventListener("kfb:route-updated", function () {
       syncRouteFromMap();
-      if (typeof renderVehicles === "function") renderVehicles();
-      if (typeof recalcSelectedVehicle === "function") recalcSelectedVehicle();
+      requoteVehicles();
     });
 
     // ============================================================
-    // PRICING
+    // PRICING (v16) — server-side authoritative rate engine
+    // ------------------------------------------------------------
+    // All pricing math (distance zones, travel fee, multipliers,
+    // surcharges, gratuity) lives in the backend's Pricing_engine —
+    // this file never reimplements the formulas, it just calls
+    // POST /api/pricing/quote for a live estimate as the customer fills
+    // the form, and caches the response per vehicle so renderVehicles()/
+    // recalcSelectedVehicle() can read synchronously. The same endpoint's
+    // formulas are what Api::reservation_create() uses to compute the
+    // actual charge, so the number shown here IS the number charged
+    // (modulo add-ons/promo discount, which stay separate systems — see
+    // the note in mergeAddonsAndDiscount() below).
     // ============================================================
-    // For POINT-TO-POINT style services (Transfer, From/To Airport, etc.):
-    //   total = miles × per_mile_<region>
-    //         + base × surcharge_<region>% + base × gratuity_<region>%
-    //         + (child_seat_<region> × childSeats)
-    //         - promoDiscount
-    //
-    // For HOURLY / As-Directed service:
-    //   total = hourly_<region> × hours         ← replaces miles × per_mile
-    //         + base × surcharge_<region>% + base × gratuity_<region>%
-    //         + (child_seat_<region> × childSeats)
-    //         - promoDiscount
-    //
-    // surcharge_<region> and gratuity_<region> are PERCENTAGES (e.g. 20
-    // means 20%), each applied independently to the base fare — not to
-    // each other, and not to child seats/add-ons/meet & greet.
-    //
-    // (Hourly is a flat time-based rate — we don't double-charge the
-    //  per-mile on top of it. The hourly amount IS the base.)
-    function priceBreakdown(v) {
-      syncRouteFromMap();
-      var miles  = state.distanceMiles || 0;
-      var region = (state.region || "Worldwide").toLowerCase();
-      var perMile      = +(v['per_mile_'  + region] || 0);
-      var surchargePct = +(v['surcharge_' + region] || 0);
-      var gratuityPct  = +(v['gratuity_'  + region] || 0);
-      var hourlyRate = +(v['hourly_'    + region] || 0);
-      var childSeatR = +(v['child_seat_' + region] || 0);
-      var minFare      = +(v.min_fare || 0);
-      // Meet & Greet fee is a global setting (not per-vehicle) as of v5.
-      var meetChicago  = +(state.settings.meetGreetChicago   || 65);
-      var meetOther    = +(state.settings.meetGreetElsewhere || 95);
+    function requestedHours() {
+      var n = parseFloat($("#kfbHoursInput").val());
+      return isFinite(n) && n > 0 ? n : 4;
+    }
 
-      // Minimum billable time is 1 hour even if the route is short.
-      var hours = Math.max(1, (state.durationMins || 0) / 60);
-      var childCount = totalChildSeats();
-      var childAdd  = childCount * childSeatR;
-
-      // Branch on service type — hourly replaces mileage-based, not stacks.
-      var rawBase, hourlyAdd, baseLabel;
-      if (isHourlyService()) {
-        rawBase   = hourlyRate * hours;
-        hourlyAdd = 0;
-        baseLabel = "Hourly (" + hours.toFixed(1) + "h × $" + hourlyRate.toFixed(2) + ")";
-      } else {
-        rawBase   = miles * perMile;
-        hourlyAdd = 0;
-        baseLabel = "Base (" + miles.toFixed(1) + " mi × $" + perMile.toFixed(2) + ")";
-      }
-      // Minimum fare floors the base fare itself — not disclosed to the
-      // customer as a separate line, it just quietly becomes the Base
-      // amount when the computed fare would've come in under it.
-      // Surcharge/gratuity/child seats/meet & greet/add-ons/discount all
-      // still apply on top exactly as normal.
-      var minFareApplied = (rawBase < minFare) ? minFare : 0;
-      var base = Math.max(rawBase, minFare);
-
-      // Surcharge and gratuity are percentages of the base fare (e.g.
-      // gratuityPct=20 on a $200 base adds $40), applied independently —
-      // gratuity isn't computed on top of surcharge or vice versa.
-      var surcharge = base * (surchargePct / 100);
-      var gratuity  = base * (gratuityPct / 100);
-
-      // Meet & Greet surcharge: only when pickup is at an airport AND
-      // the customer picked the "Meet & Greet" pickup type. Chicago
-      // airports use the in-city rate, all other airports the higher rate.
-      var meetGreetFee = 0;
-      if (state.pickupTypeDetail === "Meet & Greet" && getLocType("pickup") === "Airport") {
-        meetGreetFee = (region === "chicago") ? meetChicago : meetOther;
-        state.meetGreetFee = meetGreetFee;
-      } else {
-        state.meetGreetFee = 0;
-      }
-
-      // Same surcharge for the drop-off side, only when returning at a
-      // different location (otherwise dropoff mirrors pickup and would
-      // double-charge the same stop).
-      var dropoffMeetGreetFee = 0;
-      if ($("#kfbReturnDifferent").is(":checked") &&
-          state.dropoffTypeDetail === "Meet & Greet" && getLocType("dropoff") === "Airport") {
-        dropoffMeetGreetFee = (region === "chicago") ? meetChicago : meetOther;
-        state.dropoffMeetGreetFee = dropoffMeetGreetFee;
-      } else {
-        state.dropoffMeetGreetFee = 0;
-      }
-
-      // Add-ons: flat amounts already carry unit_price; percent add-ons
-      // apply to the running subtotal. For simplicity we treat everything
-      // as flat (the backend uses the configured per-region price).
-      var addonsTotal = totalAddons();
-
-      var extras   = surcharge + gratuity + childAdd + meetGreetFee + dropoffMeetGreetFee + addonsTotal;
-      var subtotal = base + extras;
-      var discount = (state.promo && state.promo.ok) ? +(state.promo.discount || 0) : 0;
-      var oneWayTotal = Math.max(0, subtotal - discount);
-      state.minFareApplied = minFareApplied;
-
-      // Round trip: the customer is driven both ways, so the amount
-      // actually collected is double the one-way fare computed above —
-      // the return leg's own kfb_bookings row always carries amount=0
-      // (see Booking_model::_create_return_leg()) and rides entirely on
-      // this total.
-      var isReturnTrip = !!state.isReturnTrip;
-      var total = isReturnTrip ? oneWayTotal * 2 : oneWayTotal;
-
+    function emptyQuote() {
       return {
-        miles: miles, perMile: perMile, base: base,
-        surcharge: surcharge, gratuity: gratuity,
-        surchargePct: surchargePct, gratuityPct: gratuityPct,
-        hourlyRate: hourlyRate, hours: hours, hourlyAdd: hourlyAdd,
-        childSeatRate: childSeatR, childCount: childCount, childAdd: childAdd,
-        meetGreetFee: meetGreetFee,
-        dropoffMeetGreetFee: dropoffMeetGreetFee,
-        addonsTotal: addonsTotal,
-        minFare: minFare, minFareApplied: minFareApplied,
-        subtotal: subtotal, discount: discount,
-        isReturnTrip: isReturnTrip, oneWayTotal: oneWayTotal, total: total,
-        region: region, serviceType: selectedServiceType(),
-        baseLabel: baseLabel,
+        success: false, zone: state.pricingZone || "local",
+        requiresQuote: false, requiresQuoteReason: null,
+        route_miles: state.distanceMiles || 0,
+        transportation: 0, travel_fee: 0,
+        surcharges: [], surcharges_total: 0,
+        gratuity_pct: 0, gratuity_amount: 0,
+        taxes_fees: 0, min_fare_applied: 0,
+        one_way_total: 0, total: 0, is_return_trip: !!state.isReturnTrip,
       };
     }
+
+    // Add-ons and the promo discount are NOT part of Pricing_engine (they
+    // stay separate systems — kfb_addons and Promo_model) — folded in here
+    // the same way Api::_apply_quote_to_payload() folds them in
+    // server-side: onto the ONE-WAY total, before round-trip doubling, so
+    // this estimate always matches what actually gets charged.
+    function mergeAddonsAndDiscount(q) {
+      var addonsTotal = totalAddons();
+      var discount = (state.promo && state.promo.ok) ? +(state.promo.discount || 0) : 0;
+      var oneWayTotal = Math.max(0, (q.one_way_total || 0) + addonsTotal - discount);
+      // one_way_total never depends on the return-trip flag (Pricing_engine
+      // computes it identically either way), so the live state.isReturnTrip
+      // toggle can double it instantly here without waiting on a requote.
+      var isReturnTrip = !!state.isReturnTrip;
+      var total = isReturnTrip ? oneWayTotal * 2 : oneWayTotal;
+      return $.extend({}, q, {
+        addonsTotal: addonsTotal, discount: discount,
+        subtotal: oneWayTotal, oneWayTotal: oneWayTotal, total: total,
+        // Legacy field names some call sites/markup still read.
+        base: q.transportation, travelFee: q.travel_fee, surcharge: q.surcharges_total,
+        gratuity: q.gratuity_amount, gratuityPct: q.gratuity_pct,
+        minFare: q.minimum_fare_used, minFareApplied: q.min_fare_applied,
+        isReturnTrip: isReturnTrip, miles: q.route_miles,
+        hours: isHourlyService() ? requestedHours() : Math.max(1, (state.durationMins || 0) / 60),
+        serviceType: selectedServiceType(), zone: q.zone,
+      });
+    }
+
+    // Synchronous read of the latest cached quote for this vehicle —
+    // never fetches itself (see fetchQuotes()) so every render stays
+    // instant; requoteVehicles() is what keeps the cache warm.
+    function priceBreakdown(v) {
+      syncRouteFromMap();
+      var vid = v && (v.id || v.code);
+      var q = (vid && state.quotesByVehicleId[vid]) || emptyQuote();
+      return mergeAddonsAndDiscount(q);
+    }
     function priceFor(v) { return +priceBreakdown(v).total.toFixed(2); }
+
+    // -------- Live quote fetching --------
+    var quoteFetchTimer = null;
+    var quoteFetchXhr = null;
+    function requoteVehicles() {
+      clearTimeout(quoteFetchTimer);
+      quoteFetchTimer = setTimeout(fetchQuotes, 400);
+    }
+    function pricingEngineInput() {
+      syncRouteFromMap();
+      var pickupType  = getLocType("pickup");
+      var dropoffType = $("#kfbReturnDifferent").is(":checked") ? getLocType("dropoff") : pickupType;
+      return {
+        pickupLat: state.pickup.lat, pickupLng: state.pickup.lng,
+        pickupState: state.pickup.state, pickupCountry: state.pickup.country,
+        dropoffLat: state.dropoff.lat, dropoffLng: state.dropoff.lng,
+        dropoffState: state.dropoff.state, dropoffCountry: state.dropoff.country,
+        distanceMiles: state.distanceMiles,
+        service: selectedServiceType(),
+        hours: requestedHours(),
+        isReturnTrip: !!state.isReturnTrip,
+        pickupType: pickupType, pickupTypeDetail: state.pickupTypeDetail,
+        dropoffType: dropoffType, dropoffTypeDetail: state.dropoffTypeDetail,
+        selectedSurchargeCodes: [],
+      };
+    }
+    function fetchQuotes() {
+      // Nothing to price until both endpoints are known.
+      if (!state.pickup || state.pickup.lat === null || !state.dropoff || state.dropoff.lat === null) return;
+      if (quoteFetchXhr) quoteFetchXhr.abort();
+      var input = pricingEngineInput();
+      quoteFetchXhr = $.ajax({
+        url: API_BASE + "/pricing/quote",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify(input),
+        dataType: "json",
+        timeout: 8000,
+      })
+      .done(function (res) {
+        if (!res || !res.quotes) return;
+        state.quotesByVehicleId = res.quotes;
+        var anyQuote = null;
+        for (var k in res.quotes) { if (res.quotes[k] && res.quotes[k].success) { anyQuote = res.quotes[k]; break; } }
+        state.pricingZone = anyQuote ? anyQuote.zone : state.pricingZone;
+        renderVehicles();
+        recalcSelectedVehicle();
+        loadAddons(); // zone may have just changed — re-fetch add-on pricing for it
+      })
+      .fail(function (xhr) { if (xhr.statusText !== "abort") { /* keep last-known quotes, don't break the page */ } })
+      .always(function () { quoteFetchXhr = null; });
+    }
 
     // ============================================================
     // FLEET LOAD + VEHICLE CARDS
@@ -839,32 +858,16 @@
     }
 
     /**
-     * Fetch global settings (currently just the Meet & Greet fee) from the
-     * backend. Falls back to the defaults already in state.settings.
-     */
-    function loadSettings() {
-      $.ajax({
-        url: API_BASE + "/settings",
-        dataType: "json",
-        timeout: 5000,
-      })
-      .done(function (res) {
-        if (!res) return;
-        state.settings = {
-          meetGreetChicago:   +(res.meet_greet_chicago   ?? state.settings.meetGreetChicago),
-          meetGreetElsewhere: +(res.meet_greet_elsewhere ?? state.settings.meetGreetElsewhere),
-        };
-      })
-      .fail(function () { /* keep default settings, do not break the page */ });
-    }
-
-    /**
-     * Fetch enabled add-ons for the current region from the backend.
-     * The region is updated once the route is known (Chicago / America / Worldwide).
+     * Fetch enabled add-ons for the current pricing zone from the backend.
+     * kfb_addons still prices by the old chicago/america/worldwide bucket
+     * (out of scope for the v16 rate-engine rebuild — see the pricing
+     * plan), so the new local/regional/long_distance/worldwide zone from
+     * the latest quote is mapped onto the closest equivalent bucket.
      * Safe to call multiple times — only the latest response is used.
      */
     function loadAddons() {
-      var region = (state.region || "Worldwide").toLowerCase();
+      var zoneToRegion = { local: "chicago", regional: "america", long_distance: "america", worldwide: "worldwide" };
+      var region = zoneToRegion[state.pricingZone] || "worldwide";
       $.ajax({
         url: API_BASE + "/addons",
         data: { region: region },
@@ -1026,7 +1029,7 @@
         state.selectedVehicle = null;
       }
 
-      var region = state.region || "Worldwide";
+      var ZONE_LABELS = { local: "Local", regional: "Regional", long_distance: "Long-Distance", worldwide: "Worldwide" };
       $grid.empty();
       if (!list.length) {
         $grid.html(
@@ -1038,7 +1041,8 @@
       }
       list.forEach(function (v) {
         var bd = priceBreakdown(v);
-        var price = bd.total;
+        var priceDisplay = bd.requiresQuote ? "Request a Quote" : fmtMoney(bd.total);
+        var zoneText = ZONE_LABELS[bd.zone] || "Local";
         var selected = state.selectedVehicle && state.selectedVehicle.id === v.id;
         var imgSrc = v.image
           ? (v.image.indexOf("http") === 0 ? v.image : (UPLOADS_BASE + v.image))
@@ -1057,10 +1061,10 @@
               '<h4 class="kfb-vehicle-name">' + escapeHtml(v.name) + '</h4>' +
               '<p class="kfb-vehicle-desc">' + escapeHtml(v.desc || v.description || "") + '</p>' +
             '</div>' +
-            '<div class="kfb-vehicle-price"><b>' + fmtMoney(price) + '</b><small>' +
+            '<div class="kfb-vehicle-price"><b>' + priceDisplay + '</b><small>' +
               (isHourlyService()
-                ? bd.hours.toFixed(1) + 'h · ' + region
-                : fmtMiles(bd.miles) + ' mi · ' + region
+                ? bd.hours.toFixed(1) + 'h · ' + zoneText
+                : fmtMiles(bd.miles) + ' mi · ' + zoneText
               ) + (bd.isReturnTrip ? ' · round trip (× 2)' : '') + '</small></div>' +
           '</div>'
         );
@@ -1118,41 +1122,30 @@
         var bd = state.selectedVehicle.breakdown || priceBreakdown(state.selectedVehicle);
         $("#kfbBreakdown").show();
         $("#kfbSumBase").text(fmtMoney(bd.base));
-        $("#kfbSumSurcharge").text(fmtMoney(bd.surcharge) + " (" + bd.surchargePct + "%)");
         $("#kfbSumGratuity").text(fmtMoney(bd.gratuity) + " (" + bd.gratuityPct + "%)");
-        // For hourly service, the hourly amount is already folded into the
-        // "Base" line, so there's never a separate non-zero Hourly figure —
-        // only show this row if one somehow exists.
-        if (bd.hourlyAdd > 0) {
-          $("#kfbSumHourlyRow").show();
-          $("#kfbSumHourly").text(fmtMoney(bd.hourlyAdd));
+        $("#kfbSumTaxesFees").text(fmtMoney(bd.taxes_fees || 0));
+        // Travel fee — beyond the local service radius only.
+        if (bd.travelFee > 0) {
+          $("#kfbSumTravelFeeRow").show();
+          $("#kfbSumTravelFee").text(fmtMoney(bd.travelFee));
         } else {
-          $("#kfbSumHourlyRow").hide();
+          $("#kfbSumTravelFeeRow").hide();
         }
-        if (bd.childAdd > 0) {
-          $("#kfbSumChildSeatsRow").show();
-          $("#kfbSumChildSeats").text(fmtMoney(bd.childAdd));
-        } else {
-          $("#kfbSumChildSeatsRow").hide();
-        }
-        // Meet & Greet fee (only shows when applied)
-        var $meetGreetRow = $("#kfbSumMeetGreetRow");
-        if ($meetGreetRow.length) {
-          if (bd.meetGreetFee > 0) {
-            $meetGreetRow.show();
-            $("#kfbSumMeetGreet").text(fmtMoney(bd.meetGreetFee));
+        // Surcharges — itemized list from the pricing engine (Airport fee,
+        // Meet & Greet, etc. — whichever apply to this trip).
+        var $surchargesRow = $("#kfbSumSurchargesRow");
+        if ($surchargesRow.length) {
+          if (bd.surcharges && bd.surcharges.length) {
+            $surchargesRow.show();
+            var surchargeLines = bd.surcharges.map(function (s) {
+              return '<div class="kfb-addon-line"><span>' + escapeHtml(s.name) + '</span><b>' + fmtMoney(s.amount) + '</b></div>';
+            }).join("");
+            if (bd.surcharges.length > 1) {
+              surchargeLines += '<div class="kfb-addon-line kfb-addon-line--total"><span>Total</span><b>' + fmtMoney(bd.surcharge) + '</b></div>';
+            }
+            $("#kfbSumSurcharges").html(surchargeLines);
           } else {
-            $meetGreetRow.hide();
-          }
-        }
-        // Meet & Greet fee — drop-off side (only shows when applied)
-        var $dropoffMeetGreetRow = $("#kfbSumDropoffMeetGreetRow");
-        if ($dropoffMeetGreetRow.length) {
-          if (bd.dropoffMeetGreetFee > 0) {
-            $dropoffMeetGreetRow.show();
-            $("#kfbSumDropoffMeetGreet").text(fmtMoney(bd.dropoffMeetGreetFee));
-          } else {
-            $dropoffMeetGreetRow.hide();
+            $surchargesRow.hide();
           }
         }
         // Add-ons — itemized: each selected add-on's name + amount, plus the total.
@@ -1193,7 +1186,7 @@
             $returnTripRow.hide();
           }
         }
-        $("#kfbSumTotal").text(fmtMoney(bd.total));
+        $("#kfbSumTotal").text(bd.requiresQuote ? "Request a Quote" : fmtMoney(bd.total));
       } else {
         $("#kfbSumVehicle").text("—");
         $("#kfbBreakdown").hide();
@@ -1364,7 +1357,18 @@
         vehicle_name:    v.name,
         distanceMiles:   state.distanceMiles,
         durationMins:    state.durationMins,
-        region:          state.region,
+        // Pricing_engine inputs (v16) — the backend recomputes/overwrites
+        // `amount` authoritatively from these; see Api::_pricing_engine_input().
+        pickupLat:       state.pickup.lat,
+        pickupLng:       state.pickup.lng,
+        pickupState:     state.pickup.state,
+        pickupCountry:   state.pickup.country,
+        dropoffLat:      state.dropoff.lat,
+        dropoffLng:      state.dropoff.lng,
+        dropoffState:    state.dropoff.state,
+        dropoffCountry:  state.dropoff.country,
+        hours:           requestedHours(),
+        selectedSurchargeCodes: [],
         amount:          v.breakdown.total,
         discountAmount:  (state.promo && state.promo.ok) ? state.promo.discount : 0,
         promoCode:       (state.promo && state.promo.ok) ? state.promo.code : null,
@@ -1463,6 +1467,11 @@
     function submitBooking() {
       var v = state.selectedVehicle;
       if (!v) { toast("Choose a vehicle first.", "error"); return; }
+      var bd = priceBreakdown(v);
+      if (bd.requiresQuote) {
+        toast(bd.requiresQuoteReason || "This trip requires a custom quote — please contact us.", "error");
+        return;
+      }
 
       var missing = [];
       var invalid = [];
@@ -2490,15 +2499,45 @@
 
       // priceBreakdown() calls syncRouteFromMap() on every invocation,
       // which unconditionally overwrites state.distanceMiles/durationMins/
-      // region FROM window.kfbRoute — setting state.* directly here would
-      // just get clobbered the moment recalcSelectedVehicle() below runs.
-      // Seed window.kfbRoute itself instead, so the sync picks up real
-      // starting values. region isn't persisted on the booking row, so it
-      // defaults to Worldwide until the safety-net recomputes it for real.
+      // pickup/dropoff FROM window.kfbRoute — setting state.* directly here
+      // would just get clobbered the moment recalcSelectedVehicle() below
+      // runs. Seed window.kfbRoute itself instead, so the sync picks up
+      // real starting values.
+      //
+      // KNOWN LIMITATION: kfb_bookings stores pickup/dropoff as address
+      // strings, not lat/lng — so fetchQuotes() (which needs coordinates
+      // for the garage-distance zone check) can't run until the customer
+      // actually re-selects an address from the map autocomplete. Until
+      // then the price shown is whatever was last charged (below), not a
+      // live requote.
       window.kfbRoute = window.kfbRoute || {};
       window.kfbRoute.distanceMiles = Number(booking.distance_miles) || 0;
       window.kfbRoute.durationMins  = Number(booking.duration_mins) || 0;
-      window.kfbRoute.region        = window.kfbRoute.region || "Worldwide";
+
+      // Seed a synthetic "quote" for this vehicle from what was actually
+      // charged, so the summary shows real numbers immediately instead of
+      // $0.00 while waiting on a requote that may never come (see above).
+      // Pre-v16 bookings have no pricing_zone on record — left unseeded,
+      // falling back to emptyQuote() until a fresh requote succeeds.
+      if (booking.pricing_zone && booking.vehicle_id) {
+        state.pricingZone = booking.pricing_zone;
+        state.quotesByVehicleId[booking.vehicle_id] = {
+          success: true, zone: booking.pricing_zone,
+          requiresQuote: false, requiresQuoteReason: null,
+          route_miles: Number(booking.distance_miles) || 0,
+          rate_per_mile_used: 0, minimum_fare_used: 0,
+          transportation: Math.max(0, Number(booking.amount) - Number(booking.travel_fee_amount || 0)
+            - Number(booking.surcharges_total_amount || 0) - Number(booking.gratuity_amount || 0)
+            - Number(booking.addons_total || 0)),
+          travel_fee: Number(booking.travel_fee_amount) || 0,
+          surcharges: [], surcharges_total: Number(booking.surcharges_total_amount) || 0,
+          gratuity_pct: Number(booking.gratuity_pct) || 0, gratuity_amount: Number(booking.gratuity_amount) || 0,
+          taxes_fees: 0, min_fare_applied: Number(booking.min_fare_applied) || 0,
+          one_way_total: !!booking.is_return_trip ? Number(booking.amount) / 2 : Number(booking.amount),
+          is_return_trip: !!booking.is_return_trip, total: Number(booking.amount) || 0,
+        };
+      }
+      requoteVehicles();
 
       // Add-ons — same array shape the widget already stores/sends, so it
       // can be assigned directly; renderAddons() derives checked/qty state
@@ -2598,8 +2637,8 @@
       state.dropoffTailNumber = "";
       state.signatureData = null;
       state.minFareApplied = 0;
-      state.meetGreetFee = 0;
-      state.dropoffMeetGreetFee = 0;
+      state.quotesByVehicleId = {};
+      state.pricingZone = null;
       $("#kfbForm")[0].reset();
       $("#kfbStopsContainer").empty();
       $("#kfbChildSeatsContainer").empty();
@@ -2697,7 +2736,7 @@
       updateStopsHint();
       wireChildSeats();
       populateAirlines();
-      enhanceTimeInputs();
+      enhanceDateTimeInputs();
       makeStepper("#kfbStepperPassengers", function () { renderVehicles(); recalcSelectedVehicle(); });
       makeStepper("#kfbStepperBags");
 
@@ -2745,7 +2784,6 @@
       });
 
       loadFleet();
-      loadSettings();
       loadAddons();
       renderVehicles();
       renderSideSummary();
@@ -2810,7 +2848,7 @@
           $tail.attr("hidden", true).find("input").prop("required", false).val("");
           state.tailNumber = "";
         }
-        recalcSelectedVehicle();
+        requoteVehicles(); // pickup type detail can trigger/clear the Meet & Greet surcharge
       });
       $('input[name="tailNumber"]').on("input", function () {
         state.tailNumber = $(this).val().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
@@ -2827,7 +2865,7 @@
           $tail.attr("hidden", true).find("input").prop("required", false).val("");
           state.dropoffTailNumber = "";
         }
-        recalcSelectedVehicle();
+        requoteVehicles(); // dropoff type detail can trigger/clear the Meet & Greet surcharge
       });
       $('input[name="dropoffTailNumber"]').on("input", function () {
         state.dropoffTailNumber = $(this).val().toUpperCase().replace(/[^A-Z0-9\-]/g, "");

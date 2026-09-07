@@ -35,14 +35,21 @@
   let dropoffAC = null;
 
   // -------- Public route state --------
-  // Read by the booking widget (price calc, summary, etc).
-  // Initialised to zeros — every successful DirectionsService call below
-  // refreshes these so the embed widget always sees the latest values.
+  // Read by the booking widget (price calc, summary, etc). Initialised to
+  // zeros — every successful DirectionsService call below refreshes these
+  // so the embed widget always sees the latest values.
+  //
+  // pickup/dropoff carry lat/lng + state/country (not a Chicago/America/
+  // Worldwide region — that classification now happens server-side, in
+  // Pricing_engine::classify_zone(), which needs raw coordinates and
+  // state/country to measure distance from the company garage and tell
+  // "regional" apart from "long-distance" / "worldwide").
   window.kfbRoute = {
     distanceMiles: 0,
     durationMins:  0,
     stopCount:     0,
-    region:        "Worldwide", // "Chicago" | "America" | "Worldwide"
+    pickup:  { lat: null, lng: null, state: "", country: "" },
+    dropoff: { lat: null, lng: null, state: "", country: "" },
   };
 
   // Each entry: { row, input, ac, marker }
@@ -54,16 +61,6 @@
 
   // Letter labels for markers, in render order: A=pickup, B..=stops, last=dropoff
   const LABEL_POOL = ["A", "B", "C", "D", "E", "F", "G", "H"];
-
-  // Chicago city-limits bounding box (approximate). Used as a fallback
-  // for region detection when a Places result's address_components
-  // does not include a `locality` of "Chicago".
-  const CHICAGO_BOUNDS = {
-    north: 42.023,
-    south: 41.644,
-    west: -87.940,
-    east: -87.524,
-  };
 
   // -------- Public callback: called by Google Maps when SDK ready --------
   window.kfbTestInitMap = function () {
@@ -342,10 +339,13 @@
     return { text: text, color: "#fff", fontWeight: "700" };
   }
 
-  // -------- Region detection (Chicago / America / Worldwide) --------
-  // Used after a route is computed to tell the user whether both
-  // endpoints sit inside the Chicago service area, elsewhere in the
-  // USA, or somewhere else in the world.
+  // -------- Address component extraction --------
+  // The pricing zone (local/regional/long-distance/worldwide) is now
+  // classified server-side, in Pricing_engine::classify_zone() — it
+  // needs raw lat/lng (for the garage-distance check) plus each
+  // endpoint's state and country (to tell "regional" apart from
+  // "long-distance" apart from "worldwide"). This file's job is just to
+  // hand that raw data over, not to classify anything itself.
   function getLatLng(loc) {
     if (!loc) return null;
     if (typeof loc.lat === "function") return { lat: loc.lat(), lng: loc.lng() };
@@ -353,68 +353,31 @@
     return null;
   }
 
-  function isLatLngInChicago(latLng) {
-    if (!latLng) return false;
-    return (
-      latLng.lat >= CHICAGO_BOUNDS.south &&
-      latLng.lat <= CHICAGO_BOUNDS.north &&
-      latLng.lng >= CHICAGO_BOUNDS.west &&
-      latLng.lng <= CHICAGO_BOUNDS.east
-    );
-  }
-
-  // True if the place resolves to somewhere inside the city of Chicago,
-  // either by `locality === "Chicago"` in its address_components or by
-  // its geometry falling inside the Chicago bounding box.
-  function isPlaceInChicago(place) {
-    if (!place) return false;
-    if (Array.isArray(place.address_components)) {
-      for (var i = 0; i < place.address_components.length; i++) {
-        var comp = place.address_components[i];
-        if (
-          comp &&
-          Array.isArray(comp.types) &&
-          comp.types.indexOf("locality") !== -1 &&
-          (comp.long_name === "Chicago" || comp.short_name === "Chicago")
-        ) {
-          return true;
-        }
-      }
-    }
-    var ll = getLatLng(place.geometry && place.geometry.location);
-    return isLatLngInChicago(ll);
-  }
-
-  // True if the place's country component is the United States.
-  function isPlaceInUSA(place) {
-    if (!place || !Array.isArray(place.address_components)) return false;
+  // Returns the short_name of the first address_components entry whose
+  // `types` includes `type` (e.g. "administrative_area_level_1" → "IL",
+  // "country" → "US"), or "" if the place has no such component.
+  function getAddressComponent(place, type) {
+    if (!place || !Array.isArray(place.address_components)) return "";
     for (var i = 0; i < place.address_components.length; i++) {
       var comp = place.address_components[i];
-      if (
-        comp &&
-        Array.isArray(comp.types) &&
-        comp.types.indexOf("country") !== -1 &&
-        (comp.short_name === "US" || comp.long_name === "United States")
-      ) {
-        return true;
+      if (comp && Array.isArray(comp.types) && comp.types.indexOf(type) !== -1) {
+        return comp.short_name || comp.long_name || "";
       }
     }
-    return false;
+    return "";
   }
 
-  // Combine pickup + dropoff into one of the three buckets the user
-  // asked for. Stops are intentionally NOT considered — only the two
-  // endpoints gate the service region per spec.
-  function classifyRegion(pickupPlace, dropoffPlace) {
-    var pickupInChicago  = isPlaceInChicago(pickupPlace);
-    var dropoffInChicago = isPlaceInChicago(dropoffPlace);
-    if (pickupInChicago && dropoffInChicago) return "Chicago";
-
-    var pickupInUSA  = isPlaceInUSA(pickupPlace);
-    var dropoffInUSA = isPlaceInUSA(dropoffPlace);
-    if (pickupInUSA && dropoffInUSA) return "America";
-
-    return "Worldwide";
+  // { lat, lng, state, country } for a Places result, or all-blank if the
+  // place has no geometry (e.g. the customer typed an address without
+  // picking an autocomplete suggestion).
+  function extractRoutePoint(place) {
+    var ll = getLatLng(place && place.geometry && place.geometry.location);
+    return {
+      lat:     ll ? ll.lat : null,
+      lng:     ll ? ll.lng : null,
+      state:   getAddressComponent(place, "administrative_area_level_1"),
+      country: getAddressComponent(place, "country"),
+    };
   }
 
   // -------- Markers: pickup & dropoff --------
@@ -510,19 +473,20 @@
         var milesText = miles.toFixed(1) + " mi";
         var timeText  = minutes + " min";
 
-        // Determine service region from pickup + dropoff place objects.
+        // Pickup/dropoff coordinates + state/country — the pricing zone
+        // itself is classified server-side (Pricing_engine::classify_zone()).
         var pickupPlace  = pickupAC  ? pickupAC.getPlace()  : null;
         var dropoffPlace = dropoffAC ? dropoffAC.getPlace() : null;
-        var region = classifyRegion(pickupPlace, dropoffPlace);
         var stopCount = waypoints.length;
 
         // Publish to the global route state so the booking widget can
-        // read the latest distance / region without polling.
+        // read the latest distance / endpoints without polling.
         if (!window.kfbRoute) window.kfbRoute = {};
         window.kfbRoute.distanceMiles = miles;
         window.kfbRoute.durationMins  = minutes;
         window.kfbRoute.stopCount     = stopCount;
-        window.kfbRoute.region        = region;
+        window.kfbRoute.pickup        = extractRoutePoint(pickupPlace);
+        window.kfbRoute.dropoff       = extractRoutePoint(dropoffPlace);
 
         // Notify any listeners (the embed widget uses this to re-render
         // step 2 prices and the step 3 summary in real time).
@@ -540,18 +504,14 @@
         var info = document.getElementById("kfbRouteInfo");
         if (info) info.hidden = false;
 
-        // Log + alert, per spec. Include the stop count so the user
-        // can see that waypoints were actually taken into account, and
-        // the service region so they know whether the trip is inside
-        // Chicago, elsewhere in the USA, or worldwide.
+        // Log, per spec. Include the stop count so the user can see that
+        // waypoints were actually taken into account.
         var line = "Best route (car / SUV): " + milesText + " · " + timeText;
         if (stopCount > 0) {
           line += " (via " + stopCount + " stop" + (stopCount > 1 ? "s" : "") + ")";
         }
-        var regionLine = "Service region: " + region;
 
-        console.log("[BookingMap]", line, "—", regionLine);
-        // try { window.alert(line + "\n" + regionLine); } catch (e) { /* alert blocked — console is enough */ }
+        console.log("[BookingMap]", line);
       }
     );
   }

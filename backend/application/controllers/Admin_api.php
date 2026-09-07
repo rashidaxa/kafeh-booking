@@ -30,7 +30,7 @@ class Admin_api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Settings_model', 'Booking_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model']);
         $this->load->library(['session', 'paypal', 'legacy_reservations', 'mailer']);
         $this->load->helper('url');
         $this->_set_cors_headers();
@@ -286,39 +286,144 @@ class Admin_api extends CI_Controller
         $this->_json(['success' => TRUE, 'addon' => $this->Addon_model->get($id)]);
     }
 
+    // ----------------- Surcharges -----------------
+
+    /** GET /admin/api/surcharges */
+    public function surcharges_index()
+    {
+        if (!$this->_require_login()) return;
+        $this->_json(['success' => TRUE, 'surcharges' => $this->Surcharge_model->list_all()]);
+    }
+
+    /** POST /admin/api/surcharges */
+    public function surcharges_create()
+    {
+        if (!$this->_require_login()) return;
+        $payload = $this->_collect_payload();
+        $errors = $this->Surcharge_model->validate_form($payload, TRUE);
+        if (!empty($errors)) {
+            return $this->_error('Validation failed', 422, ['fields' => $errors]);
+        }
+        $id = $this->Surcharge_model->create($payload);
+        if (!$id) return $this->_error('Could not create surcharge', 500, ['db' => $this->db->error()]);
+        $this->_json(['success' => TRUE, 'surcharge' => $this->Surcharge_model->get($id)], 201);
+    }
+
+    /** POST /admin/api/surcharges/:id */
+    public function surcharges_update($id = NULL)
+    {
+        if (!$this->_require_login()) return;
+        if (!$id) return $this->_error('ID required', 400);
+        $existing = $this->Surcharge_model->get($id);
+        if (!$existing) return $this->_error('Surcharge not found', 404);
+        $payload = $this->_collect_payload();
+        $errors = $this->Surcharge_model->validate_form($payload, FALSE, $existing);
+        if (!empty($errors)) {
+            return $this->_error('Validation failed', 422, ['fields' => $errors]);
+        }
+        $ok = $this->Surcharge_model->update($id, $payload);
+        if (!$ok) return $this->_error('Could not update surcharge', 500);
+        $this->_json(['success' => TRUE, 'surcharge' => $this->Surcharge_model->get($id)]);
+    }
+
+    /** POST /admin/api/surcharges/:id/delete */
+    public function surcharges_delete($id = NULL)
+    {
+        if (!$this->_require_login()) return;
+        if (!$id) return $this->_error('ID required', 400);
+        $ok = $this->Surcharge_model->delete($id);
+        if (!$ok) return $this->_error('Could not delete surcharge', 500);
+        $this->_json(['success' => TRUE, 'id' => (int)$id]);
+    }
+
+    /** POST /admin/api/surcharges/:id/toggle */
+    public function surcharges_toggle($id = NULL)
+    {
+        if (!$this->_require_login()) return;
+        if (!$id) return $this->_error('ID required', 400);
+        $ok = $this->Surcharge_model->toggle_status($id);
+        if (!$ok) return $this->_error('Could not toggle surcharge', 500);
+        $this->_json(['success' => TRUE, 'surcharge' => $this->Surcharge_model->get($id)]);
+    }
+
     // ----------------- Settings -----------------
 
-    /** GET /admin/api/settings */
+    /** GET /admin/api/settings — global pricing settings (v16) */
     public function settings_index()
     {
         if (!$this->_require_login()) return;
-        $this->_json(['success' => TRUE, 'settings' => $this->Settings_model->meet_greet_fees()]);
+        $this->_json(['success' => TRUE, 'settings' => $this->_format_settings_for_json($this->Settings_model->pricing_settings())]);
     }
 
-    /** POST /admin/api/settings/save — { meet_greet_chicago, meet_greet_elsewhere } */
+    /**
+     * Formatted STRINGs, not floats — this server's php.ini has
+     * serialize_precision=100 (non-default; should be -1), so json_encode()
+     * expands any float that isn't exactly representable in binary out to
+     * ~100 digits regardless of round(). number_format() sidesteps the
+     * float serializer — same fix as Api::reservation_update()'s amount.
+     * Garage lat/lng keep full precision (matching settings_update()'s own
+     * validation precision below); every other pricing knob is 2 decimals.
+     */
+    protected function _format_settings_for_json(array $settings)
+    {
+        $out = [];
+        foreach ($settings as $k => $v) {
+            $decimals = in_array($k, ['pricing_garage_lat', 'pricing_garage_lng'], TRUE) ? 14 : 2;
+            $out[$k] = number_format((float)$v, $decimals, '.', '');
+        }
+        return $out;
+    }
+
+    /**
+     * POST /admin/api/settings/save — the pricing_* keys from
+     * Settings_model::pricing_settings(), all required numerics (with a
+     * 0-100 cap on the gratuity percent, matching how Vehicle_model caps
+     * percent fields).
+     */
     public function settings_update()
     {
         if (!$this->_require_login()) return;
         $payload = $this->_collect_payload();
 
-        $chicago   = $payload['meet_greet_chicago']   ?? NULL;
-        $elsewhere = $payload['meet_greet_elsewhere'] ?? NULL;
+        $fields = [
+            'pricing_local_service_radius_miles',
+            'pricing_regional_travel_fee_per_mile',
+            'pricing_long_distance_multiplier',
+            'pricing_worldwide_multiplier',
+            'pricing_local_hourly_minimum_hours',
+            'pricing_regional_hourly_minimum_hours',
+            'pricing_worldwide_hourly_minimum_hours',
+            'pricing_default_gratuity_pct',
+            'pricing_garage_lat',
+            'pricing_garage_lng',
+            'pricing_worldwide_quote_threshold_miles',
+        ];
+
         $errors = [];
-        if ($chicago === NULL || $chicago === '' || !is_numeric($chicago) || (float)$chicago < 0) {
-            $errors['meet_greet_chicago'] = 'Must be a number 0 or greater.';
-        }
-        if ($elsewhere === NULL || $elsewhere === '' || !is_numeric($elsewhere) || (float)$elsewhere < 0) {
-            $errors['meet_greet_elsewhere'] = 'Must be a number 0 or greater.';
+        $clean = [];
+        foreach ($fields as $f) {
+            $v = $payload[$f] ?? NULL;
+            if ($v === NULL || $v === '' || !is_numeric($v)) {
+                $errors[$f] = 'Must be a number.';
+                continue;
+            }
+            // Garage lat/lng can be negative; every other pricing knob must be >= 0.
+            if (!in_array($f, ['pricing_garage_lat', 'pricing_garage_lng'], TRUE) && (float)$v < 0) {
+                $errors[$f] = 'Must be zero or greater.';
+                continue;
+            }
+            if ($f === 'pricing_default_gratuity_pct' && (float)$v > 100) {
+                $errors[$f] = 'Must be 100 or less (it\'s a percentage).';
+                continue;
+            }
+            $clean[$f] = number_format((float)$v, ($f === 'pricing_garage_lat' || $f === 'pricing_garage_lng') ? 14 : 2, '.', '');
         }
         if (!empty($errors)) {
             return $this->_error('Validation failed', 422, ['fields' => $errors]);
         }
 
-        $this->Settings_model->set_many([
-            'meet_greet_chicago'   => number_format((float)$chicago, 2, '.', ''),
-            'meet_greet_elsewhere' => number_format((float)$elsewhere, 2, '.', ''),
-        ]);
-        $this->_json(['success' => TRUE, 'settings' => $this->Settings_model->meet_greet_fees()]);
+        $this->Settings_model->set_many($clean);
+        $this->_json(['success' => TRUE, 'settings' => $this->_format_settings_for_json($this->Settings_model->pricing_settings())]);
     }
 
     // ----------------- Reservations -----------------

@@ -16,7 +16,14 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   - image upload via CI's upload library (jpg, jpeg, png, webp)
  *   - "front-end shape" → the row reformatted to match what the
  *     embed widget expects (id / name / desc / capacity / luggage /
- *     basePrice / perMile / emoji / image)
+ *     basePrice / perMile / hourlyRate / emoji / image)
+ *
+ * Pricing (v16): each vehicle carries a single local $/mile rate, $/hour
+ * rate, and point-to-point minimum (local_per_mile_rate, local_hourly_rate,
+ * local_min_fare) plus an optional per-vehicle hourly-minimum-hours
+ * override (local_hourly_min_hours). Regional/long-distance/worldwide
+ * prices are DERIVED from these via global multipliers — see
+ * Pricing_engine — not stored per vehicle.
  */
 
 class Vehicle_model extends CI_Model
@@ -125,31 +132,35 @@ class Vehicle_model extends CI_Model
 
     /**
      * Reformat a DB row to the shape the embed widget expects:
-     *   { id, name, desc, capacity, luggage, basePrice, perMile, emoji, image }
+     *   { id, name, desc, capacity, luggage, basePrice, perMile, hourlyRate, emoji, image }
      *
-     * `basePrice` = the inside-Chicago per-mile rate × 10 (fallback
-     * approximation to keep the embed widget's "all-inclusive" preview
-     * functional even when the embed hasn't been wired to the full rate
-     * model yet). `perMile` = the inside-Chicago per-mile rate as-is (the
-     * column already stores $/mile — no unit conversion needed). These are
-     * placeholders — the embed should call the backend for real pricing
-     * once pricing APIs land.
+     * All real pricing math now happens server-side via Pricing_engine
+     * (POST /api/pricing/quote) — `basePrice`/`perMile`/`hourlyRate` here are
+     * just the vehicle's local rates, used for a "starting at $X" marketing
+     * display on vehicle cards before a quote is fetched.
      */
     public function to_public($row)
     {
         if (!$row) return NULL;
-        $perMile = (float)($row['per_mile_chicago'] ?? 0);
-        $hourly  = (float)($row['hourly_chicago'] ?? 0);
+        $perMile = (float)($row['local_per_mile_rate'] ?? 0);
+        $hourly  = (float)($row['local_hourly_rate'] ?? 0);
         return [
-            'id'        => $row['code'] ?: ('v' . $row['id']),
-            'name'      => $row['name'],
-            'desc'      => $row['description'] ?: '',
-            'capacity'  => (int)($row['max_passengers'] ?? 0),
-            'luggage'   => (int)($row['luggage_capacity'] ?? 0),
-            'basePrice' => round($hourly > 0 ? $hourly : ($perMile * 10), 2),
-            'perMile'   => round($perMile, 2),
-            'emoji'     => $row['emoji'] ?: '🚖',
-            'image'     => $row['image'] ?: NULL,
+            'id'         => $row['code'] ?: ('v' . $row['id']),
+            'name'       => $row['name'],
+            'desc'       => $row['description'] ?: '',
+            'capacity'   => (int)($row['max_passengers'] ?? 0),
+            'luggage'    => (int)($row['luggage_capacity'] ?? 0),
+            // Formatted STRINGs, not floats — this server's php.ini has
+            // serialize_precision=100 (non-default; should be -1), so
+            // json_encode() expands any float that isn't exactly
+            // representable in binary out to ~100 digits regardless of
+            // round(). number_format() sidesteps the float serializer —
+            // same fix as Api::reservation_update()'s amount.
+            'basePrice'  => number_format((float)($row['local_min_fare'] ?? 0), 2, '.', ''),
+            'perMile'    => number_format($perMile, 2, '.', ''),
+            'hourlyRate' => number_format($hourly, 2, '.', ''),
+            'emoji'      => $row['emoji'] ?: '🚖',
+            'image'      => $row['image'] ?: NULL,
         ];
     }
 
@@ -199,27 +210,11 @@ class Vehicle_model extends CI_Model
             }
         }
 
-        // Numeric rate fields — every region column must be a positive number.
-        $rate_fields = [
-            'hourly_chicago', 'hourly_america', 'hourly_worldwide',
-            'per_mile_chicago', 'per_mile_america', 'per_mile_worldwide',
-            'surcharge_chicago', 'surcharge_america', 'surcharge_worldwide',
-            'gratuity_chicago', 'gratuity_america', 'gratuity_worldwide',
-            'waiting_chicago', 'waiting_america', 'waiting_worldwide',
-            'child_seat_chicago', 'child_seat_america', 'child_seat_worldwide',
-        ];
-
-        // Min fare (v4) — also must be non-negative. (Meet & Greet fee moved to
-        // a global setting in v5 — see Settings_model — so it's no longer a
-        // per-vehicle field.)
-        $rate_fields[] = 'min_fare';
-        // Surcharge/gratuity are percentages of the base fare, not flat
-        // amounts — cap them at 100 so a fat-fingered entry can't multiply
-        // the fare instead of adding a slice of it.
-        $percent_fields = [
-            'surcharge_chicago', 'surcharge_america', 'surcharge_worldwide',
-            'gratuity_chicago', 'gratuity_america', 'gratuity_worldwide',
-        ];
+        // Numeric rate fields (v16) — the single local $/mile rate, local
+        // $/hour rate, and local point-to-point minimum. Regional/long-
+        // distance/worldwide rates are derived from these via global
+        // multipliers in Pricing_engine, not stored per vehicle.
+        $rate_fields = ['local_per_mile_rate', 'local_hourly_rate', 'local_min_fare'];
         foreach ($rate_fields as $f) {
             $v = $data[$f] ?? NULL;
             if ($v === '' || $v === NULL) {
@@ -233,8 +228,16 @@ class Vehicle_model extends CI_Model
             }
             if ((float)$v < 0) {
                 $errors[$f] = ucfirst(str_replace('_', ' ', $f)) . ' must be zero or positive.';
-            } elseif (in_array($f, $percent_fields, true) && (float)$v > 100) {
-                $errors[$f] = ucfirst(str_replace('_', ' ', $f)) . ' must be 100 or less (it\'s a percentage of the base fare).';
+            }
+        }
+
+        // Local hourly minimum (hours) — optional per-vehicle override of the
+        // global default (Settings_model::pricing_settings()); NULL is valid
+        // and means "use the global default".
+        if (isset($data['local_hourly_min_hours']) && $data['local_hourly_min_hours'] !== '') {
+            $v = $data['local_hourly_min_hours'];
+            if (!is_numeric($v) || (float)$v < 0) {
+                $errors['local_hourly_min_hours'] = 'Local hourly minimum must be zero or positive.';
             }
         }
 
@@ -398,31 +401,11 @@ class Vehicle_model extends CI_Model
             'luggage_capacity' => (isset($data['luggage_capacity']) && $data['luggage_capacity'] !== '')
                                     ? (int)$data['luggage_capacity'] : NULL,
 
-            'hourly_chicago'   => (float)($data['hourly_chicago']   ?? 0),
-            'hourly_america'   => (float)($data['hourly_america']   ?? 0),
-            'hourly_worldwide' => (float)($data['hourly_worldwide'] ?? 0),
-
-            'per_mile_chicago'   => (float)($data['per_mile_chicago']   ?? 0),
-            'per_mile_america'   => (float)($data['per_mile_america']   ?? 0),
-            'per_mile_worldwide' => (float)($data['per_mile_worldwide'] ?? 0),
-
-            'surcharge_chicago'   => (float)($data['surcharge_chicago']   ?? 0),
-            'surcharge_america'   => (float)($data['surcharge_america']   ?? 0),
-            'surcharge_worldwide' => (float)($data['surcharge_worldwide'] ?? 0),
-
-            'gratuity_chicago'   => (float)($data['gratuity_chicago']   ?? 0),
-            'gratuity_america'   => (float)($data['gratuity_america']   ?? 0),
-            'gratuity_worldwide' => (float)($data['gratuity_worldwide'] ?? 0),
-
-            'waiting_chicago'   => (float)($data['waiting_chicago']   ?? 0),
-            'waiting_america'   => (float)($data['waiting_america']   ?? 0),
-            'waiting_worldwide' => (float)($data['waiting_worldwide'] ?? 0),
-
-            'child_seat_chicago'   => (float)($data['child_seat_chicago']   ?? 0),
-            'child_seat_america'   => (float)($data['child_seat_america']   ?? 0),
-            'child_seat_worldwide' => (float)($data['child_seat_worldwide'] ?? 0),
-
-            'min_fare'             => (float)($data['min_fare']             ?? 0),
+            'local_per_mile_rate'    => (float)($data['local_per_mile_rate'] ?? 0),
+            'local_hourly_rate'      => (float)($data['local_hourly_rate']   ?? 0),
+            'local_hourly_min_hours' => (isset($data['local_hourly_min_hours']) && $data['local_hourly_min_hours'] !== '')
+                                            ? (float)$data['local_hourly_min_hours'] : NULL,
+            'local_min_fare'         => (float)($data['local_min_fare'] ?? 0),
         ];
 
         if ($uploaded_image_name) {

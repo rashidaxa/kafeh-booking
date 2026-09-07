@@ -77,6 +77,23 @@
     });
   }
 
+  // -------- Surcharge list → click loads row into form --------
+  $$("#kfbSurchargeList .kfb-list-item").forEach(function (item) {
+    item.addEventListener("click", function () {
+      var id = item.getAttribute("data-id");
+      if (!id) return;
+      window.location.href = BASE + "index.php/admin/surcharges/" + encodeURIComponent(id);
+    });
+  });
+
+  // -------- "New surcharge" button --------
+  var newSurchargeBtn = $("#kfbNewSurcharge");
+  if (newSurchargeBtn) {
+    newSurchargeBtn.addEventListener("click", function () {
+      window.location.href = BASE + "index.php/admin/surcharges";
+    });
+  }
+
   // -------- Promo form: live swap of discount value unit (% vs $) --------
   // Default layout (percent): unit sits on the RIGHT of the input.
   // For fixed ($): unit sits on the LEFT.
@@ -319,6 +336,79 @@
     });
   }
 
+  // -------- Surcharge form (create / update via fetch + FormData) --------
+  var surchargeForm = $("#kfbSurchargeForm");
+  if (surchargeForm) {
+    surchargeForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearErrors();
+
+      var data = new FormData(surchargeForm);
+      var submitBtn = surchargeForm.querySelector('button[type="submit"]');
+      var oldLabel = submitBtn ? submitBtn.textContent : null;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
+
+      fetch(surchargeForm.action, {
+        method: "POST", body: data, credentials: "same-origin",
+      })
+      .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; })
+        .then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        if (res.body && res.body.success) {
+          window.location.href = BASE + "index.php/admin/surcharges";
+        } else if (res.body && res.body.fields) {
+          showErrors(res.body.fields);
+        } else {
+          showErrors({ _all: (res.body && res.body.error) || "Save failed." });
+        }
+      })
+      .catch(function (err) { showErrors({ _all: "Network error: " + (err && err.message ? err.message : err) }); })
+      .finally(function () {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldLabel; }
+      });
+    });
+  }
+
+  // -------- Surcharge delete button --------
+  var delSurchargeBtn = $("#kfbDeleteSurcharge");
+  if (delSurchargeBtn) {
+    delSurchargeBtn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var msg = "Delete this surcharge? It will no longer be applied to new bookings.";
+      var proceed = function () { doSurchargeDelete(); };
+      if (window.KFB && typeof window.KFB.confirm === "function") {
+        Promise.resolve(window.KFB.confirm(msg)).then(function (ok) { if (ok) proceed(); });
+      } else if (window.confirm(msg)) {
+        proceed();
+      }
+    });
+  }
+  function doSurchargeDelete() {
+    if (!delSurchargeBtn) return;
+    var endpoint = delSurchargeBtn.getAttribute("data-endpoint");
+    if (!endpoint) { alert("Delete endpoint not configured."); return; }
+    delSurchargeBtn.disabled = true;
+    var oldLabel = delSurchargeBtn.textContent;
+    delSurchargeBtn.textContent = "Deleting…";
+    var fd = new FormData();
+    fetch(endpoint, { method: "POST", body: fd, credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
+      .then(function (j) {
+        if (j && j.success) {
+          window.location.href = BASE + "index.php/admin/surcharges";
+        } else {
+          alert((j && j.error) || "Delete failed.");
+          delSurchargeBtn.disabled = false;
+          delSurchargeBtn.textContent = oldLabel;
+        }
+      })
+      .catch(function (err) {
+        alert("Network error: " + (err && err.message ? err.message : err));
+        delSurchargeBtn.disabled = false;
+        delSurchargeBtn.textContent = oldLabel;
+      });
+  }
+
   // -------- Settings form (Meet & Greet fee) --------
   var settingsForm = $("#kfbSettingsForm");
   if (settingsForm) {
@@ -492,12 +582,7 @@
     }
 
     var rateNames = [
-      "hourly_chicago","hourly_america","hourly_worldwide",
-      "per_km_chicago","per_km_america","per_km_worldwide",
-      "surcharge_chicago","surcharge_america","surcharge_worldwide",
-      "gratuity_chicago","gratuity_america","gratuity_worldwide",
-      "waiting_chicago","waiting_america","waiting_worldwide",
-      "child_seat_chicago","child_seat_america","child_seat_worldwide",
+      "local_per_mile_rate", "local_hourly_rate", "local_hourly_min_hours", "local_min_fare",
     ];
     rateNames.forEach(function (n) {
       var el = form.elements[n];

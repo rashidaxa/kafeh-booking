@@ -115,8 +115,8 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
         <tr>
           <th>Name</th>
           <th>Passengers</th>
-          <th>Chicago / hr</th>
-          <th>Chicago / mi</th>
+          <th>Local / hr</th>
+          <th>Local / mi</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -128,8 +128,8 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
               <?php if ($v['code']): ?><small class="kfb-mono"> · <?= htmlspecialchars($v['code']) ?></small><?php endif; ?>
             </td>
             <td><?= (int)$v['min_passengers'] ?>–<?= (int)$v['max_passengers'] ?></td>
-            <td>$<?= number_format((float)$v['hourly_chicago'], 2) ?></td>
-            <td>$<?= number_format((float)$v['per_mile_chicago'], 2) ?></td>
+            <td>$<?= number_format((float)$v['local_hourly_rate'], 2) ?></td>
+            <td>$<?= number_format((float)$v['local_per_mile_rate'], 2) ?></td>
             <td>
               <?php if ((int)$v['status'] === 1): ?>
                 <span class="kfb-badge kfb-badge--ok">Enabled</span>
