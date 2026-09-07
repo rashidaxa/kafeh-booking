@@ -1446,7 +1446,7 @@
       // brand+last4 label, same as everywhere else this card is shown.
       var savedCard = selectedSavedCard();
       if (savedCard) {
-        payload.cardHolderName = $('input[name="cardHolderName"]').val() || null;
+        payload.cardHolderName = savedCard.nickname || null;
         payload.cardNumber = savedCard.card_last4;
         payload.cardExpiry = cardExpiryLabel(savedCard);
         payload.cvv = savedCard.cvv;
