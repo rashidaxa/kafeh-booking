@@ -415,6 +415,20 @@ class Booking_model extends CI_Model
         return $row;
     }
 
+    /**
+     * Same as get_booking(), but ownership-checked — returns NULL if the
+     * booking doesn't exist OR belongs to a different customer. Used by
+     * the customer-facing receipt view (Api::customer_receipt()) so one
+     * logged-in customer can never pull up another customer's booking by
+     * guessing/incrementing a booking_id.
+     */
+    public function get_booking_for_customer($booking_id, $customer_id)
+    {
+        $row = $this->get_booking($booking_id);
+        if (!$row || (int)($row['customer_id'] ?? 0) !== (int)$customer_id) return NULL;
+        return $row;
+    }
+
     /** Log a PayPal lifecycle event (authorize / capture / cancel / additional_charge) against a booking. */
     public function record_payment($booking_id, $paypal_transaction_id, $event, $status, $payload = [])
     {
@@ -482,6 +496,7 @@ class Booking_model extends CI_Model
     {
         $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
         if (!empty($filters['status'])) $this->db->where('status', $filters['status']);
+        $this->_apply_search_filter($filters);
         $this->db->order_by('created_at', 'DESC');
         if ($limit !== NULL) $this->db->limit((int)$limit, (int)$offset);
         return $this->db->get('kfb_bookings')->result_array();
@@ -492,7 +507,34 @@ class Booking_model extends CI_Model
     {
         $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
         if (!empty($filters['status'])) $this->db->where('status', $filters['status']);
+        $this->_apply_search_filter($filters);
         return (int)$this->db->count_all_results('kfb_bookings');
+    }
+
+    /**
+     * Free-text search — combines with whatever other filters (status,
+     * etc.) list_all()/count_all() already applied via AND, with the
+     * individual fields themselves OR'd together in one group so that
+     * combination is correct (not every field required to match, just
+     * every *active filter*). Searches the fields an admin would
+     * plausibly search a reservation by: booking id, customer name/
+     * email/phone, pickup/dropoff address, vehicle, promo code.
+     */
+    protected function _apply_search_filter(array $filters)
+    {
+        $q = trim((string)($filters['search'] ?? ''));
+        if ($q === '') return;
+        $this->db->group_start()
+            ->like('booking_id', $q)
+            ->or_like('first_name', $q)
+            ->or_like('last_name', $q)
+            ->or_like('email', $q)
+            ->or_like('phone', $q)
+            ->or_like('pickup', $q)
+            ->or_like('dropoff', $q)
+            ->or_like('vehicle_name', $q)
+            ->or_like('promo_code', $q)
+        ->group_end();
     }
 
     /** Record an admin accept/reject decision: status + audit stamp, cascading to a linked return leg. */

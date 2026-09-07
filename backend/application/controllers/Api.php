@@ -720,6 +720,31 @@ class Api extends CI_Controller
     }
 
     /**
+     * GET /api/customers/reservations/:id/receipt
+     * A self-contained, print-ready HTML receipt for one of the logged-in
+     * customer's own bookings (ownership-checked via
+     * Booking_model::get_booking_for_customer() — a booking_id alone is
+     * never enough). Returns raw HTML, not JSON — same bearer-token auth
+     * as every other customer endpoint, so the widget must fetch this
+     * with the Authorization header (like any other AJAX call here) and
+     * open the returned HTML itself (e.g. via a Blob URL) rather than
+     * linking straight to this URL — a plain browser navigation/new-tab
+     * click can't attach a custom header, so it would 401.
+     */
+    public function customer_receipt($id = NULL)
+    {
+        $customer = $this->_authenticate_customer();
+        if (!$customer) return;
+        if (!$id) return $this->_error('Booking ID required', 400);
+
+        $booking = $this->Booking_model->get_booking_for_customer($id, $customer['id']);
+        if (!$booking) return $this->_error('Reservation not found', 404);
+
+        $html = $this->load->view('customer/receipt', ['booking' => $booking], TRUE);
+        $this->output->set_content_type('text/html', 'utf-8')->set_output($html);
+    }
+
+    /**
      * POST /api/customers/forgot-password
      * Body: { email, reset_url_base }
      * Always responds success-shaped regardless of whether the email has

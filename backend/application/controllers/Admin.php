@@ -249,11 +249,18 @@ class Admin extends CI_Controller
 
     // ----------------- Reservations -----------------
 
-    /** GET /admin/reservations — list, optionally filtered by ?status=, paginated via ?page= */
+    /**
+     * GET /admin/reservations — list, optionally filtered by ?status=,
+     * free-text searched via ?q= (combines with status — see
+     * Booking_model::_apply_search_filter()), paginated via ?page=
+     */
     public function reservations()
     {
         $status  = trim((string)$this->input->get('status'));
-        $filters = $status !== '' ? ['status' => $status] : [];
+        $search  = trim((string)$this->input->get('q'));
+        $filters = [];
+        if ($status !== '') $filters['status'] = $status;
+        if ($search !== '') $filters['search'] = $search;
 
         $perPage = 50;
         $total   = $this->Booking_model->count_all($filters);
@@ -266,6 +273,7 @@ class Admin extends CI_Controller
             'admin'        => $this->_current_admin(),
             'reservations' => $this->Booking_model->list_all($filters, $perPage, $offset),
             'status_filter'=> $status,
+            'search_query' => $search,
             'pagination'   => [
                 'page'        => $page,
                 'per_page'    => $perPage,

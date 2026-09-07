@@ -1,6 +1,7 @@
 <?php
 $reservations  = isset($reservations) ? $reservations : [];
 $status_filter = isset($status_filter) ? $status_filter : '';
+$search_query  = isset($search_query) ? $search_query : '';
 $pagination    = isset($pagination) ? $pagination : ['page' => 1, 'per_page' => count($reservations), 'total' => count($reservations), 'total_pages' => 1];
 
 $statuses = [
@@ -24,11 +25,14 @@ if (!function_exists('kfb_reservation_badge')) {
         }
     }
 }
+// $q carries the current search box text through every status-tab link and
+// pagination link, so switching tabs or pages never silently drops a search.
 if (!function_exists('kfb_reservations_page_url')) {
-    function kfb_reservations_page_url($status, $page)
+    function kfb_reservations_page_url($status, $page, $q = '')
     {
         $params = [];
         if ($status !== '') $params['status'] = $status;
+        if ($q !== '') $params['q'] = $q;
         if ($page > 1) $params['page'] = $page;
         return site_url('admin/reservations') . (!empty($params) ? '?' . http_build_query($params) : '');
     }
@@ -40,14 +44,32 @@ if (!function_exists('kfb_reservations_page_url')) {
     <h2>All reservations</h2>
     <nav class="kfb-status-filter">
       <?php foreach ($statuses as $val => $label): ?>
-        <a href="<?= kfb_reservations_page_url($val, 1) ?>"
+        <a href="<?= kfb_reservations_page_url($val, 1, $search_query) ?>"
            class="kfb-btn kfb-btn--ghost kfb-btn--sm <?= $status_filter === $val ? 'is-active' : '' ?>"><?= htmlspecialchars($label) ?></a>
       <?php endforeach; ?>
     </nav>
   </header>
 
+  <form method="get" action="<?= site_url('admin/reservations') ?>" class="kfb-reservation-search">
+    <?php if ($status_filter !== ''): ?>
+      <input type="hidden" name="status" value="<?= htmlspecialchars($status_filter) ?>">
+    <?php endif; ?>
+    <input type="search" name="q" value="<?= htmlspecialchars($search_query) ?>"
+           placeholder="Search booking ID, name, email, phone, pickup/dropoff, vehicle, promo code…"
+           class="kfb-reservation-search-input">
+    <button type="submit" class="kfb-btn kfb-btn--primary kfb-btn--sm">Search</button>
+    <?php if ($search_query !== ''): ?>
+      <a href="<?= kfb_reservations_page_url($status_filter, 1) ?>" class="kfb-btn kfb-btn--ghost kfb-btn--sm">Clear</a>
+    <?php endif; ?>
+  </form>
+
   <?php if (empty($reservations)): ?>
-    <p class="kfb-empty">No reservations<?= $status_filter !== '' ? ' with status “' . htmlspecialchars($status_filter) . '”' : '' ?> yet.</p>
+    <p class="kfb-empty">
+      No reservations
+      <?php if ($status_filter !== ''): ?> with status &ldquo;<?= htmlspecialchars($status_filter) ?>&rdquo;<?php endif; ?>
+      <?php if ($search_query !== ''): ?> matching &ldquo;<?= htmlspecialchars($search_query) ?>&rdquo;<?php endif; ?>
+      .
+    </p>
   <?php else: ?>
     <div class="kfb-table-scroll">
       <table class="kfb-table">
@@ -105,13 +127,13 @@ if (!function_exists('kfb_reservations_page_url')) {
         </span>
         <div class="kfb-pagination-nav">
           <?php if ($pagination['page'] > 1): ?>
-            <a class="kfb-btn kfb-btn--ghost kfb-btn--sm" href="<?= kfb_reservations_page_url($status_filter, $pagination['page'] - 1) ?>">← Prev</a>
+            <a class="kfb-btn kfb-btn--ghost kfb-btn--sm" href="<?= kfb_reservations_page_url($status_filter, $pagination['page'] - 1, $search_query) ?>">← Prev</a>
           <?php else: ?>
             <span class="kfb-btn kfb-btn--ghost kfb-btn--sm is-disabled">← Prev</span>
           <?php endif; ?>
           <span class="kfb-pagination-page">Page <?= number_format((int)$pagination['page']) ?> of <?= number_format((int)$pagination['total_pages']) ?></span>
           <?php if ($pagination['page'] < $pagination['total_pages']): ?>
-            <a class="kfb-btn kfb-btn--ghost kfb-btn--sm" href="<?= kfb_reservations_page_url($status_filter, $pagination['page'] + 1) ?>">Next →</a>
+            <a class="kfb-btn kfb-btn--ghost kfb-btn--sm" href="<?= kfb_reservations_page_url($status_filter, $pagination['page'] + 1, $search_query) ?>">Next →</a>
           <?php else: ?>
             <span class="kfb-btn kfb-btn--ghost kfb-btn--sm is-disabled">Next →</span>
           <?php endif; ?>

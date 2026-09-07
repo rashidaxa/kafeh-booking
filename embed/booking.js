@@ -118,6 +118,7 @@
       customer: null,         // { id, email, first_name, last_name, ... } once logged in
       editingBookingId: null, // set by startEditReservation() — routes submitBooking() to the update endpoint
       savedCards: [],         // display-only: [{id, nickname, card_brand, card_last4, expiry_month, expiry_year, is_default}] — never the full number/CVV
+      myReservations: [],     // cached by loadMyReservations() — shared by the "My Reservations" and "Invoices & Receipts" profile panels
       pendingVerifyEmail: null, // email awaiting OTP verification — set by showVerifyView(), read by doVerifyOtp()/doResendOtp()
     };
 
@@ -249,6 +250,52 @@
     }
     function isValidCVV(cvv) {
       return /^\d{3,4}$/.test(String(cvv || "").trim());
+    }
+
+    // -------- Card field auto-formatting (booking step 3 + profile "Add a Card") --------
+    // All three reposition the caret after reformatting by counting digits
+    // typed before the caret pre-format, then walking the reformatted
+    // string until that many digits have been passed again — otherwise
+    // every keystroke would bounce the caret to the end of the field.
+    function _caretAfterDigitCount(formatted, digitCount) {
+      var pos = 0, seen = 0;
+      while (pos < formatted.length && seen < digitCount) {
+        if (/\d/.test(formatted[pos])) seen++;
+        pos++;
+      }
+      return pos;
+    }
+    /** Groups digits into "4242 4242 4242 4242" as the customer types, up to 19 digits. */
+    function wireCardNumberFormatting(selector) {
+      $(selector).on("input", function () {
+        var el = this;
+        var raw = el.value;
+        var digitsBeforeCaret = raw.slice(0, el.selectionStart).replace(/\D/g, "").length;
+        var digits = raw.replace(/\D/g, "").slice(0, 19);
+        var formatted = digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+        el.value = formatted;
+        var pos = _caretAfterDigitCount(formatted, digitsBeforeCaret);
+        try { el.setSelectionRange(pos, pos); } catch (e) { /* ignore */ }
+      });
+    }
+    /** Auto-inserts "/" after the 2nd digit: "1225" -> "12/25". */
+    function wireCardExpiryFormatting(selector) {
+      $(selector).on("input", function () {
+        var el = this;
+        var raw = el.value;
+        var digitsBeforeCaret = raw.slice(0, el.selectionStart).replace(/\D/g, "").length;
+        var digits = raw.replace(/\D/g, "").slice(0, 4);
+        var formatted = digits.length > 2 ? digits.slice(0, 2) + "/" + digits.slice(2) : digits;
+        el.value = formatted;
+        var pos = _caretAfterDigitCount(formatted, digitsBeforeCaret);
+        try { el.setSelectionRange(pos, pos); } catch (e) { /* ignore */ }
+      });
+    }
+    /** Digits only, capped at 4 (isValidCVV separately requires 3-4 on submit). */
+    function wireCvvFormatting(selector) {
+      $(selector).on("input", function () {
+        this.value = this.value.replace(/\D/g, "").slice(0, 4);
+      });
     }
     // Toggle the red invalid state on a field's wrapping <label class="kfb-field">.
     function markFieldValid($input, ok) {
@@ -2083,17 +2130,29 @@
     }
 
     // -------- Profile: reservations list --------
+    // Fetched once per Profile visit and shared by both the "My
+    // Reservations" and "Invoices & Receipts" panels — they're two views
+    // over the exact same rows, not two separate data sources.
     function loadMyReservations() {
       var $list = $("#kfbReservationsList");
+      var $receipts = $("#kfbReceiptsList");
       $list.html('<p class="kfb-empty">Loading…</p>');
+      $receipts.html('<p class="kfb-empty">Loading…</p>');
       $.ajax({ url: API_BASE + "/customers/reservations", method: "GET", dataType: "json", headers: authHeaders(), timeout: 10000 })
         .done(function (res) {
-          if (!res || !res.success) { $list.html('<p class="kfb-empty">Could not load your reservations.</p>'); return; }
-          renderReservationsList(res.reservations || []);
+          if (!res || !res.success) {
+            $list.html('<p class="kfb-empty">Could not load your reservations.</p>');
+            $receipts.html('<p class="kfb-empty">Could not load your invoices.</p>');
+            return;
+          }
+          state.myReservations = res.reservations || [];
+          renderReservationsList(state.myReservations);
+          renderReceiptsList(state.myReservations);
         })
         .fail(function (xhr) {
           if (handleAuthFailure(xhr)) return;
           $list.html('<p class="kfb-empty">Could not load your reservations.</p>');
+          $receipts.html('<p class="kfb-empty">Could not load your invoices.</p>');
         });
     }
 
@@ -2126,6 +2185,69 @@
         }
         $list.append($card);
       });
+    }
+
+    // -------- Profile: invoices & receipts --------
+    function renderReceiptsList(rows) {
+      var $list = $("#kfbReceiptsList");
+      $list.empty();
+      if (!rows.length) {
+        $list.html('<p class="kfb-empty">No invoices yet.</p>');
+        return;
+      }
+      rows.forEach(function (r) {
+        var statusLabel = (r.status || "").replace(/_/g, " ");
+        var $card = $(
+          '<div class="kfb-reservation-card">' +
+            '<div class="kfb-reservation-main">' +
+              '<div class="kfb-reservation-route">' + escapeHtml(r.booking_id) + '</div>' +
+              '<div class="kfb-reservation-meta">' + escapeHtml(fmtDateMDY(r.pickup_date)) + ' · ' + escapeHtml(r.vehicle_name || "—") + '</div>' +
+              '<div class="kfb-reservation-amount">' + fmtMoney(r.amount) + '</div>' +
+            '</div>' +
+            '<div class="kfb-reservation-side">' +
+              '<span class="kfb-status-badge kfb-status-badge--' + escapeHtml(r.status) + '">' + (statusLabel === 'paid' ? 'Confirmed' : escapeHtml(statusLabel)) + '</span>' +
+            '</div>' +
+          '</div>'
+        );
+        var $btn = $('<button type="button" class="kfb-btn kfb-btn-ghost kfb-btn--sm">View / Download Receipt</button>');
+        $btn.on("click", function () { downloadReceipt(r.booking_id, $btn); });
+        $card.find(".kfb-reservation-side").append($btn);
+        $list.append($card);
+      });
+    }
+
+    /**
+     * Fetches the receipt HTML with the customer's bearer token (a plain
+     * link/new-tab click can't attach that header, so this can't just be
+     * an <a href>), then opens it via a Blob URL — the new tab renders
+     * already-fetched content, no further request/auth needed there, and
+     * the customer's browser Print dialog (button inside the receipt)
+     * covers "download" as a PDF.
+     */
+    function downloadReceipt(bookingId, $btn) {
+      var oldLabel = $btn.text();
+      $btn.prop("disabled", true).text("Loading…");
+      $.ajax({
+        url: API_BASE + "/customers/reservations/" + encodeURIComponent(bookingId) + "/receipt",
+        method: "GET", headers: authHeaders(), dataType: "text", timeout: 15000,
+      })
+      .done(function (html) {
+        try {
+          var blob = new Blob([html], { type: "text/html" });
+          var url = URL.createObjectURL(blob);
+          window.open(url, "_blank");
+          setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+        } catch (e) {
+          toast("Could not open the receipt.", "error");
+        }
+      })
+      .fail(function (xhr) {
+        if (handleAuthFailure(xhr)) return;
+        var msg = "Could not load the receipt.";
+        try { var j = JSON.parse(xhr.responseText); if (j && j.error) msg = j.error; } catch (e) { /* ignore */ }
+        toast(msg, "error");
+      })
+      .always(function () { $btn.prop("disabled", false).text(oldLabel); });
     }
 
     // -------- Profile: account settings (edit info / change password) --------
@@ -2268,14 +2390,24 @@
     }
 
     function doAddCard() {
-      var number = $('input[name="newCardNumber"]').val();
-      var expiry = $('input[name="newCardExpiry"]').val();
+      var $number = $('input[name="newCardNumber"]');
+      var $expiry = $('input[name="newCardExpiry"]');
+      var $cvv = $('input[name="newCardCvv"]');
+      var number = $number.val();
+      var expiry = $expiry.val();
       var nickname = $('input[name="newCardNickname"]').val();
-      var cvv = $('input[name="newCardCvv"]').val();
+      var cvv = $cvv.val();
       $("#kfbAddCardError, #kfbAddCardSuccess").attr("hidden", true);
-      if (!isValidCardNumber(number)) return showViewError($("#kfbAddCardError"), "Enter a valid card number.");
-      if (!isValidCardExpiry(expiry)) return showViewError($("#kfbAddCardError"), "Enter a valid, unexpired expiry (MM/YY).");
-      if (!cvv) return showViewError($("#kfbAddCardError"), "Enter a valid CVV.");
+
+      var numberOk = isValidCardNumber(number);
+      var expiryOk = isValidCardExpiry(expiry);
+      var cvvOk = isValidCVV(cvv);
+      markFieldValid($number, numberOk);
+      markFieldValid($expiry, expiryOk);
+      markFieldValid($cvv, cvvOk);
+      if (!numberOk) return showViewError($("#kfbAddCardError"), "Enter a valid card number.");
+      if (!expiryOk) return showViewError($("#kfbAddCardError"), "Enter a valid, unexpired expiry (MM/YY).");
+      if (!cvvOk) return showViewError($("#kfbAddCardError"), "Enter a valid CVV (3-4 digits).");
 
       // No CVV is collected here on purpose — it's never stored (see
       // Customer_model::add_card()), and this form doesn't need it since
@@ -2753,6 +2885,12 @@
       wireChildSeats();
       populateAirlines();
       enhanceDateTimeInputs();
+      // Card fields — booking step 3 (cardNumber/cardExpiry/cvv) and the
+      // profile's "Add a Card" form (newCardNumber/newCardExpiry/newCardCvv)
+      // share the same formatting rules.
+      wireCardNumberFormatting('input[name="cardNumber"], input[name="newCardNumber"]');
+      wireCardExpiryFormatting('input[name="cardExpiry"], input[name="newCardExpiry"]');
+      wireCvvFormatting('input[name="cvv"], input[name="newCardCvv"]');
       makeStepper("#kfbStepperPassengers", function () { renderVehicles(); recalcSelectedVehicle(); });
       makeStepper("#kfbStepperBags");
 
@@ -2789,6 +2927,7 @@
         firstName: isValidName, lastName: isValidName,
         email: isValidEmail, phone: isValidPhone,
         cardNumber: isValidCardNumber, cardExpiry: isValidCardExpiry, cvv: isValidCVV,
+        newCardNumber: isValidCardNumber, newCardExpiry: isValidCardExpiry, newCardCvv: isValidCVV,
       };
       $(document).on("input blur", Object.keys(FIELD_VALIDATORS).map(function (n) { return 'input[name="' + n + '"]'; }).join(", "), function () {
         var $el = $(this);

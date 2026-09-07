@@ -432,11 +432,11 @@
                 <div id="kfbNewCardFieldsWrap">
                   <div class="kfb-field-row-2">
                     <label class="kfb-field"><span>Card Holder Name</span><input type="text" name="cardHolderName" placeholder="If different from passenger"></label>
-                    <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number"></label>
+                    <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
                   </div>
                   <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Card Expiry</span><input type="text" name="cardExpiry" placeholder="Card Expiry (MM/YY)"></label>
-                    <label class="kfb-field"><span>CVV</span><input type="text" name="cvv" placeholder="CVV"></label>
+                    <label class="kfb-field"><span>Card Expiry</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
+                    <label class="kfb-field"><span>CVV</span><input type="text" name="cvv" placeholder="CVV" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
                   </div>
                 </div>
                 <label class="kfb-field">
@@ -638,6 +638,7 @@
           <div class="kfb-profile-layout">
             <nav class="kfb-profile-sidebar">
               <button type="button" class="kfb-profile-tab is-active" data-profile-tab="reservations">My Reservations</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="receipts">Invoices &amp; Receipts</button>
               <button type="button" class="kfb-profile-tab" data-profile-tab="account">Account Settings</button>
               <button type="button" class="kfb-profile-tab" data-profile-tab="password">Reset Password</button>
               <button type="button" class="kfb-profile-tab" data-profile-tab="cards">Saved Cards</button>
@@ -648,6 +649,18 @@
                 <div class="kfb-view-card kfb-view-card--wide">
                   <h2 class="kfb-view-title">My Reservations</h2>
                   <div id="kfbReservationsList">
+                    <p class="kfb-empty">Loading…</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelReceipts" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Invoices &amp; Receipts</h2>
+                  <p class="kfb-panel-sub" style="margin:-10px 0 16px">
+                    Download or print a receipt for any of your bookings, and track each one's payment status.
+                  </p>
+                  <div id="kfbReceiptsList">
                     <p class="kfb-empty">Loading…</p>
                   </div>
                 </div>
@@ -701,9 +714,9 @@
 
                   <h3 class="kfb-view-subtitle">Add a Card</h3>
                   <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Card Number</span><input type="text" name="newCardNumber" placeholder="Credit Card Number" autocomplete="cc-number"></label>
-                    <label class="kfb-field"><span>Expiry</span><input type="text" name="newCardExpiry" placeholder="MM/YY" autocomplete="cc-exp"></label>
-                    <label class="kfb-field"><span>CVV</span><input type="text" name="newCardCvv" placeholder="CVV" autocomplete="cc-csc"></label>
+                    <label class="kfb-field"><span>Card Number</span><input type="text" name="newCardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
+                    <label class="kfb-field"><span>Expiry</span><input type="text" name="newCardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
+                    <label class="kfb-field"><span>CVV</span><input type="text" name="newCardCvv" placeholder="CVV" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
                   </div>
                   <p class="kfb-field-hint">We only save the card type, last 4 digits, and expiry — never the full number or CVV.</p>
                   <label class="kfb-field"><span>Nickname (optional)</span><input type="text" name="newCardNickname" placeholder="e.g. Work Visa"></label>

@@ -29,6 +29,7 @@ $route['api/customers/login']           = 'api/customer_login';
 $route['api/customers/logout']          = 'api/customer_logout';
 $route['api/customers/me']              = 'api/customer_me';
 $route['api/customers/reservations']    = 'api/customer_reservations';
+$route['api/customers/reservations/(:any)/receipt'] = 'api/customer_receipt/$1';
 $route['api/customers/forgot-password'] = 'api/customer_forgot_password';
 $route['api/customers/reset-password']  = 'api/customer_reset_password';
 $route['api/customers/update']          = 'api/customer_update_profile';

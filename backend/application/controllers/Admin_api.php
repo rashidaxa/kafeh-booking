@@ -429,12 +429,15 @@ class Admin_api extends CI_Controller
 
     // ----------------- Reservations -----------------
 
-    /** GET /admin/api/reservations?status=&page=&per_page= */
+    /** GET /admin/api/reservations?status=&q=&page=&per_page= — see Booking_model::_apply_search_filter() */
     public function reservations_index()
     {
         if (!$this->_require_login()) return;
         $status  = trim((string)$this->input->get('status'));
-        $filters = $status !== '' ? ['status' => $status] : [];
+        $search  = trim((string)$this->input->get('q'));
+        $filters = [];
+        if ($status !== '') $filters['status'] = $status;
+        if ($search !== '') $filters['search'] = $search;
 
         $perPage = max(1, min(200, (int)($this->input->get('per_page') ?: 50)));
         $total   = $this->Booking_model->count_all($filters);
