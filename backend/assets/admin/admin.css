@@ -63,10 +63,16 @@ body.kfb-auth {
 
 /* ============================================================
    Admin shell — sidebar + main
+   Sidebar, topbar and footer are all fixed to the viewport;
+   only the content between the topbar and footer scrolls.
    ============================================================ */
+:root {
+  --kfb-sidebar-w: 240px;
+  --kfb-header-h:  64px;
+  --kfb-footer-h:  48px;
+}
+
 body.kfb-admin {
-  display: grid;
-  grid-template-columns: 240px 1fr;
   min-height: 100vh;
 }
 
@@ -75,7 +81,11 @@ body.kfb-admin {
   color: #e2e8f0;
   display: flex; flex-direction: column;
   padding: 18px 0;
-  position: sticky; top: 0; height: 100vh;
+  position: fixed; top: 0; left: 0;
+  width: var(--kfb-sidebar-w); height: 100vh;
+  overflow-y: auto;
+  z-index: 30;
+  transition: transform .25s ease;
 }
 .kfb-brand {
   display: flex; align-items: center; gap: 10px;
@@ -142,13 +152,52 @@ body.kfb-admin {
 }
 .kfb-logout:hover { color: #fff; border-color: rgba(255,255,255,.3); text-decoration: none; }
 
-.kfb-main { padding: 28px 36px; max-width: 1400px; }
+/* Backdrop shown behind the sidebar when it's opened as a mobile drawer */
+.kfb-sidebar-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,.5);
+  z-index: 25;
+}
+.kfb-sidebar-backdrop.is-open { display: block; }
+
+/* Hamburger toggle — hidden on desktop, shown once the sidebar goes off-canvas */
+.kfb-nav-toggle {
+  display: none;
+  flex-direction: column; justify-content: center; gap: 4px;
+  width: 36px; height: 36px;
+  padding: 0; margin-right: 12px;
+  background: transparent; border: 1px solid var(--kfb-border); border-radius: var(--kfb-radius-sm);
+  cursor: pointer; flex: none;
+}
+.kfb-nav-toggle span {
+  display: block; height: 2px; width: 18px; margin: 0 auto;
+  background: var(--kfb-text); border-radius: 2px;
+}
+.kfb-nav-toggle:hover { background: var(--kfb-surface-alt); }
+
+.kfb-main {
+  margin-left: var(--kfb-sidebar-w);
+  min-height: 100vh;
+  padding: 0 36px;
+  padding-top: calc(var(--kfb-header-h) + 24px);
+  padding-bottom: calc(var(--kfb-footer-h) + 24px);
+  max-width: 1400px;
+}
 
 .kfb-topbar {
+  position: fixed; top: 0; left: var(--kfb-sidebar-w); right: 0;
+  height: var(--kfb-header-h);
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 24px;
+  gap: 12px;
+  padding: 0 36px;
+  background: var(--kfb-bg);
+  border-bottom: 1px solid var(--kfb-border);
+  z-index: 20;
 }
-.kfb-topbar h1 { margin: 0; font-size: 22px; font-weight: 600; }
+.kfb-topbar h1 { margin: 0; font-size: 22px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kfb-topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.kfb-topbar-meta { display: flex; align-items: center; gap: 10px; flex: none; }
 .kfb-env {
   font-size: 11px; font-weight: 600;
   color: var(--kfb-text-muted);
@@ -161,10 +210,36 @@ body.kfb-admin {
 }
 
 .kfb-footer {
-  margin-top: 40px;
-  padding-top: 16px;
+  position: fixed; bottom: 0; left: var(--kfb-sidebar-w); right: 0;
+  height: var(--kfb-footer-h);
+  display: flex; align-items: center;
+  padding: 0 36px;
+  background: var(--kfb-surface);
   border-top: 1px solid var(--kfb-border);
   color: var(--kfb-text-faint);
+  z-index: 20;
+}
+
+/* ============================================================
+   Admin shell — responsive (off-canvas sidebar)
+   ============================================================ */
+@media (max-width: 900px) {
+  .kfb-sidebar { transform: translateX(-100%); box-shadow: 0 0 40px rgba(0,0,0,.3); }
+  .kfb-sidebar.is-open { transform: translateX(0); }
+  .kfb-nav-toggle { display: flex; }
+
+  .kfb-main { margin-left: 0; padding-left: 20px; padding-right: 20px; }
+  .kfb-topbar { left: 0; padding-left: 20px; padding-right: 20px; }
+  .kfb-footer { left: 0; padding-left: 20px; padding-right: 20px; }
+}
+
+@media (max-width: 540px) {
+  :root { --kfb-header-h: 56px; --kfb-footer-h: 44px; }
+  .kfb-topbar h1 { font-size: 18px; }
+  .kfb-footer small { font-size: 12px; }
+  .kfb-main { padding-left: 16px; padding-right: 16px; }
+  .kfb-topbar { padding-left: 16px; padding-right: 16px; }
+  .kfb-footer { padding-left: 16px; padding-right: 16px; }
 }
 
 /* ============================================================

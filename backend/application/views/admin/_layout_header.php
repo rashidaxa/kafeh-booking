@@ -10,7 +10,7 @@ $admin      = isset($admin) ? $admin : NULL;
 <link rel="stylesheet" href="<?= base_url('assets/admin/admin.css') ?>">
 </head>
 <body class="kfb-admin">
-<aside class="kfb-sidebar">
+<aside class="kfb-sidebar" id="kfbSidebar">
   <div class="kfb-brand">
     <a href="<?= site_url('admin') ?>" class="kfb-brand-link" title="Go to dashboard">
       <span class="kfb-brand-mark">A</span>
@@ -42,9 +42,15 @@ $admin      = isset($admin) ? $admin : NULL;
     <?php endif; ?>
   </div>
 </aside>
+<div class="kfb-sidebar-backdrop" id="kfbSidebarBackdrop"></div>
 <main class="kfb-main">
   <header class="kfb-topbar">
-    <h1><?= htmlspecialchars($page_title) ?></h1>
+    <div class="kfb-topbar-left">
+      <button type="button" class="kfb-nav-toggle" id="kfbNavToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="kfbSidebar">
+        <span></span><span></span><span></span>
+      </button>
+      <h1><?= htmlspecialchars($page_title) ?></h1>
+    </div>
     <div class="kfb-topbar-meta">
       <span class="kfb-env"><?= htmlspecialchars(ENVIRONMENT) ?></span>
     </div>

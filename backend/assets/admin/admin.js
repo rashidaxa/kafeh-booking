@@ -11,6 +11,35 @@
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
+  // -------- Mobile sidebar drawer (fixed sidebar goes off-canvas <=900px) --------
+  var sidebar = $("#kfbSidebar");
+  var navToggle = $("#kfbNavToggle");
+  var backdrop = $("#kfbSidebarBackdrop");
+  if (sidebar && navToggle && backdrop) {
+    var openSidebar = function () {
+      sidebar.classList.add("is-open");
+      backdrop.classList.add("is-open");
+      navToggle.setAttribute("aria-expanded", "true");
+    };
+    var closeSidebar = function () {
+      sidebar.classList.remove("is-open");
+      backdrop.classList.remove("is-open");
+      navToggle.setAttribute("aria-expanded", "false");
+    };
+    navToggle.addEventListener("click", function () {
+      if (sidebar.classList.contains("is-open")) closeSidebar();
+      else openSidebar();
+    });
+    backdrop.addEventListener("click", closeSidebar);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeSidebar();
+    });
+    // Reset drawer state if the viewport is resized back to desktop width
+    window.addEventListener("resize", function () {
+      if (window.innerWidth > 900) closeSidebar();
+    });
+  }
+
   // -------- Live image preview --------
   var imgInput = $("#kfbImageInput");
   var imgPreview = $("#kfbImagePreview");
