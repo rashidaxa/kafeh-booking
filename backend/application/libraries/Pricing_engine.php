@@ -31,13 +31,22 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * of the formulas — the frontend never reimplements this math, it just
  * calls POST /api/pricing/quote.
  *
+ * NOTE ON THE TRAVEL FEE: spec item 5 ("Trips Beyond 75 Miles") is
+ * unconditional — it applies whenever pickup or dropoff is beyond the
+ * local radius, with no exception for the `long_distance` zone. So the
+ * $/mi travel fee STACKS with `long_distance`'s 3x rate multiplier
+ * (item 8) rather than being replaced by it — item 8 only changes the
+ * transportation rate, not whether the travel fee applies. Only
+ * `worldwide` (item 9) skips the travel fee entirely, per that item's
+ * own wording (rate multiplier only, no travel fee mentioned).
+ *
  * NOTE ON HOURLY ZONES: the customer's spec defines three hourly
  * buckets — Local, "Beyond 75 Miles" (5hr minimum + travel fee, at the
  * plain local hourly rate — no distance multiplier), and Worldwide (5hr
  * minimum, local hourly rate x the worldwide multiplier). It does not
  * define a distinct long-distance hourly formula, so both the
  * `regional` and `long_distance` zones use the same "beyond 75 miles"
- * hourly bucket here.
+ * hourly bucket here (and, like point-to-point, both get the travel fee).
  */
 class Pricing_engine
 {
@@ -351,8 +360,15 @@ class Pricing_engine
                 $transportation = $this->_regional_point_to_point($routeMiles, $perMileRate, $minFare);
                 $travelFee = $this->_travel_fee($zoneInfo['miles_outside_radius'], $settings['pricing_regional_travel_fee_per_mile']);
             } elseif ($zone === 'long_distance') {
+                // Spec item 5 ("Trips Beyond 75 Miles") is unconditional — the
+                // $/mi travel fee applies whenever pickup or dropoff is beyond
+                // the local radius, with no zone carve-out. long_distance's 3x
+                // multiplier (item 8) governs the transportation rate only;
+                // it doesn't replace the travel fee, it stacks with it — same
+                // as the hourly branch above already does for this zone.
                 $rateUsed = $perMileRate * $settings['pricing_long_distance_multiplier'];
                 $transportation = $this->_long_distance($routeMiles, $perMileRate, $settings['pricing_long_distance_multiplier'], $minFare);
+                $travelFee = $this->_travel_fee($zoneInfo['miles_outside_radius'], $settings['pricing_regional_travel_fee_per_mile']);
             } else { // worldwide
                 $rateUsed = $perMileRate * $settings['pricing_worldwide_multiplier'];
                 $transportation = $this->_worldwide_point_to_point($routeMiles, $perMileRate, $settings['pricing_worldwide_multiplier'], $minFare);

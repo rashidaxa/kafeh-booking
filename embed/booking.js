@@ -1056,6 +1056,76 @@
       }
     }
 
+    // ============================================================
+    // TODO(REMOVE BEFORE PRODUCTION): testing-only pricing debug alert.
+    // ------------------------------------------------------------
+    // Shows the FULL server-computed price breakdown (zone, minimum fare,
+    // travel fee, surcharges, gratuity, child seats, add-ons, discount,
+    // total) every time a customer selects a vehicle, so the rate-engine
+    // output can be manually spot-checked against the client's spec
+    // during testing. Requested for testing purposes only — remove this
+    // whole function AND its one call site (search this same
+    // "TODO(REMOVE BEFORE PRODUCTION)" marker in renderVehicles() below)
+    // before going live.
+    // ============================================================
+    function showDebugPricingAlert(v, bd) {
+      var ZONE_DEBUG_LABELS = {
+        local: "Local (inside 75-mile home-base zone)",
+        regional: "Regional (beyond 75 miles, same state)",
+        long_distance: "Long-Distance (beyond 75 miles, different state)",
+        worldwide: "International / Worldwide",
+      };
+      var hourly = isHourlyService();
+      var lines = [];
+      lines.push("=== PRICE CALCULATION DEBUG (TESTING ONLY) ===");
+      lines.push("Vehicle: " + (v.name || v.id));
+      lines.push("Service Type: " + (bd.serviceType || "—") + (hourly ? " (Hourly)" : " (Point-to-Point)"));
+      lines.push("Zone: " + (ZONE_DEBUG_LABELS[bd.zone] || bd.zone || "—"));
+      if (bd.requiresQuote) {
+        lines.push("*** REQUIRES CUSTOM QUOTE: " + (bd.requiresQuoteReason || "") + " ***");
+      }
+      lines.push("");
+      if (hourly) {
+        lines.push("Hours Charged: " + (bd.hours || 0).toFixed(2) + " h");
+        lines.push("Hourly Rate Used: " + fmtMoney(bd.rate_per_mile_used) + "/hr");
+      } else {
+        lines.push("Route Miles: " + fmtMiles(bd.miles) + " mi");
+        lines.push("Per-Mile Rate Used: " + fmtMoney(bd.rate_per_mile_used) + "/mi");
+      }
+      if (bd.pickup_distance_miles !== undefined) {
+        lines.push("Pickup Distance From Garage: " + fmtMiles(bd.pickup_distance_miles) + " mi");
+        lines.push("Drop-off Distance From Garage: " + fmtMiles(bd.dropoff_distance_miles) + " mi");
+        lines.push("Miles Beyond 75-Mile Radius: " + fmtMiles(bd.miles_outside_radius) + " mi");
+      }
+      lines.push("");
+      lines.push("--- Breakdown ---");
+      lines.push("Base Rate (Transportation): " + fmtMoney(bd.base));
+      lines.push("Minimum Fare: " + fmtMoney(bd.minFare) + (bd.minFareApplied > 0 ? "  [APPLIED — floored up to minimum]" : "  [not applied]"));
+      lines.push("Travel Fee (beyond 75 miles): " + fmtMoney(bd.travelFee));
+      lines.push("Rate Details / Surcharges (total): " + fmtMoney(bd.surcharge));
+      if (bd.surcharges && bd.surcharges.length) {
+        bd.surcharges.forEach(function (s) {
+          lines.push("   - " + s.name + " [" + s.code + "]: " + fmtMoney(s.amount) + (s.pricing_type === "percent" ? " (percent-based)" : " (flat)"));
+        });
+      } else {
+        lines.push("   (none applied)");
+      }
+      lines.push("Gratuity (" + (bd.gratuityPct || 0) + "%): " + fmtMoney(bd.gratuity));
+      lines.push("Child Seats (" + (bd.childSeatsCount || 0) + " x " + fmtMoney(bd.childSeatFee || 0) + "): " + fmtMoney(bd.childAdd));
+      lines.push("Add-ons: " + fmtMoney(bd.addonsTotal));
+      lines.push("Discount: -" + fmtMoney(bd.discount));
+      lines.push("Taxes/Fees: " + fmtMoney(bd.taxes_fees || 0));
+      lines.push("--------------------------------");
+      lines.push("One-Way Total: " + fmtMoney(bd.oneWayTotal));
+      if (bd.isReturnTrip) {
+        lines.push("Round Trip (x 2): YES — one-way total is doubled below");
+      }
+      lines.push("================================");
+      lines.push("TOTAL: " + fmtMoney(bd.total));
+      lines.push("================================");
+      alert(lines.join("\n"));
+    }
+
     function renderVehicles() {
       syncRouteFromMap();
       var $grid = $("#kfbVehicleGrid");
@@ -1129,6 +1199,9 @@
           renderVehicles();
           renderSideSummary();
           refreshSignatureVisibility();
+          // TODO(REMOVE BEFORE PRODUCTION): testing-only price debug alert
+          // — see showDebugPricingAlert() above for what it shows and why.
+          showDebugPricingAlert(state.selectedVehicle, state.selectedVehicle.breakdown);
         });
         $grid.append($card);
       });
