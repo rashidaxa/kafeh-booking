@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="test.css">
 
   <!-- V3 Widget styles -->
-  <link rel="stylesheet" href="embed/booking.css">
+  <link rel="stylesheet" href="embed/booking.css?v=20260912">
 
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
@@ -492,29 +492,46 @@
             <div class="kfb-side-card kfb-side-summary" id="kfbSummaryCard" hidden>
               <div class="kfb-side-head kfb-side-head--summary">Trip Summary</div>
               <div class="kfb-side-body">
-                <div class="kfb-srow"><span>Pick-Up Date</span><b id="kfbSumWhen">—</b></div>
-                <div class="kfb-srow"><span>Service</span><b id="kfbSumService">—</b></div>
-                <div class="kfb-srow"><span>Distance</span><b id="kfbSumDistance">—</b></div>
-                <div class="kfb-srow kfb-srow--addr"><span>Pickup</span><b id="kfbSumPickup">—</b></div>
-                <div class="kfb-srow kfb-srow--stops" id="kfbSumStopsRow" hidden>
-                  <span>Stops</span>
-                  <b id="kfbSumStops"></b>
-                </div>
-                <div class="kfb-srow kfb-srow--addr"><span>Drop-off</span><b id="kfbSumDropoff">—</b></div>
-                <div class="kfb-srow"><span>Vehicle</span><b id="kfbSumVehicle">—</b></div>
 
-                <div class="kfb-sbreakdown" id="kfbBreakdown" hidden>
+                <div class="kfb-ssection">
+                  <h4 class="kfb-ssection-title">Itinerary</h4>
+                  <div class="kfb-srow"><span>Pickup Date</span><b id="kfbSumDate">—</b></div>
+                  <div class="kfb-srow"><span>Pickup Time</span><b id="kfbSumTime">—</b></div>
+                  <div class="kfb-srow"><span>Service Type</span><b id="kfbSumService">—</b></div>
+                  <div class="kfb-srow"><span>Total Distance</span><b id="kfbSumDistance">—</b></div>
+                  <div class="kfb-srow kfb-srow--addr"><span>Pickup Location</span><b id="kfbSumPickup">—</b></div>
+                  <div class="kfb-srow kfb-srow--stops" id="kfbSumStopsRow" hidden>
+                    <span>Additional Stops</span>
+                    <b id="kfbSumStops"></b>
+                  </div>
+                  <div class="kfb-srow kfb-srow--addr"><span>Drop-off Location</span><b id="kfbSumDropoff">—</b></div>
+                </div>
+
+                <div class="kfb-ssection">
+                  <h4 class="kfb-ssection-title">Vehicle</h4>
+                  <div class="kfb-srow"><span>Class</span><b id="kfbSumVehicle">—</b></div>
+                  <div class="kfb-svehicle-meta" id="kfbSumVehicleMeta"></div>
+                </div>
+
+                <div class="kfb-ssection" id="kfbSumAddonsSection" hidden>
+                  <h4 class="kfb-ssection-title">Add-ons &amp; Extras</h4>
+                  <div id="kfbSumAddons"></div>
+                  <div class="kfb-srow" id="kfbSumChildSeatsRow" hidden><span>Child Safety Seats</span><b id="kfbSumChildSeats">—</b></div>
+                </div>
+
+                <div class="kfb-ssection" id="kfbBreakdown" hidden>
+                  <h4 class="kfb-ssection-title">Rate Details</h4>
                   <div class="kfb-srow"><span>Base Rate</span><b id="kfbSumBase">—</b></div>
                   <div class="kfb-srow" id="kfbSumTravelFeeRow" hidden><span>Travel Fee</span><b id="kfbSumTravelFee">—</b></div>
-                  <div class="kfb-srow kfb-srow--addons" id="kfbSumSurchargesRow" hidden><span>Rate Details</span><b id="kfbSumSurcharges">—</b></div>
-                  <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
-                  <div class="kfb-srow" id="kfbSumChildSeatsRow" hidden><span>Child Seats</span><b id="kfbSumChildSeats">—</b></div>
-                  <div class="kfb-srow"><span>Taxes/Fees</span><b id="kfbSumTaxesFees">$0.00</b></div>
-                  <div class="kfb-srow kfb-srow--addons" id="kfbSumAddonsRow" hidden><span>Add-ons</span><b id="kfbSumAddons">—</b></div>
-                  <div class="kfb-srow" id="kfbSumDiscountRow" hidden><span>Discount</span><b id="kfbSumDiscount">—</b></div>
+                  <div id="kfbSumSurcharges"></div>
+                  <div class="kfb-srow"><span>Suggested Gratuity</span><b id="kfbSumGratuity">—</b></div>
+                  <div class="kfb-srow" id="kfbSumDiscountRow" hidden><span>Promo Discount</span><b id="kfbSumDiscount">—</b></div>
                   <div class="kfb-srow" id="kfbSumReturnTripRow" hidden><span>Round trip (× 2)</span><b id="kfbSumReturnTrip">—</b></div>
                 </div>
+
                 <div class="kfb-srow kfb-stotal"><span>Estimated Price</span><b id="kfbSumTotal">$0.00</b></div>
+
+                <p class="kfb-srate-disclaimer"><strong>Rate Disclaimer:</strong> Estimate includes applicable surcharges, gratuity, and taxes/fees shown above. Wait time, tolls, parking, and services beyond those listed may apply and are not included. Additional services or itinerary changes may affect the final rate.</p>
               </div>
             </div>
           </div>
@@ -754,7 +771,7 @@
   ============================================================
 -->
 <script src="embed/airports.js"></script>
-<script src="embed/booking.js"></script>
+<script src="embed/booking.js?v=20260912"></script>
 <script src="test-map.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAPGyjS5tbUkUIROmDzqj0ouDCEmf7kIVY&amp;libraries=places&amp;callback=kfbTestInitMap" async defer></script>
 <script src="test-status.js"></script>

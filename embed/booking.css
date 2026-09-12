@@ -311,7 +311,19 @@ input.kfb-field-locked {
    doesn't recognize -webkit- pseudo-elements and has no icon of its own
    for type="time" anyway) so this one button opens the picker everywhere.
    type="date" is untouched — Firefox already has its own native icon. */
-.kfb-dt-wrap { position: relative; }
+.kfb-dt-wrap {
+  position: relative;
+  /* enhanceDateTimeInputs() inserts this wrap BEFORE the input's original
+     position — i.e. before the sibling .kfb-dt-overlay-display span in
+     the DOM (see .kfb-dt-overlay-wrap above). Without an explicit
+     z-index here, this wrap and that span both sit in the same "z-index:
+     auto/0" paint bucket and stack by DOM order, so the later span paints
+     over this wrap — hiding the 📅/🕐 trigger button (it still works,
+     since the span has pointer-events:none and clicks fall through, but
+     it's invisible). z-index:1 puts the wrap — and the button in it —
+     above that span so the icon actually shows. */
+  z-index: 1;
+}
 .kfb-dt-wrap input[type="time"],
 .kfb-dt-wrap input[type="date"] { padding-right: 38px; }
 .kfb-dt-wrap input[type="time"]::-webkit-calendar-picker-indicator,
@@ -637,44 +649,63 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 }
 .kfb-map-foot { padding: 10px 16px; font-size: 12px; color: var(--kfb-text-muted); }
 
-/* Summary card */
+/* ---- Summary card: monochrome "receipt" style — bold caps section
+   headings, thin rules between sections, a double rule under the grand
+   total. Font weight and underlines carry emphasis; color never does. ---- */
 .kfb-side-summary .kfb-side-head {
-  background: var(--kfb-accent); color: #fff; border-bottom: 0;
+  background: #fff; color: var(--kfb-text);
+  font-size: 18px; font-weight: 800; letter-spacing: .03em;
+  padding: 18px 20px 14px;
+  border-bottom: 3px solid var(--kfb-text);
 }
-.kfb-side-body { padding: 14px 18px; }
+.kfb-side-body { padding: 18px 20px 20px; }
+
+.kfb-ssection { padding: 14px 0; border-bottom: 1px solid var(--kfb-border); }
+.kfb-ssection:first-child { padding-top: 0; }
+.kfb-ssection-title {
+  margin: 0 0 8px;
+  font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--kfb-text);
+}
+
 .kfb-srow {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
-  padding: 7px 0; border-bottom: 1px dashed var(--kfb-border);
+  padding: 5px 0;
   font-size: 13px;
 }
-.kfb-srow:last-child { border-bottom: 0; }
-.kfb-srow > span { color: var(--kfb-text-muted); text-transform: uppercase; letter-spacing: .04em; font-size: 11px; font-weight: 600; min-width: 90px; }
-.kfb-srow > b { font-weight: 600; text-align: right; max-width: 60%; word-break: break-word; }
+.kfb-srow > span { color: var(--kfb-text-muted); font-size: 12.5px; font-weight: 500; min-width: 90px; }
+.kfb-srow > b { font-weight: 700; text-align: right; max-width: 60%; word-break: break-word; color: var(--kfb-text); }
 .kfb-srow--addr > b { font-size: 13px; }
-.kfb-stop-line { font-size: 12px; color: var(--kfb-text-soft); margin-top: 2px; }
+.kfb-stop-line { font-size: 12px; color: var(--kfb-text-soft); margin-top: 2px; text-align: right; }
 
-/* Add-ons row: label on its own line, itemized lines below spanning the
-   full card width — the default .kfb-srow > b (max-width:60%, right-aligned)
-   is too narrow for "name + price" pairs and wraps badly. */
-.kfb-srow--addons { flex-direction: column; align-items: stretch; gap: 6px; }
-.kfb-srow--addons > b { max-width: 100%; text-align: left; }
+/* Vehicle class sub-line (e.g. "3 Passengers · 2 Bags") */
+.kfb-svehicle-meta { font-size: 12px; color: var(--kfb-text-muted); margin-top: 2px; }
+
+/* Itemized lines shared by "Add-ons & Extras" and the surcharge lines
+   inside "Rate Details" — name on the left, bold amount on the right. */
 .kfb-addon-line {
   display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-  font-size: 12px; font-weight: 400; color: var(--kfb-text-soft); margin-top: 2px;
+  font-size: 13px; font-weight: 500; color: var(--kfb-text-muted); padding: 5px 0;
 }
 .kfb-addon-line span { min-width: 0; }
-.kfb-addon-line b { font-weight: 600; color: var(--kfb-text); white-space: nowrap; flex: 0 0 auto; }
-.kfb-addon-line--total {
-  margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--kfb-border);
-  font-weight: 700; color: var(--kfb-text);
-}
-.kfb-addon-line--total span { text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
-.kfb-sbreakdown { margin: 8px 0 0; padding: 8px 0 0; border-top: 1px solid var(--kfb-border); }
+.kfb-addon-line b { font-weight: 700; color: var(--kfb-text); white-space: nowrap; flex: 0 0 auto; }
+
+/* Discounts get weight + an underline instead of color to "pop" —
+   monochrome hierarchy, per the receipt-style blueprint. */
+#kfbSumDiscount { text-decoration: underline; font-weight: 800; }
+
 .kfb-stotal {
-  font-size: 16px; font-weight: 700; padding-top: 12px !important; margin-top: 6px;
-  border-top: 2px solid var(--kfb-text) !important;
+  font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  padding: 16px 0 14px !important; margin-top: 2px;
+  border-bottom: 4px double var(--kfb-text) !important;
 }
-.kfb-stotal > b { font-size: 18px; }
+.kfb-stotal > span { color: var(--kfb-text); font-size: 13px; }
+.kfb-stotal > b { font-size: 22px; font-weight: 800; text-transform: none; letter-spacing: 0; }
+
+.kfb-srate-disclaimer {
+  margin: 14px 0 0; font-size: 11px; line-height: 1.55; color: var(--kfb-text-muted);
+}
+.kfb-srate-disclaimer strong { color: var(--kfb-text-soft); font-weight: 700; }
 
 /* ===================== SUCCESS ===================== */
 .kfb-success {

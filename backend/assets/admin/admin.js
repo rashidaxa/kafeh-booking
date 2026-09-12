@@ -40,6 +40,29 @@
     });
   }
 
+  // -------- Dashboard stat count-up --------
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var statValues = $$(".kfb-stat-value");
+  if (statValues.length && !reduceMotion) {
+    statValues.forEach(function (el, i) {
+      var target = parseInt((el.textContent || "").replace(/[^0-9-]/g, ""), 10);
+      if (isNaN(target)) return;
+      var duration = 600;
+      var startDelay = Math.min(i, 8) * 40;
+      var start = null;
+      el.textContent = "0";
+      var step = function (ts) {
+        if (start === null) start = ts;
+        var progress = Math.min((ts - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+        el.textContent = Math.round(target * eased).toString();
+        if (progress < 1) window.requestAnimationFrame(step);
+        else el.textContent = target.toString();
+      };
+      setTimeout(function () { window.requestAnimationFrame(step); }, startDelay);
+    });
+  }
+
   // -------- Live image preview --------
   var imgInput = $("#kfbImageInput");
   var imgPreview = $("#kfbImagePreview");

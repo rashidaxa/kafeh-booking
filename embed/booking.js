@@ -1215,10 +1215,8 @@
       var sum = $("#kfbSummaryCard");
       if (!sum.length) return;
 
-      $("#kfbSumWhen").text(
-        fmtDateMDY($('input[name="pickupDate"]').val()) + "  " +
-        fmtTime12h($('input[name="pickupTime"]').val())
-      );
+      $("#kfbSumDate").text(fmtDateMDY($('input[name="pickupDate"]').val()));
+      $("#kfbSumTime").text(fmtTime12h($('input[name="pickupTime"]').val()));
       $("#kfbSumService").text(selectedServiceType() || "—");
       $("#kfbSumDistance").text(fmtMiles(state.distanceMiles) + " mi · " + fmtMins(state.durationMins) + " min");
       $("#kfbSumPickup").text($('input[name="pickup"]').val() || "—");
@@ -1245,13 +1243,24 @@
 
       if (state.selectedVehicle) {
         $("#kfbSumVehicle").text(state.selectedVehicle.name || state.selectedVehicle.id);
+        var passengerCount = parseInt($('input[name="passengers"]').val(), 10) || 1;
+        var bagCount = parseInt($('input[name="bags"]').val(), 10) || 0;
+        $("#kfbSumVehicleMeta").text(
+          passengerCount + " Passenger" + (passengerCount === 1 ? "" : "s") +
+          " / " + bagCount + " Bag" + (bagCount === 1 ? "" : "s")
+        );
         var bd = state.selectedVehicle.breakdown || priceBreakdown(state.selectedVehicle);
         $("#kfbBreakdown").show();
         $("#kfbSumBase").text(fmtMoney(bd.base));
         $("#kfbSumGratuity").text(fmtMoney(bd.gratuity) + " (" + bd.gratuityPct + "%)");
-        $("#kfbSumTaxesFees").text(fmtMoney(bd.taxes_fees || 0));
-        // Child seats — same rate per seat regardless of type, × count.
-        if (bd.childAdd > 0) {
+        // Note: no "Taxes & Government Fees" row — the pricing engine has
+        // no tax concept implemented yet (bd.taxes_fees is always 0), so
+        // showing it here would just be a permanently-zero dead line.
+        // Child seats — priced per seat by the core pricing engine (not
+        // the separate add-ons catalog), but shown inside "Add-ons &
+        // Extras" since that's where a customer expects to find it.
+        var hasChildSeats = bd.childAdd > 0;
+        if (hasChildSeats) {
           $("#kfbSumChildSeatsRow").show();
           $("#kfbSumChildSeats").text(fmtMoney(bd.childAdd) + " (" + bd.childSeatsCount + " seat" + (bd.childSeatsCount === 1 ? "" : "s") + ")");
         } else {
@@ -1265,39 +1274,40 @@
           $("#kfbSumTravelFeeRow").hide();
         }
         // Surcharges — itemized list from the pricing engine (Airport fee,
-        // Meet & Greet, etc. — whichever apply to this trip).
-        var $surchargesRow = $("#kfbSumSurchargesRow");
-        if ($surchargesRow.length) {
-          if (bd.surcharges && bd.surcharges.length) {
-            $surchargesRow.show();
-            var surchargeLines = bd.surcharges.map(function (s) {
-              return '<div class="kfb-addon-line"><span>' + escapeHtml(s.name) + '</span><b>' + fmtMoney(s.amount) + '</b></div>';
-            }).join("");
-            if (bd.surcharges.length > 1) {
-              surchargeLines += '<div class="kfb-addon-line kfb-addon-line--total"><span>Total</span><b>' + fmtMoney(bd.surcharge) + '</b></div>';
-            }
-            $("#kfbSumSurcharges").html(surchargeLines);
-          } else {
-            $surchargesRow.hide();
-          }
+        // Meet & Greet, etc. — whichever apply to this trip). Rendered
+        // straight into the always-visible "Rate Details" section; an
+        // empty container just contributes nothing when there are none.
+        if (bd.surcharges && bd.surcharges.length) {
+          // Exactly what the pricing engine returns for this trip — no
+          // hardcoded fee names, and no extra "Total" line: the only
+          // total on this card is the Estimated Price at the bottom.
+          var surchargeLines = bd.surcharges.map(function (s) {
+            return '<div class="kfb-addon-line"><span>' + escapeHtml(s.name) + '</span><b>' + fmtMoney(s.amount) + '</b></div>';
+          }).join("");
+          $("#kfbSumSurcharges").html(surchargeLines);
+        } else {
+          $("#kfbSumSurcharges").empty();
         }
-        // Add-ons — itemized: each selected add-on's name + amount, plus the total.
-        var $addonsRow = $("#kfbSumAddonsRow");
-        if ($addonsRow.length) {
-          if (state.addons && state.addons.length) {
-            $addonsRow.show();
-            var addonLines = state.addons.map(function (a) {
-              var label = escapeHtml(a.name) + (a.quantity > 1 ? " × " + a.quantity : "");
-              return '<div class="kfb-addon-line"><span>' + label + '</span><b>' + fmtMoney(a.line_total) + '</b></div>';
-            }).join("");
-            // Only show a separate total once there's more than one line to sum.
-            if (state.addons.length > 1) {
-              addonLines += '<div class="kfb-addon-line kfb-addon-line--total"><span>Total</span><b>' + fmtMoney(bd.addonsTotal) + '</b></div>';
-            }
-            $("#kfbSumAddons").html(addonLines);
-          } else {
-            $addonsRow.hide();
-          }
+        // Add-ons — itemized: one line per selected add-on's name + amount.
+        // The section itself (and its Child Safety Seats row, set above)
+        // is shown whenever either has something to display.
+        var $addonsSection = $("#kfbSumAddonsSection");
+        var hasAddons = !!(state.addons && state.addons.length);
+        if (hasAddons) {
+          // Exactly what's in state.addons — one line per selected add-on,
+          // no extra "Total" line (the only total on this card is the
+          // Estimated Price at the bottom).
+          var addonLines = state.addons.map(function (a) {
+            var label = escapeHtml(a.name) + (a.quantity > 1 ? " × " + a.quantity : "");
+            return '<div class="kfb-addon-line"><span>' + label + '</span><b>' + fmtMoney(a.line_total) + '</b></div>';
+          }).join("");
+          $("#kfbSumAddons").html(addonLines);
+        } else {
+          $("#kfbSumAddons").empty();
+        }
+        if ($addonsSection.length) {
+          if (hasAddons || hasChildSeats) $addonsSection.show();
+          else $addonsSection.hide();
         }
         if (bd.discount > 0) {
           $("#kfbSumDiscountRow").show();
