@@ -210,6 +210,8 @@ CREATE TABLE IF NOT EXISTS `kfb_surcharges` (
   `pricing_type`  ENUM('flat','percent') NOT NULL DEFAULT 'flat' COMMENT 'flat = $ amount; percent = % of (transportation + travel fee)',
   `amount`        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `auto_trigger`  VARCHAR(40)  NULL COMMENT 'NULL = manual selection only; else a Pricing_engine-recognized trigger key (airport | airport_meet_greet)',
+  `starts_at`     DATETIME NULL DEFAULT NULL COMMENT 'Auto-trigger only applies to trips picking up on/after this date/time; NULL = no restriction',
+  `ends_at`       DATETIME NULL DEFAULT NULL COMMENT 'Auto-trigger only applies to trips picking up on/before this date/time; NULL = no restriction',
   `sort_order`    INT NOT NULL DEFAULT 0,
   `status`        TINYINT(1) NOT NULL DEFAULT 1,
   `created_at`    DATETIME NOT NULL,

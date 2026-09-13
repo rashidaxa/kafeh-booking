@@ -539,14 +539,6 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 .kfb-empty { color: var(--kfb-text-muted); text-align: center; padding: 18px; }
 
 /* ===================== PAYMENT ===================== */
-.kfb-pay-methods { display: flex; gap: 8px; margin-bottom: 12px; }
-.kfb-pay-method {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 14px; border: 1px solid var(--kfb-border-strong); border-radius: var(--kfb-radius);
-  background: #fff; font-size: 13px; font-weight: 600;
-}
-.kfb-pay-method.is-active   { border-color: var(--kfb-accent); background: var(--kfb-card-2); }
-.kfb-pay-method.is-disabled  { color: var(--kfb-text-muted); cursor: not-allowed; }
 .kfb-pay-error { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--kfb-error); background: var(--kfb-error-bg); border-radius: var(--kfb-radius); }
 .kfb-pay-note { color: var(--kfb-text-muted); font-size: 12px; margin: 12px 0 18px; }
 .kfb-payment-status {
@@ -569,10 +561,10 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
   background: #fff; border: 1px solid var(--kfb-border); border-radius: var(--kfb-radius);
   padding: 14px 16px; margin-bottom: 6px;
 }
-.kfb-promo-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--kfb-text-soft); margin-bottom: 6px; display: block; }
+.kfb-promo-label { font-size: 12px; font-weight: 700; letter-spacing: .05em; color: var(--kfb-text-soft); margin-bottom: 6px; display: block; }
 .kfb-promo-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .kfb-promo-input {
-  font: inherit; font-size: 14px; text-transform: uppercase; letter-spacing: .04em;
+  font: inherit; font-size: 14px; letter-spacing: .04em;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   border: 1px solid var(--kfb-border-strong); border-radius: var(--kfb-radius);
   padding: 10px 12px; background: #fff;
@@ -653,10 +645,11 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
    headings, thin rules between sections, a double rule under the grand
    total. Font weight and underlines carry emphasis; color never does. ---- */
 .kfb-side-summary .kfb-side-head {
-  background: #fff; color: var(--kfb-text);
+  background: var(--kfb-accent); color: #fff;
   font-size: 18px; font-weight: 800; letter-spacing: .03em;
+  text-align: center;
   padding: 18px 20px 14px;
-  border-bottom: 3px solid var(--kfb-text);
+  border-bottom: 0;
 }
 .kfb-side-body { padding: 18px 20px 20px; }
 
@@ -678,8 +671,10 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 .kfb-srow--addr > b { font-size: 13px; }
 .kfb-stop-line { font-size: 12px; color: var(--kfb-text-soft); margin-top: 2px; text-align: right; }
 
-/* Vehicle class sub-line (e.g. "3 Passengers · 2 Bags") */
-.kfb-svehicle-meta { font-size: 12px; color: var(--kfb-text-muted); margin-top: 2px; }
+/* Vehicle type sub-line (e.g. "3 Passengers / 2 Bags") — sits below the
+   selected vehicle row, bold and right-aligned to match every other value
+   in this summary column (see .kfb-srow > b above). */
+.kfb-svehicle-meta { font-size: 12px; font-weight: 700; color: var(--kfb-text); margin-top: 2px; text-align: right; }
 
 /* Itemized lines shared by "Add-ons & Extras" and the surcharge lines
    inside "Rate Details" — name on the left, bold amount on the right. */

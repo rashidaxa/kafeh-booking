@@ -146,6 +146,24 @@ class Surcharge_model extends CI_Model
             $errors['auto_trigger'] = 'Not a recognized trigger.';
         }
 
+        // Active window (v18) — both optional; either side left blank means
+        // "no restriction on that side", same as leaving both blank means
+        // "always active" (today's behavior, unchanged). Only checked
+        // against each other, not against "now" — a seasonal surcharge is
+        // meant to be created well ahead of the window it targets.
+        $startsAt = trim((string)($data['starts_at'] ?? ''));
+        $endsAt   = trim((string)($data['ends_at'] ?? ''));
+        if ($startsAt !== '' && strtotime($startsAt) === FALSE) {
+            $errors['starts_at'] = 'Not a valid date/time.';
+        }
+        if ($endsAt !== '' && strtotime($endsAt) === FALSE) {
+            $errors['ends_at'] = 'Not a valid date/time.';
+        }
+        if ($startsAt !== '' && $endsAt !== '' && strtotime($startsAt) !== FALSE && strtotime($endsAt) !== FALSE
+            && strtotime($startsAt) > strtotime($endsAt)) {
+            $errors['ends_at'] = 'End date/time must be after the start date/time.';
+        }
+
         $status = isset($data['status']) ? (int)$data['status'] : 1;
         if (!in_array($status, [0, 1], TRUE)) {
             $errors['status'] = 'Status must be enabled or disabled.';
@@ -169,6 +187,8 @@ class Surcharge_model extends CI_Model
             // Admin-selected from a closed dropdown (validated above against
             // KNOWN_TRIGGERS) — empty string means "manual selection only".
             'auto_trigger' => (trim((string)($data['auto_trigger'] ?? '')) !== '') ? trim((string)$data['auto_trigger']) : NULL,
+            'starts_at'    => (trim((string)($data['starts_at'] ?? '')) !== '') ? date('Y-m-d H:i:s', strtotime($data['starts_at'])) : NULL,
+            'ends_at'      => (trim((string)($data['ends_at'] ?? '')) !== '') ? date('Y-m-d H:i:s', strtotime($data['ends_at'])) : NULL,
             'sort_order'   => (int)($data['sort_order'] ?? 0),
             'status'       => isset($data['status']) ? ((int)$data['status'] ? 1 : 0) : 1,
         ];

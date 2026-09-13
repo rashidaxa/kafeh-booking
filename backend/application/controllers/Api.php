@@ -939,6 +939,10 @@ class Api extends CI_Controller
             'dropoff_is_airport'      => strcasecmp($dropoffType, 'Airport') === 0,
             'dropoff_type_detail'     => $raw['dropoffTypeDetail'] ?? NULL,
             'pickup_time'             => (string)($raw['pickupTime'] ?? ''),
+            // Drives Pricing_engine's surcharge active-window check
+            // (v18, e.g. a Christmas surcharge) — 'YYYY-MM-DD', same as
+            // the <input type="date"> it comes from.
+            'pickup_date'             => (string)($raw['pickupDate'] ?? ''),
             'child_seats'             => (int)($raw['childSeats'] ?? 0),
             'selected_surcharge_codes'=> is_array($raw['selectedSurchargeCodes'] ?? NULL) ? $raw['selectedSurchargeCodes'] : [],
         ];
@@ -947,14 +951,20 @@ class Api extends CI_Controller
     /**
      * Folds a Pricing_engine quote into the reservation payload as the
      * final authoritative `amount`, plus the breakdown columns
-     * Booking_model persists. Add-ons and the promo discount are NOT
-     * things Pricing_engine knows about (they're separate systems —
-     * kfb_addons and Promo_model — deliberately left untouched here), so
-     * they're folded in at the same point the old client-side
+     * Booking_model persists. Add-ons are NOT a thing Pricing_engine knows
+     * about (a separate system — kfb_addons — deliberately left untouched
+     * here), so they're folded in at the same point the old client-side
      * priceBreakdown() applied them: onto the ONE-WAY total, before
      * round-trip doubling — otherwise a round trip would double the
-     * transportation fare but not the add-ons/discount, silently
-     * changing what a round-trip customer is charged relative to today.
+     * transportation fare but not the add-ons, silently changing what a
+     * round-trip customer is charged relative to today.
+     *
+     * The promo discount is recomputed here from Promo_model rather than
+     * trusted from $raw['discountAmount'] — both to close the gap where a
+     * tampered client-submitted discount used to be trusted outright, and
+     * because the discount applies to the base transportation rate ONLY
+     * (never travel fee, surcharges, gratuity, child seats, or add-ons),
+     * which only the server can enforce authoritatively.
      */
     protected function _apply_quote_to_payload(array &$raw, array $quote)
     {
@@ -964,7 +974,19 @@ class Api extends CI_Controller
                 $addonsTotal += (float)($a['line_total'] ?? 0);
             }
         }
-        $discount = (float)($raw['discountAmount'] ?? 0);
+
+        $discount = 0.0;
+        $promoCode = trim((string)($raw['promoCode'] ?? ''));
+        if ($promoCode !== '') {
+            $promo = $this->Promo_model->validate($promoCode, $quote['transportation']);
+            if (!empty($promo['ok'])) {
+                $discount = (float)$promo['discount'];
+                $raw['promoCode'] = $promo['code'];
+            } else {
+                $raw['promoCode'] = NULL;
+            }
+        }
+        $raw['discountAmount'] = $discount;
 
         $oneWay = max(0, $quote['one_way_total'] + $addonsTotal - $discount);
         $raw['amount'] = round(!empty($quote['is_return_trip']) ? $oneWay * 2 : $oneWay, 2);

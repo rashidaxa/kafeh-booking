@@ -241,6 +241,41 @@ class Pricing_engine
     }
 
     /**
+     * Combines the trip's pickup date ('YYYY-MM-DD') and time ('HH:MM') into
+     * a single Unix timestamp for comparing against a surcharge's active
+     * window. Returns NULL if no usable date was given (e.g. an old caller
+     * that never learned about pickup_date) — callers must treat NULL as
+     * "unknown", not as "matches everything".
+     */
+    protected function _parse_pickup_datetime($date, $time)
+    {
+        $date = trim((string)$date);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}/', $date)) return NULL;
+        $time = trim((string)$time);
+        if (!preg_match('/^\d{1,2}:\d{2}/', $time)) $time = '00:00';
+        $ts = strtotime($date . ' ' . $time);
+        return $ts !== FALSE ? $ts : NULL;
+    }
+
+    /**
+     * A surcharge with both starts_at and ends_at NULL (the only state
+     * possible before v18, and the default for a new one) is unrestricted —
+     * applies regardless of date, identical to pre-v18 behavior. Once
+     * either side is set, a trip with no resolvable pickup date/time is
+     * kept OUT rather than guessed in.
+     */
+    protected function _within_surcharge_window(array $row, $pickupTimestamp)
+    {
+        $starts = $row['starts_at'] ?? NULL;
+        $ends   = $row['ends_at'] ?? NULL;
+        if (!$starts && !$ends) return TRUE;
+        if (!$pickupTimestamp) return FALSE;
+        if ($starts && $pickupTimestamp < strtotime($starts)) return FALSE;
+        if ($ends && $pickupTimestamp > strtotime($ends)) return FALSE;
+        return TRUE;
+    }
+
+    /**
      * Evaluate every enabled surcharge against this trip's context.
      * Percent-type surcharges and gratuity both compute off the same
      * base ($base = transportation + travel fee — "applicable
@@ -255,6 +290,7 @@ class Pricing_engine
         $pickupMeetGreet  = $pickupAirport  && (($context['pickup_type_detail']  ?? '') === 'Meet & Greet');
         $dropoffMeetGreet = $dropoffAirport && (($context['dropoff_type_detail'] ?? '') === 'Meet & Greet');
         $lateNightPickup  = $this->_is_late_night_pickup($context['pickup_time'] ?? NULL);
+        $pickupDateTime   = $this->_parse_pickup_datetime($context['pickup_date'] ?? NULL, $context['pickup_time'] ?? NULL);
 
         $items = [];
         $total = 0.0;
@@ -278,6 +314,13 @@ class Pricing_engine
                 $applies = in_array(strtoupper($row['code']), $selected, TRUE);
             }
             if (!$applies) continue;
+            // v18: an optional active window (starts_at/ends_at) — e.g. a
+            // Christmas surcharge created ahead of time that should only
+            // land on trips actually picking up during that window. NULL on
+            // both sides (the default, and the only state before v18) means
+            // "no restriction", so every existing surcharge keeps applying
+            // exactly as it did before this check existed.
+            if (!$this->_within_surcharge_window($row, $pickupDateTime)) continue;
 
             $amount = $this->CI->Surcharge_model->resolve_amount($row, $base);
             $items[] = [

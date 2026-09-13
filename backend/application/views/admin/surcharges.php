@@ -39,6 +39,11 @@ $trigger_labels = Surcharge_model::KNOWN_TRIGGERS;
                 <?php else: ?>
                   · Manual selection
                 <?php endif; ?>
+                <?php if (!empty($s['starts_at']) || !empty($s['ends_at'])): ?>
+                  <br>· Active
+                  <?php if (!empty($s['starts_at'])): ?>from <?= date('M j, Y g:ia', strtotime($s['starts_at'])) ?><?php endif; ?>
+                  <?php if (!empty($s['ends_at'])): ?>until <?= date('M j, Y g:ia', strtotime($s['ends_at'])) ?><?php endif; ?>
+                <?php endif; ?>
               </small>
             </div>
             <div class="kfb-list-actions">
@@ -105,6 +110,16 @@ $trigger_labels = Surcharge_model::KNOWN_TRIGGERS;
               </option>
             <?php endforeach; ?>
           </select>
+        </label>
+        <label class="kfb-field">
+          <span>Active From <small class="kfb-hint">optional — leave blank for no start restriction</small></span>
+          <input type="datetime-local" name="starts_at"
+                 value="<?= ($is_edit && !empty($editing['starts_at'])) ? date('Y-m-d\TH:i', strtotime($editing['starts_at'])) : '' ?>">
+        </label>
+        <label class="kfb-field">
+          <span>Active Until <small class="kfb-hint">optional — leave blank for no end restriction, e.g. a seasonal surcharge like Christmas</small></span>
+          <input type="datetime-local" name="ends_at"
+                 value="<?= ($is_edit && !empty($editing['ends_at'])) ? date('Y-m-d\TH:i', strtotime($editing['ends_at'])) : '' ?>">
         </label>
       </fieldset>
 

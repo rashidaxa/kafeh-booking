@@ -136,14 +136,14 @@
       var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
       return m ? (m[2] + "/" + m[3] + "/" + m[1]) : "—";
     }
-    // "HH:MM" (24h) -> "Time: hh:MM AM/PM"
+    // "HH:MM" (24h) -> "hh:MM AM/PM"
     function fmtTime12h(hm) {
       var m = /^(\d{1,2}):(\d{2})/.exec(hm || "");
       if (!m) return "";
       var h = parseInt(m[1], 10);
       var ampm = h >= 12 ? "PM" : "AM";
       h = h % 12; if (h === 0) h = 12;
-      return "Time: " + String(h).padStart(2, "0") + ":" + m[2] + " " + ampm;
+      return String(h).padStart(2, "0") + ":" + m[2] + " " + ampm;
     }
     // -------- Date/time overlay display (see .kfb-dt-overlay-wrap in booking.css for why) --------
     function updateDtOverlay($input) {
@@ -165,7 +165,7 @@
         return String(h).padStart(2, "0") + ":" + m[2] + " " + ampm;
       })();
       if (!text || text === "—") {
-        $overlay.text(isDate ? "Select date" : "Select time").addClass("is-placeholder");
+        $overlay.text(isDate ? "Select Date" : "Select Time").addClass("is-placeholder");
       } else {
         $overlay.text(text).removeClass("is-placeholder");
       }
@@ -366,7 +366,7 @@
       if (to <= from) return true;
       if (from === 1) return validateStep1();
       if (from === 2) {
-        if (!state.selectedVehicle) { toast("Please choose a vehicle.", "error"); return false; }
+        if (!state.selectedVehicle) { toast("Please Choose A Vehicle.", "error"); return false; }
         return true;
       }
       return true;
@@ -377,21 +377,21 @@
     // ============================================================
     function validateStep1() {
       var missing = [];
-      if (!$('input[name="service"]:checked').length) missing.push("Service type");
-      if (!$('input[name="pickupDate"]').val()) missing.push("Pickup date");
-      if (!$('input[name="pickupTime"]').val()) missing.push("Pickup time");
+      if (!$('input[name="service"]:checked').length) missing.push("Service Type");
+      if (!$('input[name="pickupDate"]').val()) missing.push("Pickup Date");
+      if (!$('input[name="pickupTime"]').val()) missing.push("Pickup Time");
       if ($('input[name="pickupDate"]').val() && $('input[name="pickupTime"]').val() &&
           isPastDateTime($('input[name="pickupDate"]').val(), $('input[name="pickupTime"]').val())) {
-        missing.push("Pickup date/time (can't be in the past)");
+        missing.push("Pickup Date/Time (Can't Be In The Past)");
       }
 
       var pickupType = getLocType("pickup");
-      if (!$('input[name="pickup"]').val().trim()) missing.push("Pickup location");
+      if (!$('input[name="pickup"]').val().trim()) missing.push("Pickup Location");
 
       // Dropoff: only if "return at different" is on
       var dropoffType = getLocType("dropoff");
       if ($("#kfbReturnDifferent").is(":checked")) {
-        if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off location");
+        if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off Location");
       }
 
       if (!$('input[name="passengers"]').val() || parseInt($('input[name="passengers"]').val(), 10) < 1) {
@@ -412,11 +412,11 @@
       // Return trip: date/time always required, plus the swapped leg's
       // airline/flight/time whenever the corresponding original location is an airport.
       if (state.isReturnTrip) {
-        if (!$('input[name="returnDate"]').val()) missing.push("Return date");
-        if (!$('input[name="returnTime"]').val()) missing.push("Return time");
+        if (!$('input[name="returnDate"]').val()) missing.push("Return Date");
+        if (!$('input[name="returnTime"]').val()) missing.push("Return Time");
         if ($('input[name="returnDate"]').val() && $('input[name="returnTime"]').val() &&
             isPastDateTime($('input[name="returnDate"]').val(), $('input[name="returnTime"]').val())) {
-          missing.push("Return date/time (can't be in the past)");
+          missing.push("Return Date/Time (Can't Be In The Past)");
         }
         var returnDifferent = $("#kfbReturnDifferent").is(":checked");
         var returnPickupIsAirport = (returnDifferent ? dropoffType : pickupType) === "Airport";
@@ -432,7 +432,7 @@
         }
       }
       if (missing.length) {
-        toast("Please fill: " + missing.join(", "), "error");
+        toast("Please Fill: " + missing.join(", "), "error");
         var first = null;
         if (!$('input[name="pickupDate"]').val()) first = $('input[name="pickupDate"]');
         else if (!$('input[name="pickupTime"]').val()) first = $('input[name="pickupTime"]');
@@ -540,7 +540,7 @@
       var opts = [];
       for (var mins = 0; mins < 24 * 60; mins += TIME_STEP_MINUTES) {
         var value = String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0");
-        opts.push({ value: value, label: fmtTime12h(value).replace(/^Time: /, "") });
+        opts.push({ value: value, label: fmtTime12h(value) });
       }
       return opts;
     })();
@@ -638,14 +638,14 @@
     function maxStops() { return isHourlyService() ? Infinity : TRANSFER_MAX_STOPS; }
     var stopIndex = 0;
     function addStopRow() {
-      if (stopIndex >= maxStops()) { toast("Maximum " + TRANSFER_MAX_STOPS + " extra stops for Transfer service.", "error"); return; }
+      if (stopIndex >= maxStops()) { toast("Maximum " + TRANSFER_MAX_STOPS + " Extra Stops For Transfer Service.", "error"); return; }
       var $c = $("#kfbStopsContainer");
       if (!$c.length) return;
       var i = stopIndex;
       var $row = $(
         '<div class="kfb-stop-row" data-stop="' + i + '">' +
           '<span class="kfb-stop-badge">' + (i + 1) + '</span>' +
-          '<input type="text" name="stop[]" class="kfb-stop-input" placeholder="Stop address" autocomplete="off">' +
+          '<input type="text" name="stop[]" class="kfb-stop-input" placeholder="Stop Address" autocomplete="off">' +
           '<button type="button" class="kfb-remove-stop" aria-label="Remove stop ' + (i + 1) + '">&times;</button>' +
         '</div>'
       );
@@ -680,7 +680,7 @@
       if ($rows.length > cap) {
         $rows.slice(cap).remove();
         renumberStops();
-        toast("Trimmed to " + cap + " stops for Transfer service.");
+        toast("Trimmed To " + cap + " Stops For Transfer Service.");
       }
     }
 
@@ -801,7 +801,12 @@
     function mergeAddonsAndDiscount(q) {
       var addonsTotal = totalAddons();
       var discount = (state.promo && state.promo.ok) ? +(state.promo.discount || 0) : 0;
-      var oneWayTotal = Math.max(0, (q.one_way_total || 0) + addonsTotal - discount);
+      // Pricing_engine sends every quote field as a formatted STRING (see
+      // the $fmt() comment in Pricing_engine::quote()), so one_way_total
+      // must be coerced with unary + before arithmetic — otherwise
+      // "97.73" + addonsTotal string-concatenates instead of adding,
+      // silently corrupting the total whenever add-ons are selected.
+      var oneWayTotal = Math.max(0, (+q.one_way_total || 0) + addonsTotal - discount);
       // one_way_total never depends on the return-trip flag (Pricing_engine
       // computes it identically either way), so the live state.isReturnTrip
       // toggle can double it instantly here without waiting on a requote.
@@ -810,9 +815,12 @@
       return $.extend({}, q, {
         addonsTotal: addonsTotal, discount: discount,
         subtotal: oneWayTotal, oneWayTotal: oneWayTotal, total: total,
-        // Legacy field names some call sites/markup still read.
-        base: q.transportation, travelFee: q.travel_fee, surcharge: q.surcharges_total,
-        gratuity: q.gratuity_amount, gratuityPct: q.gratuity_pct,
+        // Legacy field names some call sites/markup still read. Coerced to
+        // numbers for the same reason one_way_total is above — these are
+        // Pricing_engine's formatted-STRING fields, and applyPromo() (among
+        // others) does real arithmetic on bd.base, not just display.
+        base: +q.transportation || 0, travelFee: +q.travel_fee || 0, surcharge: +q.surcharges_total || 0,
+        gratuity: +q.gratuity_amount || 0, gratuityPct: +q.gratuity_pct || 0,
         // Already folded into q.one_way_total server-side (Pricing_engine) —
         // exposed here only for display, not added again in oneWayTotal above.
         childSeatsCount: q.child_seats_count || 0, childSeatFee: q.child_seat_fee_used || 0,
@@ -858,6 +866,7 @@
         pickupType: pickupType, pickupTypeDetail: state.pickupTypeDetail,
         dropoffType: dropoffType, dropoffTypeDetail: state.dropoffTypeDetail,
         pickupTime: $('input[name="pickupTime"]').val() || "",
+        pickupDate: $('input[name="pickupDate"]').val() || "",
         childSeats: totalChildSeats(),
         selectedSurchargeCodes: [],
       };
@@ -1344,19 +1353,23 @@
       if (state.promo && state.promo.ok) {
         state.promo = null;
         renderPromoState();
-        toast("Promo code removed.");
+        toast("Promo Code Removed.");
         return;
       }
       var code = ($("#kfbPromoInput").val() || "").trim();
-      if (!code) { toast("Enter a promo code first.", "error"); return; }
+      if (!code) { toast("Enter A Promo Code First.", "error"); return; }
       var v = state.selectedVehicle;
-      if (!v) { toast("Choose a vehicle first.", "error"); return; }
-      var subtotal = (v.breakdown && v.breakdown.subtotal) || priceBreakdown(v).subtotal;
+      if (!v) { toast("Choose A Vehicle First.", "error"); return; }
+      // Promo codes discount the base transportation rate only — never the
+      // travel fee, surcharges, gratuity, child seats, or add-ons — so the
+      // amount validated against is bd.base, not the full subtotal.
+      var bd = v.breakdown || priceBreakdown(v);
+      var baseRate = +bd.base || 0;
       $("#kfbPromoApply").prop("disabled", true).text("Checking…");
       $.ajax({
         url: API_BASE + "/promo/validate",
         method: "GET",
-        data: { code: code, amount: subtotal.toFixed(2) },
+        data: { code: code, amount: baseRate.toFixed(2) },
         dataType: "json",
         timeout: 5000,
       })
@@ -1369,18 +1382,18 @@
             reason: res.reason || "ok",
             description: res.description || "",
           };
-          toast("Promo code applied — " + fmtMoney(res.discount) + " off!");
+          toast("Promo Code Applied — " + fmtMoney(res.discount) + " Off!");
         } else {
           state.promo = {
             code: code.toUpperCase(), ok: false,
             reason: (res && res.reason) || "not_found",
-            discount: 0, final: subtotal,
+            discount: 0, final: baseRate,
           };
           toast(promoReasonText(state.promo.reason), "error");
         }
         renderPromoState();
       })
-      .fail(function () { toast("Could not validate promo code (network error).", "error"); })
+      .fail(function () { toast("Could Not Validate Promo Code (Network Error).", "error"); })
       .always(function () { $("#kfbPromoApply").prop("disabled", false); });
     }
 
@@ -1410,13 +1423,13 @@
 
     function promoReasonText(reason) {
       switch (reason) {
-        case "not_found":   return "we couldn't find this code.";
-        case "disabled":    return "this code is no longer active.";
-        case "expired":     return "this code has expired.";
-        case "not_started": return "this code isn't active yet.";
-        case "max_uses":    return "this code has been fully used.";
-        case "min_amount":  return "your subtotal doesn't meet the minimum for this code.";
-        default:            return "this code can't be applied.";
+        case "not_found":   return "We Couldn't Find This Code.";
+        case "disabled":    return "This Code Is No Longer Active.";
+        case "expired":     return "This Code Has Expired.";
+        case "not_started": return "This Code Isn't Active Yet.";
+        case "max_uses":    return "This Code Has Been Fully Used.";
+        case "min_amount":  return "Your Base Rate Doesn't Meet The Minimum For This Code.";
+        default:            return "This Code Can't Be Applied.";
       }
     }
 
@@ -1545,7 +1558,7 @@
 
     function createReservation() {
       var payload = buildReservationPayload();
-      if (!payload) { toast("No vehicle selected.", "error"); return $.Deferred().reject().promise(); }
+      if (!payload) { toast("No Vehicle Selected.", "error"); return $.Deferred().reject().promise(); }
       return $.ajax({
         url: API_BASE + "/reservation",
         method: "POST",
@@ -1559,7 +1572,7 @@
     /** The edit counterpart to createReservation() — same payload, existing booking_id, auth required. */
     function updateReservation() {
       var payload = buildReservationPayload();
-      if (!payload) { toast("No vehicle selected.", "error"); return $.Deferred().reject().promise(); }
+      if (!payload) { toast("No Vehicle Selected.", "error"); return $.Deferred().reject().promise(); }
       return $.ajax({
         url: API_BASE + "/reservation/" + encodeURIComponent(state.editingBookingId) + "/update",
         method: "POST",
@@ -1609,10 +1622,10 @@
      */
     function submitBooking() {
       var v = state.selectedVehicle;
-      if (!v) { toast("Choose a vehicle first.", "error"); return; }
+      if (!v) { toast("Choose A Vehicle First.", "error"); return; }
       var bd = priceBreakdown(v);
       if (bd.requiresQuote) {
-        toast(bd.requiresQuoteReason || "This trip requires a custom quote — please contact us.", "error");
+        toast(bd.requiresQuoteReason || "This Trip Requires A Custom Quote — Please Contact Us.", "error");
         return;
       }
 
@@ -1660,8 +1673,8 @@
 
       if (missing.length || invalid.length) {
         var parts = [];
-        if (missing.length) parts.push("Please fill: " + missing.join(", "));
-        if (invalid.length) parts.push("Please check the format of: " + invalid.join(", "));
+        if (missing.length) parts.push("Please Fill: " + missing.join(", "));
+        if (invalid.length) parts.push("Please Check The Format Of: " + invalid.join(", "));
         toast(parts.join(" — "), "error");
         if ($firstBad) $firstBad.focus();
         return;
@@ -1691,7 +1704,7 @@
             // No PayPal round-trip needed — the edit is already saved.
             $("#kfbPaymentStatus").hide();
             $btn.prop("disabled", false);
-            toast("Reservation updated ✓");
+            toast("Reservation Updated ✓");
             state.editingBookingId = null;
             setView("profile");
             return;
@@ -1706,7 +1719,7 @@
           $("#kfbPaymentStatus").hide();
           $btn.prop("disabled", false);
           if (isEditing && handleAuthFailure(err)) return;
-          var msg = (err && err.responseJSON && err.responseJSON.error) || (err && err.message) || "Could not process payment.";
+          var msg = (err && err.responseJSON && err.responseJSON.error) || (err && err.message) || "Could Not Process Payment.";
           toast(msg, "error");
         });
     }
@@ -1747,9 +1760,9 @@
           })
           .catch(function () { showSuccess(bookingId); });
       } else if (status === "cancelled") {
-        toast("PayPal checkout was cancelled — you can try again.", "error");
+        toast("PayPal Checkout Was Cancelled — You Can Try Again.", "error");
       } else {
-        toast(message || "PayPal reported a problem completing your payment.", "error");
+        toast(message || "PayPal Reported A Problem Completing Your Payment.", "error");
       }
     }
 
@@ -2031,19 +2044,19 @@
           $("#kfbLoginError").attr("hidden", true);
           $('#kfbLoginView input').val("");
           setView("booking");
-          toast("Logged in — welcome back!");
+          toast("Logged In — Welcome Back!");
         } else {
-          showViewError($("#kfbLoginError"), (res && res.error) || "Could not log in.");
+          showViewError($("#kfbLoginError"), (res && res.error) || "Could Not Log In.");
         }
       })
       .fail(function (xhr) {
         var body = xhr.responseJSON;
         if (xhr.status === 403 && body && body.requires_verification) {
           showVerifyView(body.email || email);
-          toast(body.error || "Please verify your email first.", "error");
+          toast(body.error || "Please Verify Your Email First.", "error");
           return;
         }
-        showViewError($("#kfbLoginError"), (body && body.error) || "Invalid email or password.");
+        showViewError($("#kfbLoginError"), (body && body.error) || "Invalid Email Or Password.");
       });
     }
 
@@ -2060,7 +2073,7 @@
       var email = state.pendingVerifyEmail;
       var otp = ($('input[name="verifyOtp"]').val() || "").trim();
       if (!email) { setView("login"); return; }
-      if (!/^\d{6}$/.test(otp)) return showViewError($("#kfbVerifyError"), "Enter the 6-digit code from your email.");
+      if (!/^\d{6}$/.test(otp)) return showViewError($("#kfbVerifyError"), "Enter The 6-Digit Code From Your Email.");
 
       $.ajax({
         url: API_BASE + "/customers/verify-email", method: "POST", contentType: "application/json",
@@ -2076,13 +2089,13 @@
           loadSavedCards();
           $('input[name="verifyOtp"]').val("");
           setView("booking");
-          toast("Email verified — welcome!");
+          toast("Email Verified — Welcome!");
         } else {
-          showViewError($("#kfbVerifyError"), (res && res.error) || "Invalid or expired code.");
+          showViewError($("#kfbVerifyError"), (res && res.error) || "Invalid Or Expired Code.");
         }
       })
       .fail(function (xhr) {
-        showViewError($("#kfbVerifyError"), (xhr.responseJSON && xhr.responseJSON.error) || "Invalid or expired code.");
+        showViewError($("#kfbVerifyError"), (xhr.responseJSON && xhr.responseJSON.error) || "Invalid Or Expired Code.");
       });
     }
 
@@ -2095,13 +2108,13 @@
       })
       .done(function (res) {
         if (res && res.already_verified) {
-          toast("This email is already verified — please log in.");
+          toast("This Email Is Already Verified — Please Log In.");
           setView("login");
         } else {
-          toast("A new code has been sent.");
+          toast("A New Code Has Been Sent.");
         }
       })
-      .fail(function () { toast("Could not resend the code — try again shortly.", "error"); });
+      .fail(function () { toast("Could Not Resend The Code — Try Again Shortly.", "error"); });
     }
 
     function doLogout() {
@@ -2112,7 +2125,7 @@
         state.editingBookingId = null;
         setView("booking");
       }
-      toast("Logged out.");
+      toast("Logged Out.");
     }
 
     /**
@@ -2123,7 +2136,7 @@
     function handleAuthFailure(xhr) {
       if (xhr && xhr.status === 401) {
         clearAuth();
-        toast("Your session expired — please log in again.", "error");
+        toast("Your Session Expired — Please Log In Again.", "error");
         setView("login");
         return true;
       }
@@ -2137,8 +2150,8 @@
       var firstName = $('input[name="registerFirstName"]').val();
       var lastName = $('input[name="registerLastName"]').val();
       var phone = $('input[name="registerPhone"]').val();
-      if (!isValidEmail(email)) return showViewError($("#kfbRegisterError"), "Enter a valid email address.");
-      if (!password || password.length < 6) return showViewError($("#kfbRegisterError"), "Password must be at least 6 characters.");
+      if (!isValidEmail(email)) return showViewError($("#kfbRegisterError"), "Enter A Valid Email Address.");
+      if (!password || password.length < 6) return showViewError($("#kfbRegisterError"), "Password Must Be At Least 6 Characters.");
 
       $.ajax({
         url: API_BASE + "/customers/register", method: "POST", contentType: "application/json",
@@ -2153,17 +2166,17 @@
           // just emailed is verified (see customer_register()'s docblock).
           showVerifyView(res.email || email);
         } else {
-          showViewError($("#kfbRegisterError"), (res && res.error) || "Could not create account.");
+          showViewError($("#kfbRegisterError"), (res && res.error) || "Could Not Create Account.");
         }
       })
       .fail(function (xhr) {
-        showViewError($("#kfbRegisterError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not create account.");
+        showViewError($("#kfbRegisterError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could Not Create Account.");
       });
     }
 
     function doForgotPassword() {
       var email = $('input[name="forgotEmail"]').val();
-      if (!isValidEmail(email)) return showViewError($("#kfbForgotError"), "Enter a valid email address.");
+      if (!isValidEmail(email)) return showViewError($("#kfbForgotError"), "Enter A Valid Email Address.");
       $("#kfbForgotError").attr("hidden", true);
       var resetUrlBase = location.href.split("#")[0].split("?")[0];
       $.ajax({
@@ -2171,32 +2184,32 @@
         data: JSON.stringify({ email: email, reset_url_base: resetUrlBase }), dataType: "json", timeout: 10000,
       })
       .done(function (res) {
-        $("#kfbForgotSuccess").text((res && res.message) || "If that email is registered, a reset link has been sent.").removeAttr("hidden");
+        $("#kfbForgotSuccess").text((res && res.message) || "If That Email Is Registered, A Reset Link Has Been Sent.").removeAttr("hidden");
       })
       .fail(function () {
-        showViewError($("#kfbForgotError"), "Network error — please try again.");
+        showViewError($("#kfbForgotError"), "Network Error — Please Try Again.");
       });
     }
 
     function doResetPassword() {
       var token = $('input[name="resetToken"]').val();
       var password = $('input[name="resetPassword"]').val();
-      if (!password || password.length < 6) return showViewError($("#kfbResetError"), "Password must be at least 6 characters.");
+      if (!password || password.length < 6) return showViewError($("#kfbResetError"), "Password Must Be At Least 6 Characters.");
       $.ajax({
         url: API_BASE + "/customers/reset-password", method: "POST", contentType: "application/json",
         data: JSON.stringify({ token: token, password: password }), dataType: "json", timeout: 10000,
       })
       .done(function (res) {
         if (res && res.success) {
-          toast("Password updated — you can log in now.");
+          toast("Password Updated — You Can Log In Now.");
           $('#kfbResetView input[name="resetPassword"]').val("");
           setView("login");
         } else {
-          showViewError($("#kfbResetError"), (res && res.error) || "This reset link is invalid or has expired.");
+          showViewError($("#kfbResetError"), (res && res.error) || "This Reset Link Is Invalid Or Has Expired.");
         }
       })
       .fail(function (xhr) {
-        showViewError($("#kfbResetError"), (xhr.responseJSON && xhr.responseJSON.error) || "This reset link is invalid or has expired.");
+        showViewError($("#kfbResetError"), (xhr.responseJSON && xhr.responseJSON.error) || "This Reset Link Is Invalid Or Has Expired.");
       });
     }
 
@@ -2321,12 +2334,12 @@
           window.open(url, "_blank");
           setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
         } catch (e) {
-          toast("Could not open the receipt.", "error");
+          toast("Could Not Open The Receipt.", "error");
         }
       })
       .fail(function (xhr) {
         if (handleAuthFailure(xhr)) return;
-        var msg = "Could not load the receipt.";
+        var msg = "Could Not Load The Receipt.";
         try { var j = JSON.parse(xhr.responseText); if (j && j.error) msg = j.error; } catch (e) { /* ignore */ }
         toast(msg, "error");
       })
@@ -2352,9 +2365,9 @@
       var email = $('input[name="profileEmail"]').val();
       $("#kfbProfileUpdateError, #kfbProfileUpdateSuccess").attr("hidden", true);
       if (!isValidName(firstName) || !isValidName(lastName)) {
-        return showViewError($("#kfbProfileUpdateError"), "Enter a valid first and last name.");
+        return showViewError($("#kfbProfileUpdateError"), "Enter A Valid First And Last Name.");
       }
-      if (!isValidEmail(email)) return showViewError($("#kfbProfileUpdateError"), "Enter a valid email address.");
+      if (!isValidEmail(email)) return showViewError($("#kfbProfileUpdateError"), "Enter A Valid Email Address.");
 
       $.ajax({
         url: API_BASE + "/customers/update", method: "POST", contentType: "application/json",
@@ -2371,14 +2384,14 @@
           // until the next full page load.
           prefillContactFromCustomer();
           $("#kfbProfileUpdateSuccess").removeAttr("hidden");
-          toast("Profile updated ✓");
+          toast("Profile Updated ✓");
         } else {
-          showViewError($("#kfbProfileUpdateError"), (res && res.error) || "Could not update profile.");
+          showViewError($("#kfbProfileUpdateError"), (res && res.error) || "Could Not Update Profile.");
         }
       })
       .fail(function (xhr) {
         if (handleAuthFailure(xhr)) return;
-        showViewError($("#kfbProfileUpdateError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not update profile.");
+        showViewError($("#kfbProfileUpdateError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could Not Update Profile.");
       });
     }
 
@@ -2386,8 +2399,8 @@
       var current = $('input[name="profileCurrentPassword"]').val();
       var next = $('input[name="profileNewPassword"]').val();
       $("#kfbPasswordChangeError, #kfbPasswordChangeSuccess").attr("hidden", true);
-      if (!current) return showViewError($("#kfbPasswordChangeError"), "Enter your current password.");
-      if (!next || next.length < 6) return showViewError($("#kfbPasswordChangeError"), "New password must be at least 6 characters.");
+      if (!current) return showViewError($("#kfbPasswordChangeError"), "Enter Your Current Password.");
+      if (!next || next.length < 6) return showViewError($("#kfbPasswordChangeError"), "New Password Must Be At Least 6 Characters.");
 
       $.ajax({
         url: API_BASE + "/customers/change-password", method: "POST", contentType: "application/json",
@@ -2399,14 +2412,14 @@
         if (res && res.success) {
           $('input[name="profileCurrentPassword"], input[name="profileNewPassword"]').val("");
           $("#kfbPasswordChangeSuccess").removeAttr("hidden");
-          toast("Password updated ✓");
+          toast("Password Updated ✓");
         } else {
-          showViewError($("#kfbPasswordChangeError"), (res && res.error) || "Could not update password.");
+          showViewError($("#kfbPasswordChangeError"), (res && res.error) || "Could Not Update Password.");
         }
       })
       .fail(function (xhr) {
         if (handleAuthFailure(xhr)) return;
-        showViewError($("#kfbPasswordChangeError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not update password.");
+        showViewError($("#kfbPasswordChangeError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could Not Update Password.");
       });
     }
 
@@ -2488,9 +2501,9 @@
       markFieldValid($number, numberOk);
       markFieldValid($expiry, expiryOk);
       markFieldValid($cvv, cvvOk);
-      if (!numberOk) return showViewError($("#kfbAddCardError"), "Enter a valid card number.");
-      if (!expiryOk) return showViewError($("#kfbAddCardError"), "Enter a valid, unexpired expiry (MM/YY).");
-      if (!cvvOk) return showViewError($("#kfbAddCardError"), "Enter a valid CVV (3-4 digits).");
+      if (!numberOk) return showViewError($("#kfbAddCardError"), "Enter A Valid Card Number.");
+      if (!expiryOk) return showViewError($("#kfbAddCardError"), "Enter A Valid, Unexpired Expiry (MM/YY).");
+      if (!cvvOk) return showViewError($("#kfbAddCardError"), "Enter A Valid CVV (3-4 Digits).");
 
       // No CVV is collected here on purpose — it's never stored (see
       // Customer_model::add_card()), and this form doesn't need it since
@@ -2505,32 +2518,32 @@
         if (res && res.success) {
           $('input[name="newCardNumber"], input[name="newCardExpiry"], input[name="newCardNickname"], input[name="newCardCvv"]').val("");
           $("#kfbAddCardSuccess").removeAttr("hidden");
-          toast("Card saved ✓");
+          toast("Card Saved ✓");
           loadSavedCards();
         } else {
-          showViewError($("#kfbAddCardError"), (res && res.error) || "Could not save card.");
+          showViewError($("#kfbAddCardError"), (res && res.error) || "Could Not Save Card.");
         }
       })
       .fail(function (xhr) {
         if (handleAuthFailure(xhr)) return;
-        showViewError($("#kfbAddCardError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could not save card.");
+        showViewError($("#kfbAddCardError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could Not Save Card.");
       });
     }
 
     function doSetDefaultCard(cardId) {
       $.ajax({ url: API_BASE + "/customers/cards/" + encodeURIComponent(cardId) + "/default", method: "POST", headers: authHeaders(), dataType: "json", timeout: 10000 })
         .done(function (res) {
-          if (res && res.success) { state.savedCards = res.cards || []; renderSavedCardsList(state.savedCards); renderSavedCardDropdown(); toast("Default card updated ✓"); }
+          if (res && res.success) { state.savedCards = res.cards || []; renderSavedCardsList(state.savedCards); renderSavedCardDropdown(); toast("Default Card Updated ✓"); }
         })
-        .fail(function (xhr) { if (!handleAuthFailure(xhr)) toast("Could not update default card.", "error"); });
+        .fail(function (xhr) { if (!handleAuthFailure(xhr)) toast("Could Not Update Default Card.", "error"); });
     }
 
     function doDeleteCard(cardId) {
       $.ajax({ url: API_BASE + "/customers/cards/" + encodeURIComponent(cardId) + "/delete", method: "POST", headers: authHeaders(), dataType: "json", timeout: 10000 })
         .done(function (res) {
-          if (res && res.success) { state.savedCards = res.cards || []; renderSavedCardsList(state.savedCards); renderSavedCardDropdown(); toast("Card removed."); }
+          if (res && res.success) { state.savedCards = res.cards || []; renderSavedCardsList(state.savedCards); renderSavedCardDropdown(); toast("Card Removed."); }
         })
-        .fail(function (xhr) { if (!handleAuthFailure(xhr)) toast("Could not remove card.", "error"); });
+        .fail(function (xhr) { if (!handleAuthFailure(xhr)) toast("Could Not Remove Card.", "error"); });
     }
 
     /**
@@ -2605,14 +2618,14 @@
     function startEditReservation(bookingId) {
       $.ajax({ url: API_BASE + "/reservation/" + encodeURIComponent(bookingId), method: "GET", dataType: "json", timeout: 10000 })
         .done(function (booking) {
-          if (!booking || !booking.booking_id) { toast("Could not load that reservation.", "error"); return; }
+          if (!booking || !booking.booking_id) { toast("Could Not Load That Reservation.", "error"); return; }
           resetAll(); // clears any in-progress form state cleanly before prefilling
           state.editingBookingId = bookingId;
           $("#kfbBookNowBtn").text("Save Changes");
           prefillFormFromBooking(booking);
           setView("booking");
         })
-        .fail(function () { toast("Could not load that reservation.", "error"); });
+        .fail(function () { toast("Could Not Load That Reservation.", "error"); });
     }
 
     /**
@@ -2805,7 +2818,7 @@
       $block.find(".kfb-account-prompt-btn").on("click", function () {
         var pw = $block.find('input[name="accountPassword"]').val();
         if (!pw || pw.length < 6) {
-          toast("Password must be at least 6 characters.", "error");
+          toast("Password Must Be At Least 6 Characters.", "error");
           return;
         }
         var email = $('input[name="email"]').val();
@@ -2832,10 +2845,10 @@
             // itself is already confirmed either way.
             showVerifyView(res.email || email);
           } else {
-            toast((res && res.error) || "Could not create account.", "error");
+            toast((res && res.error) || "Could Not Create Account.", "error");
           }
         })
-        .fail(function () { toast("Network error creating account.", "error"); });
+        .fail(function () { toast("Network Error Creating Account.", "error"); });
       });
     }
 
@@ -2938,13 +2951,13 @@
         var invalid = isPastDateTime(d, t);
         markFieldValid($date, !invalid);
         markFieldValid($time, !invalid);
-        if (invalid) toast(label + " can't be in the past — please pick a different date/time.", "error");
+        if (invalid) toast(label + " Can't Be In The Past — Please Pick A Different Date/Time.", "error");
       }
       $(document).on("change", 'input[name="pickupDate"], input[name="pickupTime"]', function () {
-        checkPastDateTimeField("pickupDate", "pickupTime", "Pickup date/time");
+        checkPastDateTimeField("pickupDate", "pickupTime", "Pickup Date/Time");
       });
       $(document).on("change", 'input[name="returnDate"], input[name="returnTime"]', function () {
-        checkPastDateTimeField("returnDate", "returnTime", "Return date/time");
+        checkPastDateTimeField("returnDate", "returnTime", "Return Date/Time");
       });
       // Pickup time can trigger/clear the Late-Night / Early-Morning
       // Pickup Fee surcharge (11 PM - 5 AM) — see Pricing_engine.
