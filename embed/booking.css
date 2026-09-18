@@ -642,7 +642,7 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 .kfb-map-foot { padding: 10px 16px; font-size: 12px; color: var(--kfb-text-muted); }
 
 /* ---- Summary card: monochrome "receipt" style — bold caps section
-   headings, thin rules between sections, a double rule under the grand
+   headings, thin rules between sections, a solid rule under the grand
    total. Font weight and underlines carry emphasis; color never does. ---- */
 .kfb-side-summary .kfb-side-head {
   background: var(--kfb-accent); color: #fff;
@@ -692,7 +692,7 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 .kfb-stotal {
   font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
   padding: 16px 0 14px !important; margin-top: 2px;
-  border-bottom: 4px double var(--kfb-text) !important;
+  border-bottom: 3px solid var(--kfb-text) !important;
 }
 .kfb-stotal > span { color: var(--kfb-text); font-size: 13px; }
 .kfb-stotal > b { font-size: 22px; font-weight: 800; text-transform: none; letter-spacing: 0; }

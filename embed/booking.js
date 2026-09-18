@@ -1152,8 +1152,14 @@
         if (!isFinite(maxP)) maxP = capOf(v) || Infinity;
         return passengers >= minP && passengers <= maxP;
       });
-      if (sortBy === "priceAsc")  list.sort(function (a, b) { return priceFor(a) - priceFor(b); });
-      if (sortBy === "priceDesc") list.sort(function (a, b) { return priceFor(b) - priceFor(a); });
+      // Sorted (and displayed, below) by base rate only — not the full
+      // total shown in the Trip Summary — since the vehicle cards on this
+      // step are meant to compare vehicles' own rates, not a trip's final
+      // charge (which also folds in travel fee, surcharges, gratuity,
+      // add-ons, etc., and is unaffected by this — see priceFor()).
+      var baseRateFor = function (v) { return priceBreakdown(v).base; };
+      if (sortBy === "priceAsc")  list.sort(function (a, b) { return baseRateFor(a) - baseRateFor(b); });
+      if (sortBy === "priceDesc") list.sort(function (a, b) { return baseRateFor(b) - baseRateFor(a); });
       if (sortBy === "capacity")  list.sort(function (a, b) { return capOf(b) - capOf(a); });
 
       // Deselect if the passenger count grew past the previously-picked vehicle's capacity.
@@ -1173,7 +1179,10 @@
       }
       list.forEach(function (v) {
         var bd = priceBreakdown(v);
-        var priceDisplay = bd.requiresQuote ? "Request a Quote" : fmtMoney(bd.total);
+        // Base rate only — travel fee, surcharges, gratuity, child seats,
+        // add-ons, and any promo discount are all folded into the Trip
+        // Summary's "Estimated Price" instead, not repeated here.
+        var priceDisplay = bd.requiresQuote ? "Request a Quote" : fmtMoney(bd.base);
         var zoneText = ZONE_LABELS[bd.zone] || "Local";
         var selected = state.selectedVehicle && state.selectedVehicle.id === v.id;
         var imgSrc = v.image

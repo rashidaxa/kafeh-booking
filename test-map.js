@@ -228,8 +228,18 @@
     if (typeFilter) options.types = typeFilter;
 
     var ac = (group === "pickup") ? pickupAC : (group === "dropoff") ? dropoffAC : null;
-    if (ac && typeof ac.setOptions === "function") {
+    if (!ac) return;
+    if (typeof ac.setOptions === "function") {
       ac.setOptions(options);
+    }
+    // setOptions() only applies keys actually present in `options` — simply
+    // omitting `types` (the "Search All"/"Landmark" case above) does NOT
+    // clear a `types` restriction set by a previous call (e.g. switching
+    // Airport -> Search All left the dropdown still airport-only).
+    // setTypes() is the documented way to clear it; an empty array means
+    // "no restriction".
+    if (typeof ac.setTypes === "function") {
+      ac.setTypes(typeFilter || []);
     }
   }
   window.addEventListener("kfb:loc-type-changed", function (e) {
