@@ -190,6 +190,12 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   -- — MAX(route_miles * local_per_mile_rate, local_min_fare)
   `local_min_fare`        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 
+  -- Garage deadhead fees (v19) — inside-radius trips only; billed against
+  -- real driving distance garage->pickup / dropoff->garage. Different
+  -- per vehicle since fuel cost differs. See Pricing_engine::_compute().
+  `garage_pickup_fee_per_mile`  DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Travel Fee Till Pickup — $/mile, garage to pickup',
+  `garage_dropoff_fee_per_mile` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Back To Garage Fee — $/mile, dropoff to garage',
+
   -- Image (filename only — actual file lives in /uploads/vehicles/)
   `image`           VARCHAR(255) NULL,
 
@@ -378,7 +384,6 @@ WHERE NOT EXISTS (SELECT 1 FROM `kfb_settings` LIMIT 1);
 -- ----------------- Global pricing settings (v16) -----------------
 INSERT IGNORE INTO `kfb_settings` (`setting_key`, `setting_value`, `updated_at`) VALUES
   ('pricing_local_service_radius_miles',    '75.00',              NOW()),
-  ('pricing_regional_travel_fee_per_mile',  '1.50',               NOW()),
   ('pricing_long_distance_multiplier',      '3.00',               NOW()),
   ('pricing_worldwide_multiplier',          '3.00',               NOW()),
   ('pricing_local_hourly_minimum_hours',    '4.00',               NOW()),

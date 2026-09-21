@@ -40,6 +40,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST /admin/api/reservations/:id/accept  → Admin_api::reservations_accept/:id
  *   POST /admin/api/reservations/:id/reject  → Admin_api::reservations_reject/:id
  *   POST /admin/api/reservations/:id/charge  → Admin_api::reservations_charge/:id
+ *   POST /admin/api/reservations/:id/delete  → Admin_api::reservations_delete/:id
  */
 
 // ---- Auth ----
@@ -99,4 +100,5 @@ $route['admin/api/reservations']               = 'admin_api/reservations_index';
 $route['admin/api/reservations/(:any)/accept'] = 'admin_api/reservations_accept/$1';
 $route['admin/api/reservations/(:any)/reject'] = 'admin_api/reservations_reject/$1';
 $route['admin/api/reservations/(:any)/charge'] = 'admin_api/reservations_charge/$1';
+$route['admin/api/reservations/(:any)/delete'] = 'admin_api/reservations_delete/$1';
 $route['admin/api/reservations/(:any)']        = 'admin_api/reservations_get/$1';

@@ -18,12 +18,14 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *     embed widget expects (id / name / desc / capacity / luggage /
  *     basePrice / perMile / hourlyRate / emoji / image)
  *
- * Pricing (v16): each vehicle carries a single local $/mile rate, $/hour
- * rate, and point-to-point minimum (local_per_mile_rate, local_hourly_rate,
- * local_min_fare) plus an optional per-vehicle hourly-minimum-hours
- * override (local_hourly_min_hours). Regional/long-distance/worldwide
- * prices are DERIVED from these via global multipliers — see
- * Pricing_engine — not stored per vehicle.
+ * Pricing: each vehicle carries a single local $/mile rate, $/hour rate,
+ * and point-to-point minimum (local_per_mile_rate, local_hourly_rate,
+ * local_min_fare), an optional per-vehicle hourly-minimum-hours override
+ * (local_hourly_min_hours), and (v19) two garage deadhead fees billed
+ * only on inside-radius trips — garage_pickup_fee_per_mile ("Travel Fee
+ * Till Pickup") and garage_dropoff_fee_per_mile ("Back To Garage Fee").
+ * Long-distance/worldwide prices are DERIVED from the local rate via
+ * global multipliers — see Pricing_engine — not stored per vehicle.
  */
 
 class Vehicle_model extends CI_Model
@@ -210,11 +212,16 @@ class Vehicle_model extends CI_Model
             }
         }
 
-        // Numeric rate fields (v16) — the single local $/mile rate, local
-        // $/hour rate, and local point-to-point minimum. Regional/long-
-        // distance/worldwide rates are derived from these via global
-        // multipliers in Pricing_engine, not stored per vehicle.
-        $rate_fields = ['local_per_mile_rate', 'local_hourly_rate', 'local_min_fare'];
+        // Numeric rate fields — the single local $/mile rate, local $/hour
+        // rate, local point-to-point minimum, and (v19) the two garage
+        // deadhead fees (garage->pickup, dropoff->garage), billed only on
+        // inside-radius trips. Long-distance/worldwide rates are still
+        // derived from these via global multipliers in Pricing_engine,
+        // not stored per vehicle.
+        $rate_fields = [
+            'local_per_mile_rate', 'local_hourly_rate', 'local_min_fare',
+            'garage_pickup_fee_per_mile', 'garage_dropoff_fee_per_mile',
+        ];
         foreach ($rate_fields as $f) {
             $v = $data[$f] ?? NULL;
             if ($v === '' || $v === NULL) {
@@ -406,6 +413,9 @@ class Vehicle_model extends CI_Model
             'local_hourly_min_hours' => (isset($data['local_hourly_min_hours']) && $data['local_hourly_min_hours'] !== '')
                                             ? (float)$data['local_hourly_min_hours'] : NULL,
             'local_min_fare'         => (float)($data['local_min_fare'] ?? 0),
+
+            'garage_pickup_fee_per_mile'  => (float)($data['garage_pickup_fee_per_mile']  ?? 0),
+            'garage_dropoff_fee_per_mile' => (float)($data['garage_dropoff_fee_per_mile'] ?? 0),
         ];
 
         if ($uploaded_image_name) {

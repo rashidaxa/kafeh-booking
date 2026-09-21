@@ -124,7 +124,7 @@ $is_edit = !empty($editing);
 
       <!-- ============ Local rates ============ -->
       <fieldset class="kfb-fieldset">
-        <legend>Local rates <small class="kfb-hint">regional / long-distance / worldwide prices are derived from these automatically — see Pricing Settings</small></legend>
+        <legend>Local rates <small class="kfb-hint">long-distance / worldwide prices are derived from these automatically — see Pricing Settings</small></legend>
 
         <label class="kfb-field">
           <span>Per-mile rate <em>*</em></span>
@@ -161,9 +161,29 @@ $is_edit = !empty($editing);
                  value="<?= ($is_edit && $editing['local_hourly_min_hours'] !== NULL) ? number_format((float)$editing['local_hourly_min_hours'], 2, '.', '') : '' ?>">
         </label>
 
+        <label class="kfb-field">
+          <span>Travel Fee Till Pickup <em>*</em> <small class="kfb-hint">$/mile, garage to pickup — inside-radius trips only, since this vehicle still has to drive there</small></span>
+          <div class="kfb-money">
+            <span class="kfb-money-prefix">$</span>
+            <input type="number" name="garage_pickup_fee_per_mile" required min="0" step="0.01"
+                   value="<?= $is_edit ? number_format((float)($editing['garage_pickup_fee_per_mile'] ?? 0), 2, '.', '') : '0.00' ?>">
+            <span class="kfb-money-suffix">/mi</span>
+          </div>
+        </label>
+
+        <label class="kfb-field">
+          <span>Back To Garage Fee <em>*</em> <small class="kfb-hint">$/mile, dropoff back to garage — inside-radius trips only</small></span>
+          <div class="kfb-money">
+            <span class="kfb-money-prefix">$</span>
+            <input type="number" name="garage_dropoff_fee_per_mile" required min="0" step="0.01"
+                   value="<?= $is_edit ? number_format((float)($editing['garage_dropoff_fee_per_mile'] ?? 0), 2, '.', '') : '0.00' ?>">
+            <span class="kfb-money-suffix">/mi</span>
+          </div>
+        </label>
+
         <p class="kfb-hint">
           Airport fee, Meet &amp; Greet, and other add-on fees are managed under
-          <a href="<?= site_url('admin/surcharges') ?>">Surcharges</a>, and gratuity/travel-fee/
+          <a href="<?= site_url('admin/surcharges') ?>">Surcharges</a>, and gratuity/
           multipliers under <a href="<?= site_url('admin/settings') ?>">Settings</a> — not per vehicle.
         </p>
       </fieldset>

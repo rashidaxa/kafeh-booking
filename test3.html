@@ -140,7 +140,10 @@
                       </label>
                       <label class="kfb-field">
                         <span>Arrival Time</span>
-                        <input type="time" name="arrivalTime">
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="time" name="arrivalTime">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
                       </label>
                     </div>
                     <label class="kfb-field" style="margin-top:8px">
@@ -199,7 +202,10 @@
                       </label>
                       <label class="kfb-field">
                         <span>Departure Time</span>
-                        <input type="time" name="dropoffArrivalTime">
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="time" name="dropoffArrivalTime">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
                       </label>
                     </div>
                     <label class="kfb-field" style="margin-top:8px">
@@ -293,7 +299,10 @@
                         </label>
                         <label class="kfb-field">
                           <span>Arrival Time</span>
-                          <input type="time" name="returnArrivalTime">
+                          <div class="kfb-dt-overlay-wrap">
+                            <input type="time" name="returnArrivalTime">
+                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                          </div>
                         </label>
                       </div>
                       <label class="kfb-field" style="margin-top:8px">
@@ -327,7 +336,10 @@
                         </label>
                         <label class="kfb-field">
                           <span>Departure Time</span>
-                          <input type="time" name="returnDropoffArrivalTime">
+                          <div class="kfb-dt-overlay-wrap">
+                            <input type="time" name="returnDropoffArrivalTime">
+                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                          </div>
                         </label>
                       </div>
                       <label class="kfb-field" style="margin-top:8px">
@@ -431,24 +443,24 @@
                 </p>
                 <div id="kfbNewCardFieldsWrap">
                   <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Card Holder Name</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
+                    <label class="kfb-field"><span>Name on Card</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
                     <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
                   </div>
                   <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Card Expiry</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
-                    <label class="kfb-field"><span>CVV</span><input type="text" name="cvv" placeholder="CVV" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
+                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
+                    <label class="kfb-field"><span>Security Code</span><input type="text" name="cvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
                   </div>
                 </div>
                 <label class="kfb-field">
-                  <span>Billing Address</span>
-                  <input type="text" name="cardBillingAddress" placeholder="Street, City, State, ZIP">
+                  <span>Credit Card Billing Address *</span>
+                  <input type="text" name="cardBillingAddress" required placeholder="Street, City, State, ZIP">
                 </label>
 
                 <!-- Terms & Conditions (v4) — required on every booking -->
                 <div id="kfbTermsBlock">
                   <label class="kfb-check kfb-check-block" style="margin-top:14px">
                     <input type="checkbox" name="terms" required>
-                    <span>I Agree To The <a href="#" data-kfb-link>Terms &amp; Conditions</a> And <a href="#" data-kfb-link>Privacy Policy</a>.</span>
+                    <span>I agree to the <a href="#" data-kfb-link>Terms &amp; Conditions</a> and <a href="#" data-kfb-link>Cancellation Policy</a>.</span>
                   </label>
                 </div>
 
@@ -727,11 +739,11 @@
                   <h3 class="kfb-view-subtitle">Add a Card</h3>
                   <div class="kfb-field-row-2">
                     <label class="kfb-field"><span>Card Number</span><input type="text" name="newCardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
-                    <label class="kfb-field"><span>Expiry</span><input type="text" name="newCardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
-                    <label class="kfb-field"><span>CVV</span><input type="text" name="newCardCvv" placeholder="CVV" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
+                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="newCardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
+                    <label class="kfb-field"><span>Security Code</span><input type="text" name="newCardCvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
                   </div>
                   <p class="kfb-field-hint">We only save the card type, last 4 digits, and expiry — never the full number or CVV.</p>
-                  <label class="kfb-field"><span>Card Holder Name</span><input type="text" name="newCardNickname" placeholder="E.g. John Smith" autocomplete="cc-name"></label>
+                  <label class="kfb-field"><span>Name on Card</span><input type="text" name="newCardNickname" placeholder="E.g. John Smith" autocomplete="cc-name"></label>
                   <div class="kfb-view-error" id="kfbAddCardError" hidden></div>
                   <div class="kfb-view-success" id="kfbAddCardSuccess" hidden>Card saved ✓</div>
                   <div class="kfb-actions">

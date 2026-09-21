@@ -42,15 +42,97 @@
   // pickup/dropoff carry lat/lng + state/country (not a Chicago/America/
   // Worldwide region — that classification now happens server-side, in
   // Pricing_engine::classify_zone(), which needs raw coordinates and
-  // state/country to measure distance from the company garage and tell
-  // "regional" apart from "long-distance" / "worldwide").
+  // country to measure distance from the company garage and tell
+  // "long-distance" (USA) apart from "worldwide").
   window.kfbRoute = {
     distanceMiles: 0,
     durationMins:  0,
     stopCount:     0,
     pickup:  { lat: null, lng: null, state: "", country: "" },
     dropoff: { lat: null, lng: null, state: "", country: "" },
+    // Real driving distance, garage -> pickup / garage -> dropoff (v19).
+    // Pricing_engine::classify_zone() uses these (falling back to
+    // straight-line if either is null) instead of measuring straight-line
+    // itself, so the 75-mile zone check and travel fee match what a
+    // customer can verify by looking the same two points up on Google
+    // Maps themselves. Filled in asynchronously by updateGarageDistances()
+    // — null until the first DistanceMatrix call for this pickup/dropoff
+    // pair resolves.
+    pickupDistanceMiles:  null,
+    dropoffDistanceMiles: null,
   };
+
+  // -------- Garage coordinates (fetched once, cached) --------
+  // Not hardcoded here — the garage location is admin-editable (Settings
+  // page), so this always reflects whatever Pricing_engine itself would
+  // use server-side, read from the same setting via GET /api/settings.
+  let garageCoords = null;
+  let garageCoordsPromise = null;
+  function ensureGarageCoords() {
+    if (garageCoords) return Promise.resolve(garageCoords);
+    if (garageCoordsPromise) return garageCoordsPromise;
+    var base = window.API || "";
+    garageCoordsPromise = fetch(base + "/settings")
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        // garageLat/garageLng come across as STRINGs, not numbers — see
+        // the $fmt() comment on Api::settings() — so parse before use.
+        var lat = json && parseFloat(json.garageLat);
+        var lng = json && parseFloat(json.garageLng);
+        if (json && json.success && isFinite(lat) && isFinite(lng)) {
+          garageCoords = { lat: lat, lng: lng };
+        }
+        return garageCoords;
+      })
+      .catch(function (e) {
+        console.warn("[BookingMap] could not load garage coordinates — falling back to straight-line distance server-side:", e && e.message);
+        return null;
+      });
+    return garageCoordsPromise;
+  }
+
+  // -------- Garage -> pickup / garage -> dropoff driving distance --------
+  // One DistanceMatrix call covers both destinations. Runs in parallel
+  // with the DirectionsService route call in updateRoute() (not chained
+  // after it) so it doesn't add to the perceived delay before the map/
+  // distance badge updates; when it resolves, kfb:route-updated fires
+  // again so the embed widget re-quotes with the real numbers.
+  function updateGarageDistances(pickupLoc, dropoffLoc) {
+    if (!google.maps.DistanceMatrixService) return;
+    ensureGarageCoords().then(function (garage) {
+      if (!garage) return; // /api/settings failed — server falls back to straight-line
+      var service = new google.maps.DistanceMatrixService();
+      service.getDistanceMatrix(
+        {
+          origins: [new google.maps.LatLng(garage.lat, garage.lng)],
+          destinations: [pickupLoc, dropoffLoc],
+          travelMode: google.maps.TravelMode.DRIVING,
+          unitSystem: google.maps.UnitSystem.IMPERIAL,
+        },
+        function (result, status) {
+          if (status !== "OK") {
+            console.warn("[BookingMap] garage distance matrix request failed:", status);
+            return;
+          }
+          var elements = (result.rows[0] && result.rows[0].elements) || [];
+          var pickupEl  = elements[0];
+          var dropoffEl = elements[1];
+          if (!window.kfbRoute) window.kfbRoute = {};
+          if (pickupEl && pickupEl.status === "OK") {
+            window.kfbRoute.pickupDistanceMiles = pickupEl.distance.value / 1609.344;
+          }
+          if (dropoffEl && dropoffEl.status === "OK") {
+            window.kfbRoute.dropoffDistanceMiles = dropoffEl.distance.value / 1609.344;
+          }
+          try {
+            window.dispatchEvent(new CustomEvent("kfb:route-updated", {
+              detail: Object.assign({}, window.kfbRoute),
+            }));
+          } catch (e) { /* old browsers — fine, the embed widget polls */ }
+        }
+      );
+    });
+  }
 
   // Each entry: { row, input, ac, marker }
   // row   = the .kfb-stop-row DOM node
@@ -93,6 +175,7 @@
     attachPickupAutocomplete();
     attachDropoffAutocomplete();
     watchStops();
+    ensureGarageCoords(); // kick off in the background — usually resolved before the first route update needs it
 
     // Also react to manual edits of the text fields (no Places dropdown)
     // so the route still updates when the user types a full address.
@@ -350,12 +433,12 @@
   }
 
   // -------- Address component extraction --------
-  // The pricing zone (local/regional/long-distance/worldwide) is now
-  // classified server-side, in Pricing_engine::classify_zone() — it
-  // needs raw lat/lng (for the garage-distance check) plus each
-  // endpoint's state and country (to tell "regional" apart from
-  // "long-distance" apart from "worldwide"). This file's job is just to
-  // hand that raw data over, not to classify anything itself.
+  // The pricing zone (local/long-distance/worldwide) is now classified
+  // server-side, in Pricing_engine::classify_zone() — it needs raw
+  // lat/lng (for the garage-distance check) plus each endpoint's
+  // country (to tell "long-distance" (USA) apart from "worldwide").
+  // This file's job is just to hand that raw data over, not to classify
+  // anything itself.
   function getLatLng(loc) {
     if (!loc) return null;
     if (typeof loc.lat === "function") return { lat: loc.lat(), lng: loc.lng() };
@@ -454,6 +537,10 @@
     // Prefer the actual place geometry for endpoints too
     var originLoc      = (pickupAC  && pickupAC.getPlace()  && pickupAC.getPlace().geometry)  ? pickupAC.getPlace().geometry.location  : origin;
     var destinationLoc = (dropoffAC && dropoffAC.getPlace() && dropoffAC.getPlace().geometry) ? dropoffAC.getPlace().geometry.location : destination;
+
+    // Fired in parallel with the route request below, not chained after
+    // it — see updateGarageDistances() for why.
+    updateGarageDistances(originLoc, destinationLoc);
 
     directionsService.route(
       {

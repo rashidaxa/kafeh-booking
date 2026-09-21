@@ -65,11 +65,32 @@ class Api extends CI_Controller
     /**
      * GET /api/settings
      * Public global settings the widget needs before a vehicle is picked —
-     * currently just the Meet & Greet fee (Chicago vs. all other airports).
+     * the Meet & Greet fee (Chicago vs. all other airports), plus the
+     * garage's own coordinates (v19) so test-map.js can compute real
+     * driving distance garage->pickup/garage->dropoff itself, client-side,
+     * with the same Google Maps key already loaded for the route line —
+     * read from the same admin-editable setting Pricing_engine itself
+     * would use, so the two can never drift apart if the garage relocates.
      */
     public function settings()
     {
-        $this->_json(array_merge(['success' => TRUE], $this->Settings_model->meet_greet_fees()));
+        $pricing = $this->Settings_model->pricing_settings();
+        // Formatted STRINGs, not floats — this server's php.ini has
+        // serialize_precision=100 (non-default; should be -1), so
+        // json_encode() expands any float that isn't exactly representable
+        // in binary out to ~100 digits regardless of rounding. Same fix as
+        // Pricing_engine::_compute()'s $fmt() and Promo_model::validate().
+        // parseFloat()/Number() in JS coerces these back to numbers fine.
+        $fmt = function ($n) { return number_format((float)$n, 8, '.', ''); };
+        $this->_json(array_merge(
+            ['success' => TRUE],
+            $this->Settings_model->meet_greet_fees(),
+            [
+                'garageLat'               => $fmt($pricing['pricing_garage_lat']),
+                'garageLng'               => $fmt($pricing['pricing_garage_lng']),
+                'localServiceRadiusMiles' => $fmt($pricing['pricing_local_service_radius_miles']),
+            ]
+        ));
     }
 
     /**
@@ -931,6 +952,14 @@ class Api extends CI_Controller
             'dropoff_state'           => (string)($raw['dropoffState']   ?? ''),
             'dropoff_country'         => (string)($raw['dropoffCountry'] ?? ''),
             'route_miles'             => (float)($raw['distanceMiles'] ?? 0),
+            // Real driving distance, garage -> pickup / garage -> dropoff
+            // (v19) — computed client-side in test-map.js via
+            // DistanceMatrixService (same Google Maps key already used
+            // for the route line), trusted at face value the same way
+            // route_miles above already is. Pricing_engine falls back to
+            // straight-line only if either is missing/zero.
+            'pickup_distance_miles'   => isset($raw['pickupDistanceMiles'])  ? (float)$raw['pickupDistanceMiles']  : NULL,
+            'dropoff_distance_miles'  => isset($raw['dropoffDistanceMiles']) ? (float)$raw['dropoffDistanceMiles'] : NULL,
             'service_type'            => $isHourly ? 'hourly' : 'point_to_point',
             'hours'                   => (float)($raw['hours'] ?? 0),
             'is_return_trip'          => !empty($raw['isReturnTrip']),

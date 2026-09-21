@@ -116,8 +116,8 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
       <code class="kfb-mono"><?= htmlspecialchars($booking['booking_id']) ?></code>
       <span class="kfb-badge kfb-badge--<?= $badge ?>"><?= htmlspecialchars($badgeLabel) ?></span>
     </h2>
-    <?php if ($awaitingReview): ?>
-      <div class="kfb-list-actions">
+    <div class="kfb-list-actions">
+      <?php if ($awaitingReview): ?>
         <button type="button" class="kfb-btn kfb-btn--primary kfb-btn--sm" id="kfbAcceptBtn"
                 data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/accept') ?>">
           Accept — capture $<?= number_format((float)$booking['amount'], 2) ?>
@@ -126,8 +126,14 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
                 data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/reject') ?>">
           Reject — release hold
         </button>
-      </div>
-    <?php endif; ?>
+      <?php endif; ?>
+      <button type="button" class="kfb-btn kfb-btn--danger kfb-btn--sm" id="kfbDeleteReservationBtn"
+              data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/delete') ?>"
+              data-redirect="<?= site_url('admin/reservations') ?>"
+              <?php if ($awaitingReview): ?>data-has-hold="1"<?php endif; ?>>
+        Delete Reservation
+      </button>
+    </div>
   </header>
 
   <div class="kfb-detail-grid">

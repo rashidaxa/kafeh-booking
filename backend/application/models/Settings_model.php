@@ -5,10 +5,13 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Settings_model — kfb_settings (global key/value config)
  *
  * Holds the legacy Meet & Greet fee (unused since v16 — see
- * kfb_surcharges.MEET_GREET) and, since v16, every global pricing knob
- * the customer's rate engine needs (service radius, travel fee,
- * multipliers, hourly minimums, gratuity, garage coordinates, worldwide
- * quote threshold) — see Pricing_engine.
+ * kfb_surcharges.MEET_GREET) and every global pricing knob the customer's
+ * rate engine needs (service radius, multipliers, hourly minimums,
+ * gratuity, garage coordinates, worldwide quote threshold) — see
+ * Pricing_engine. The per-mile travel fee this used to hold
+ * (pricing_regional_travel_fee_per_mile) was retired in v19 — replaced by
+ * two per-vehicle garage deadhead fees (see Vehicle_model), since
+ * different vehicles have different fuel costs.
  */
 class Settings_model extends CI_Model
 {
@@ -17,7 +20,6 @@ class Settings_model extends CI_Model
         'meet_greet_elsewhere' => '95.00',
 
         'pricing_local_service_radius_miles'     => '75.00',
-        'pricing_regional_travel_fee_per_mile'   => '1.50',
         'pricing_long_distance_multiplier'       => '3.00',
         'pricing_worldwide_multiplier'           => '3.00',
         'pricing_local_hourly_minimum_hours'     => '4.00',
@@ -94,7 +96,6 @@ class Settings_model extends CI_Model
         $all = $this->get_all();
         $keys = [
             'pricing_local_service_radius_miles',
-            'pricing_regional_travel_fee_per_mile',
             'pricing_long_distance_multiplier',
             'pricing_worldwide_multiplier',
             'pricing_local_hourly_minimum_hours',

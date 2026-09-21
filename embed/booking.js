@@ -91,10 +91,12 @@
       addonsCatalog: [],     // fetched from backend at boot
       distanceMiles: 0,
       durationMins: 0,
+      pickupDistanceMiles: null,  // real driving distance, garage -> pickup (v19) — null until test-map.js resolves it
+      dropoffDistanceMiles: null, // real driving distance, garage -> dropoff (v19)
       pickup:  { lat: null, lng: null, state: "", country: "" },
       dropoff: { lat: null, lng: null, state: "", country: "" },
       quotesByVehicleId: {}, // { vehicleId: quote } — POST /api/pricing/quote (batched), see fetchQuotes()
-      pricingZone: null,     // "local" | "regional" | "long_distance" | "worldwide" from the latest quote
+      pricingZone: null,     // "local" | "long_distance" | "worldwide" from the latest quote
       promo: null,
       childSeats: {},
       stops: [],             // [{address, lat, lng}] — ordered, with edit support
@@ -754,6 +756,12 @@
       state.durationMins  = +(r.durationMins  || 0);
       state.pickup  = r.pickup  || { lat: null, lng: null, state: "", country: "" };
       state.dropoff = r.dropoff || { lat: null, lng: null, state: "", country: "" };
+      // Real driving distance, garage -> pickup / garage -> dropoff (v19)
+      // — null until test-map.js's DistanceMatrix call resolves; the
+      // server falls back to straight-line for either side that's still
+      // null, so there's nothing to guard here before it arrives.
+      state.pickupDistanceMiles  = (r.pickupDistanceMiles  != null) ? +r.pickupDistanceMiles  : null;
+      state.dropoffDistanceMiles = (r.dropoffDistanceMiles != null) ? +r.dropoffDistanceMiles : null;
     }
     window.addEventListener("kfb:route-updated", function () {
       syncRouteFromMap();
@@ -860,6 +868,8 @@
         dropoffLat: state.dropoff.lat, dropoffLng: state.dropoff.lng,
         dropoffState: state.dropoff.state, dropoffCountry: state.dropoff.country,
         distanceMiles: state.distanceMiles,
+        pickupDistanceMiles: state.pickupDistanceMiles,
+        dropoffDistanceMiles: state.dropoffDistanceMiles,
         service: selectedServiceType(),
         hours: requestedHours(),
         isReturnTrip: !!state.isReturnTrip,
@@ -923,12 +933,12 @@
      * Fetch enabled add-ons for the current pricing zone from the backend.
      * kfb_addons still prices by the old chicago/america/worldwide bucket
      * (out of scope for the v16 rate-engine rebuild — see the pricing
-     * plan), so the new local/regional/long_distance/worldwide zone from
-     * the latest quote is mapped onto the closest equivalent bucket.
+     * plan), so the local/long_distance/worldwide zone from the latest
+     * quote is mapped onto the closest equivalent bucket.
      * Safe to call multiple times — only the latest response is used.
      */
     function loadAddons() {
-      var zoneToRegion = { local: "chicago", regional: "america", long_distance: "america", worldwide: "worldwide" };
+      var zoneToRegion = { local: "chicago", long_distance: "america", worldwide: "worldwide" };
       var region = zoneToRegion[state.pricingZone] || "worldwide";
       $.ajax({
         url: API_BASE + "/addons",
@@ -1078,10 +1088,14 @@
     // before going live.
     // ============================================================
     function showDebugPricingAlert(v, bd) {
+      // Radius is admin-configurable (Pricing Settings) — read live from
+      // the quote response instead of hardcoding "75 miles" here, which
+      // used to go stale (and confuse testing) whenever that setting changed.
+      var radiusMiles = +bd.local_service_radius_miles || 0;
+      var radiusText = fmtMiles(radiusMiles) + "-mile";
       var ZONE_DEBUG_LABELS = {
-        local: "Local (inside 75-mile home-base zone)",
-        regional: "Regional (beyond 75 miles, same state)",
-        long_distance: "Long-Distance (beyond 75 miles, different state)",
+        local: "Local (inside " + radiusText + " home-base radius)",
+        long_distance: "Long-Distance (beyond " + radiusText + " radius, USA)",
         worldwide: "International / Worldwide",
       };
       var hourly = isHourlyService();
@@ -1104,13 +1118,17 @@
       if (bd.pickup_distance_miles !== undefined) {
         lines.push("Pickup Distance From Garage: " + fmtMiles(bd.pickup_distance_miles) + " mi");
         lines.push("Drop-off Distance From Garage: " + fmtMiles(bd.dropoff_distance_miles) + " mi");
-        lines.push("Miles Beyond 75-Mile Radius: " + fmtMiles(bd.miles_outside_radius) + " mi");
+        lines.push("Miles Beyond " + radiusText + " Radius: " + fmtMiles(bd.miles_outside_radius) + " mi");
       }
       lines.push("");
-      lines.push("--- Breakdown ---");
-      lines.push("Base Rate (Transportation): " + fmtMoney(bd.base));
+      lines.push("--- Breakdown (Base Rate is what the customer actually sees — everything below is for testing only) ---");
+      lines.push("Travel Fee Till Pickup (garage->pickup, local zone only): " + fmtMoney(bd.garage_pickup_fee_amount));
+      lines.push("Reservation Charge (" + (hourly ? "hours x rate" : "miles x rate") + "): " + fmtMoney(hourly
+        ? (Math.max(bd.hours || 0, 0) * (+bd.rate_per_mile_used || 0))
+        : (Math.max(bd.miles || 0, 0) * (+bd.rate_per_mile_used || 0))));
+      lines.push("Back To Garage Fee (dropoff->garage, local zone only): " + fmtMoney(bd.garage_dropoff_fee_amount));
+      lines.push("Base Rate (Transportation — what the customer is actually charged, after any minimum-fare floor): " + fmtMoney(bd.base));
       lines.push("Minimum Fare: " + fmtMoney(bd.minFare) + (bd.minFareApplied > 0 ? "  [APPLIED — floored up to minimum]" : "  [not applied]"));
-      lines.push("Travel Fee (beyond 75 miles): " + fmtMoney(bd.travelFee));
       lines.push("Rate Details / Surcharges (total): " + fmtMoney(bd.surcharge));
       if (bd.surcharges && bd.surcharges.length) {
         bd.surcharges.forEach(function (s) {
@@ -1167,7 +1185,7 @@
         state.selectedVehicle = null;
       }
 
-      var ZONE_LABELS = { local: "Local", regional: "Regional", long_distance: "Long-Distance", worldwide: "Worldwide" };
+      var ZONE_LABELS = { local: "Local", long_distance: "Long-Distance", worldwide: "Worldwide" };
       $grid.empty();
       if (!list.length) {
         $grid.html(
@@ -1522,6 +1540,10 @@
         vehicle_name:    v.name,
         distanceMiles:   state.distanceMiles,
         durationMins:    state.durationMins,
+        // Real driving distance, garage -> pickup / garage -> dropoff
+        // (v19) — see Pricing_engine::_garage_distance_miles().
+        pickupDistanceMiles:  state.pickupDistanceMiles,
+        dropoffDistanceMiles: state.dropoffDistanceMiles,
         // Pricing_engine inputs (v16) — the backend recomputes/overwrites
         // `amount` authoritatively from these; see Api::_pricing_engine_input().
         pickupLat:       state.pickup.lat,
@@ -1672,6 +1694,10 @@
         requireField("cardExpiry", "Card Expiry", isValidCardExpiry);
         requireField("cvv", "CVV", isValidCVV);
       }
+      // Stays visible (and therefore required) even with a saved card
+      // selected — unlike cardNumber/cardExpiry/cvv, it isn't inside
+      // #kfbNewCardFieldsWrap.
+      requireField("cardBillingAddress", "Credit Card Billing Address");
 
       if ($("#kfbTermsBlock").is(":visible") && !$('input[name="terms"]').is(":checked")) {
         missing.push("Terms & Conditions");

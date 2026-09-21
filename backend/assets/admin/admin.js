@@ -576,7 +576,11 @@
       });
   }
 
-  // -------- Reservation Accept / Reject --------
+  // -------- Reservation Accept / Reject / Delete --------
+  // Same confirm → POST → refresh flow for all three; Delete additionally
+  // redirects to the reservations list on success instead of reloading
+  // (the detail page it's on no longer exists once the row is gone) —
+  // opt in via a `data-redirect` attribute on the button.
   function wireReservationDecisionButton(id, confirmMsg, failMsg) {
     var btn = $(id);
     if (!btn) return;
@@ -592,7 +596,8 @@
           .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
           .then(function (j) {
             if (j && j.success) {
-              window.location.reload();
+              var redirect = btn.getAttribute("data-redirect");
+              if (redirect) { window.location.href = redirect; } else { window.location.reload(); }
             } else {
               alert((j && j.error) || failMsg);
               btn.disabled = false;
@@ -622,6 +627,14 @@
     "Reject this reservation? The authorization hold will be released — nothing will be charged.",
     "Reject failed."
   );
+  (function () {
+    var deleteBtn = $("#kfbDeleteReservationBtn");
+    var hasHold = deleteBtn && deleteBtn.getAttribute("data-has-hold") === "1";
+    var msg = hasHold
+      ? "Delete this reservation permanently? The outstanding PayPal authorization hold will be released first, then the reservation and all its records are removed — this can't be undone."
+      : "Delete this reservation permanently? This can't be undone.";
+    wireReservationDecisionButton("#kfbDeleteReservationBtn", msg, "Delete failed.");
+  })();
 
   function clearErrors() {
     if (!errBox) return;

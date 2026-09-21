@@ -487,6 +487,28 @@ class Booking_model extends CI_Model
     }
 
     /**
+     * Permanently deletes a reservation. Any PayPal authorization hold
+     * must already be released by the caller before this runs (see
+     * Admin_api::reservations_delete()) — this method only touches rows,
+     * never PayPal. A linked round-trip leg (return_booking_id) is
+     * deleted alongside the outbound leg — it isn't a real FK, so it
+     * needs an explicit second delete, same pattern update_booking()
+     * already uses when a return trip is turned off mid-edit.
+     * kfb_stops/kfb_payments/kfb_booking_addons cascade via FK on
+     * kfb_bookings.booking_id.
+     */
+    public function delete_booking($booking_id)
+    {
+        $existing = $this->db->get_where('kfb_bookings', ['booking_id' => $booking_id])->row_array();
+        if (!$existing) return FALSE;
+
+        if (!empty($existing['return_booking_id'])) {
+            $this->db->where('booking_id', $existing['return_booking_id'])->delete('kfb_bookings');
+        }
+        return $this->db->where('booking_id', $booking_id)->delete('kfb_bookings') ? TRUE : FALSE;
+    }
+
+    /**
      * List bookings for the admin reservations screen. Return-trip legs are
      * synthetic rows (amount always 0, see _create_return_leg()) that ride
      * on the outbound leg's payment — they're excluded here and shown
@@ -614,11 +636,11 @@ class Booking_model extends CI_Model
                 'min_passengers' => (int)$row['min_passengers'],
                 'max_passengers' => (int)$row['max_passengers'],
 
-                // Local rates (v16) — informational only ("starting at $X").
-                // Real pricing for any trip is computed server-side by
+                // Local rates — informational only ("starting at $X"). Real
+                // pricing for any trip is computed server-side by
                 // Pricing_engine via POST /api/pricing/quote, which derives
-                // regional/long-distance/worldwide prices from these via
-                // global multipliers rather than the widget doing any math.
+                // long-distance/worldwide prices from these via global
+                // multipliers rather than the widget doing any math.
                 //
                 // Formatted STRINGs, not floats — this server's php.ini has
                 // serialize_precision=100 (non-default; should be -1), so

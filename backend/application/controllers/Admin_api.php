@@ -387,7 +387,6 @@ class Admin_api extends CI_Controller
 
         $fields = [
             'pricing_local_service_radius_miles',
-            'pricing_regional_travel_fee_per_mile',
             'pricing_long_distance_multiplier',
             'pricing_worldwide_multiplier',
             'pricing_local_hourly_minimum_hours',
@@ -560,6 +559,39 @@ class Admin_api extends CI_Controller
         $this->Booking_model->set_approval($id, 'cancelled', $this->session->userdata('admin_username'));
 
         $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);
+    }
+
+    /**
+     * POST /admin/api/reservations/:id/delete
+     * Permanently removes a reservation. If it still has an outstanding
+     * PayPal authorization hold (status 'awaiting_approval'), that hold
+     * is released first — a row is never deleted while still holding
+     * the customer's funds with no record left to track it. 'paid' and
+     * 'pending' (and every other status) delete cleanly with no PayPal
+     * call, since 'paid' funds are already captured (a separate refund
+     * decision, not implied by deleting the record) and 'pending' never
+     * had a hold in the first place. A linked round-trip leg is deleted
+     * alongside the outbound leg — see Booking_model::delete_booking().
+     */
+    public function reservations_delete($id = NULL)
+    {
+        if (!$this->_require_login()) return;
+        if (!$id) return $this->_error('ID required', 400);
+        $booking = $this->Booking_model->get_booking($id);
+        if (!$booking) return $this->_error('Reservation not found', 404);
+
+        if ($booking['status'] === 'awaiting_approval' && !empty($booking['paypal_auth_transaction_id'])) {
+            try {
+                $this->paypal->voidTransaction($booking['paypal_auth_transaction_id']);
+            } catch (Exception $e) {
+                log_message('error', '[Admin_api] reservations_delete void: ' . $e->getMessage());
+                return $this->_error('Could not release the PayPal authorization hold, so this reservation was not deleted.', 502, ['detail' => $e->getMessage()]);
+            }
+        }
+
+        $ok = $this->Booking_model->delete_booking($id);
+        if (!$ok) return $this->_error('Could not delete reservation', 500);
+        $this->_json(['success' => TRUE]);
     }
 
     /**

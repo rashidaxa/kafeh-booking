@@ -30,16 +30,7 @@ $g = function ($key, $default) use ($settings) {
         </div>
       </label>
       <label class="kfb-field">
-        <span>Regional travel fee <em>*</em> <small class="kfb-hint">per mile beyond the local radius</small></span>
-        <div class="kfb-money">
-          <span class="kfb-money-prefix">$</span>
-          <input type="number" name="pricing_regional_travel_fee_per_mile" required min="0" step="0.01"
-                 value="<?= number_format($g('pricing_regional_travel_fee_per_mile', 1.50), 2, '.', '') ?>">
-          <span class="kfb-money-suffix">/mi</span>
-        </div>
-      </label>
-      <label class="kfb-field">
-        <span>Long-distance multiplier <em>*</em> <small class="kfb-hint">× a vehicle's local rate, for out-of-state trips</small></span>
+        <span>Long-distance multiplier <em>*</em> <small class="kfb-hint">× a vehicle's local rate, for USA trips beyond the local radius</small></span>
         <input type="number" name="pricing_long_distance_multiplier" required min="0" step="0.01"
                value="<?= number_format($g('pricing_long_distance_multiplier', 3), 2, '.', '') ?>">
       </label>
@@ -127,8 +118,10 @@ $g = function ($key, $default) use ($settings) {
                value="<?= number_format($g('pricing_garage_lng', -87.9099405503354), 8, '.', '') ?>">
       </label>
       <p class="kfb-hint kfb-field--full">
-        Used to measure every trip's distance from base for the local/regional zone check —
-        only change this if the company garage physically relocates.
+        Used to measure every trip's distance from base for the local service radius check,
+        and to bill each vehicle's Travel Fee Till Pickup / Back To Garage fee (see
+        <a href="<?= site_url('admin/vehicles') ?>">Vehicles</a>) — only change this if the
+        company garage physically relocates.
       </p>
     </fieldset>
 
