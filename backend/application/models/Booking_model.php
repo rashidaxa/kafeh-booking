@@ -195,6 +195,10 @@ class Booking_model extends CI_Model
             'gratuity_pct'            => (float)($data['gratuityPct'] ?? 0),
             'gratuity_amount'         => (float)($data['gratuityAmount'] ?? 0),
             'child_seats_fee_amount'  => (float)($data['childSeatsFeeAmount'] ?? 0),
+            // Not used anywhere else in this app — see the v20 migration
+            // and Legacy_reservations.php.
+            'transportation_amount'  => (float)($data['transportationAmount'] ?? 0),
+            'hours_requested'        => isset($data['hoursRequested']) && $data['hoursRequested'] !== NULL ? (float)$data['hoursRequested'] : NULL,
             'is_return_trip'        => !empty($data['isReturnTrip']) ? 1 : 0,
             'return_date'           => !empty($data['returnDate']) ? $data['returnDate'] : NULL,
             'return_time'           => !empty($data['returnTime']) ? $data['returnTime'] : NULL,
@@ -350,13 +354,13 @@ class Booking_model extends CI_Model
     }
 
     /**
-     * MMDDYYYY-HHMMSS-<suffix>, e.g. 08162026-132107-OP.
-     * $suffix marks how the booking originated — "OP" (Online Payment) for
+     * MMDDYYYY-HHMMSS-<suffix>, e.g. 08162026-132107-ON.
+     * $suffix marks how the booking originated — "ON" (Online) for
      * the normal customer-facing flow. _create_return_leg() passes "RT" so
      * a round trip's two legs (generated seconds apart in the same request)
      * can never collide on this table's primary key.
      */
-    protected function _new_booking_id($suffix = 'OP')
+    protected function _new_booking_id($suffix = 'ON')
     {
         return date('mdY-His') . '-' . $suffix;
     }

@@ -1027,6 +1027,15 @@ class Api extends CI_Controller
         $raw['gratuityAmount']        = $quote['gratuity_amount'];
         $raw['minFareApplied']        = $quote['min_fare_applied'];
         $raw['childSeatsFeeAmount']   = $quote['child_seats_total'];
+
+        // Not used anywhere else in this app — persisted only so
+        // Legacy_reservations::sync() can fill in the legacy portal's
+        // p_total/p_trip_rate (transportationAmount) and
+        // p_trip_min/p_trip_flat for hourly trips (hoursRequested)
+        // without guessing or reverse-computing them later (v20).
+        $raw['transportationAmount'] = $quote['transportation'];
+        $isHourly = stripos((string)($raw['service'] ?? ''), 'hourly') !== FALSE;
+        $raw['hoursRequested'] = $isHourly ? (float)($raw['hours'] ?? 0) : NULL;
     }
 
     protected function _read_json()

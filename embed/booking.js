@@ -354,10 +354,18 @@
       if (n === 1) {
         $("#kfbMapCard").show();
         $("#kfbSummaryCard").attr("hidden", true);
+        $("#kfbBookNowBtnMobile").prop("hidden", true);
       } else {
         $("#kfbMapCard").hide();
         $("#kfbSummaryCard").removeAttr("hidden");
         renderSideSummary();
+        // Mobile-only shortcut under the Trip Summary, visible on both
+        // steps it appears on — "Continue" on step 2 (advances to step 3,
+        // same as the real Continue button), "Book Now"/"Save Changes" on
+        // step 3 (submits, same as the real Book Now button). See the
+        // click handler below for the matching step-dependent behavior.
+        $("#kfbBookNowBtnMobile").prop("hidden", false)
+          .text(n === 2 ? "Continue →" : (state.editingBookingId ? "Save Changes" : "Book Now"));
       }
       // On mobile, scroll to top of stepper
       if (window.matchMedia("(max-width: 880px)").matches) {
@@ -1715,7 +1723,7 @@
         return;
       }
 
-      var $btn = $("#kfbBookNowBtn");
+      var $btn = $("#kfbBookNowBtn, #kfbBookNowBtnMobile");
       $btn.prop("disabled", true);
       var isEditing = !!state.editingBookingId;
       $("#kfbPaymentStatus").show().find("p").text(isEditing ? "Saving your changes…" : "Creating your reservation…");
@@ -3074,6 +3082,13 @@
       renderVehicles();
       renderSideSummary();
       $("#kfbBookNowBtn").on("click", submitBooking);
+      // Mobile shortcut does double duty — "Continue" while on step 2
+      // (same validation/advance as the real Continue button, via
+      // gotoStep() -> canAdvance()), "Book Now" once on step 3. Its own
+      // label already reflects which one it'll do — see gotoStep().
+      $("#kfbBookNowBtnMobile").on("click", function () {
+        if (state.currentStep === 2) { gotoStep(3); } else { submitBooking(); }
+      });
       initSignaturePad();
 
       // -------- Customer accounts: nav + forms --------

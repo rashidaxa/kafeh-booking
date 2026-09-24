@@ -93,6 +93,17 @@
                   </div>
                 </div>
 
+                <!-- Hourly service: customer-requested hours (v16 pricing engine) —
+                     shown at the top of the form (before Pickup Date/Time), only
+                     when Hourly is selected, so it isn't buried below Stops/Dropoff/
+                     Travellers by the time the customer needs to fill it in. -->
+                <div class="kfb-section" id="kfbHoursWrap" hidden>
+                  <label class="kfb-field">
+                    <span>Hours needed <em>*</em> <small class="kfb-hint">billed at least the service's hourly minimum</small></span>
+                    <input type="number" name="hours" id="kfbHoursInput" min="1" step="0.5" value="4">
+                  </label>
+                </div>
+
                 <!-- Date + Time -->
                 <div class="kfb-section">
                   <div class="kfb-field-row-2">
@@ -248,14 +259,6 @@
                     <button type="button" class="kfb-link-btn" id="kfbAddChildSeatBtn">+ Add Child Seat</button>
                     <div id="kfbChildSeatsContainer"></div>
                   </div>
-                </div>
-
-                <!-- Hourly service: customer-requested hours (v16 pricing engine) -->
-                <div class="kfb-section" id="kfbHoursWrap" hidden>
-                  <label class="kfb-field">
-                    <span>Hours needed <em>*</em> <small class="kfb-hint">billed at least the service's hourly minimum</small></span>
-                    <input type="number" name="hours" id="kfbHoursInput" min="1" step="0.5" value="4">
-                  </label>
                 </div>
 
                 <!-- Return Trip toggle + return date/time (v4) -->
@@ -416,7 +419,7 @@
                 <!-- Promo Code -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Promo Code</h3>
                 <div class="kfb-promo">
-                  <label class="kfb-promo-label" for="kfbPromoInput">Got A Code? Apply It To Your Total.</label>
+                  <label class="kfb-promo-label" for="kfbPromoInput">Have a Promo Code?</label>
                   <div class="kfb-promo-row">
                     <input type="text" id="kfbPromoInput" class="kfb-promo-input" maxlength="40" autocomplete="off" placeholder="Enter Promo Code">
                     <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbPromoApply">Apply</button>
@@ -443,7 +446,7 @@
                 </p>
                 <div id="kfbNewCardFieldsWrap">
                   <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Name on Card</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
+                    <label class="kfb-field"><span>Enter Full Name</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
                     <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
                   </div>
                   <div class="kfb-field-row-2">
@@ -539,6 +542,16 @@
                 <div class="kfb-srow kfb-stotal"><span>Estimated Price</span><b id="kfbSumTotal">$0.00</b></div>
 
                 <p class="kfb-srate-disclaimer"><strong>Rate Disclaimer:</strong> Estimate includes applicable surcharges, gratuity, and taxes/fees shown above. Wait time, tolls, parking, and services beyond those listed may apply and are not included. Additional services or itinerary changes may affect the final rate.</p>
+
+                <!-- Mobile-only shortcut under the Trip Summary — on mobile
+                     the summary sits below the whole form, so without this
+                     the customer has to scroll all the way back up to reach
+                     the real action button after reviewing it. Shown on
+                     steps 2-3 (whenever this card is), acting as "Continue"
+                     on step 2 and "Book Now"/"Save Changes" on step 3 — see
+                     gotoStep() for the label swap and the click handler for
+                     the matching behavior. Hidden on desktop via CSS. -->
+                <button type="button" class="kfb-btn kfb-btn-primary kfb-mobile-booknow" id="kfbBookNowBtnMobile" hidden>Book Now</button>
               </div>
             </div>
           </div>

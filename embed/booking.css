@@ -702,6 +702,12 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 }
 .kfb-srate-disclaimer strong { color: var(--kfb-text-soft); font-weight: 700; }
 
+/* Mobile-only Book Now shortcut under the Trip Summary (see
+   #kfbBookNowBtnMobile in test3.html) — hidden above the 1024px
+   breakpoint where .kfb-body is still 2 columns and the real button
+   at the bottom of the form is already right next to the summary. */
+.kfb-mobile-booknow { display: none; width: 100%; margin-top: 16px; }
+
 /* ===================== SUCCESS ===================== */
 .kfb-success {
   max-width: 640px; margin: 0 auto;
@@ -737,6 +743,7 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
   .kfb-body { grid-template-columns: 1fr; }
   .kfb-side-col { position: static; }
   .kfb-map { height: 360px; }
+  .kfb-mobile-booknow { display: block; }
 }
 
 @media (max-width: 720px) {
@@ -747,8 +754,26 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
   .kfb-panel { padding: 18px 16px 20px; }
   .kfb-panel-title { font-size: 18px; }
   .kfb-field-row-2, .kfb-field-row-3 { grid-template-columns: 1fr; }
-  .kfb-vehicle-card { grid-template-columns: 60px 1fr; }
-  .kfb-vehicle-card .kfb-vehicle-price { grid-column: 1 / -1; text-align: left; border-top: 1px dashed var(--kfb-border); padding-top: 8px; }
+  /* Explicit placement, not auto-flow — 4 items (image, meta, info,
+     price) auto-flowing into a 2-column grid is ambiguous about which
+     row each lands in and how tall that row is (that ambiguity is what
+     caused both the one-word-per-line wrapping AND the oversized gap
+     under the passenger/luggage icons here). grid-template-areas pins
+     each item to an exact cell, so row heights are just each row's own
+     content, nothing more. */
+  .kfb-vehicle-card {
+    grid-template-columns: 60px 1fr;
+    grid-template-areas:
+      "image meta"
+      "info  info"
+      "price price";
+    align-items: start;
+    row-gap: 8px;
+  }
+  .kfb-vehicle-card .kfb-vehicle-image { grid-area: image; width: 100%; }
+  .kfb-vehicle-card .kfb-vehicle-meta  { grid-area: meta; align-items: flex-end; }
+  .kfb-vehicle-card .kfb-vehicle-info  { grid-area: info; }
+  .kfb-vehicle-card .kfb-vehicle-price { grid-area: price; text-align: left; border-top: 1px dashed var(--kfb-border); padding-top: 8px; }
   .kfb-actions { flex-direction: column-reverse; align-items: stretch; }
   .kfb-actions .kfb-btn { width: 100%; }
   .kfb-loc-type { flex-wrap: wrap; }

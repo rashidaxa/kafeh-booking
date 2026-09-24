@@ -49,7 +49,9 @@ class Admin extends CI_Controller
                 'paid'              => $reservationCounts['paid'] ?? 0,
                 'cancelled'         => $reservationCounts['cancelled'] ?? 0,
             ],
-            'recent_vehicles'      => array_slice($vehicles, 0, 5),
+            // Every vehicle, not just the first 5 — the dashboard card
+            // scrolls (see .kfb-table-scroll-v) instead of truncating.
+            'recent_vehicles'      => $vehicles,
             'recent_reservations'  => $recentReservations,
             'flash'                => $this->session->flashdata('flash'),
         ];

@@ -188,6 +188,23 @@ $is_edit = !empty($editing);
         </p>
       </fieldset>
 
+      <!-- ============ Legacy portal ============ -->
+      <fieldset class="kfb-fieldset">
+        <legend>Legacy Portal <small class="kfb-hint">which vehicle category this maps to when a reservation is synced into the legacy management portal</small></legend>
+        <label class="kfb-field">
+          <span>Legacy Vehicle Type</span>
+          <select name="legacy_vehicle_type_id">
+            <option value="">Not mapped yet</option>
+            <?php foreach (Vehicle_model::LEGACY_VEHICLE_TYPES as $legacy_id => $legacy_name): ?>
+              <option value="<?= (int)$legacy_id ?>"
+                <?= ($is_edit && (int)($editing['legacy_vehicle_type_id'] ?? 0) === $legacy_id) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($legacy_name) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+      </fieldset>
+
       <!-- ============ Image ============ -->
       <fieldset class="kfb-fieldset">
         <legend>Image</legend>

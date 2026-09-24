@@ -30,6 +30,34 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Vehicle_model extends CI_Model
 {
+    /**
+     * The legacy management portal's (localhost/bookingOld, "works" in
+     * production) fixed vehicle-type catalog — reservations.vehicles,
+     * id => name. Hardcoded rather than looked up live for the same
+     * reason Legacy_reservations.php already documents: a small, fixed
+     * list on both sides, and a live cross-database query would make
+     * every admin page load depend on this app's DB user having access
+     * to the legacy database too, which isn't guaranteed in production.
+     * Single source of truth for both the Vehicles admin dropdown (see
+     * admin/vehicles.php) and Legacy_reservations::sync()'s lookup.
+     */
+    const LEGACY_VEHICLE_TYPES = [
+        11 => 'Sedan',
+        12 => 'SUV',
+        13 => 'Exotic Car',
+        14 => 'Classic Car',
+        15 => 'Stretch Limo',
+        16 => 'VAN',
+        17 => 'Limo Van',
+        18 => 'Party Bus',
+        19 => 'Shuttle Bus',
+        20 => 'Trolley',
+        21 => 'Coach Bus',
+        22 => 'Wheelchair Van',
+        23 => 'Mercedes',
+        24 => 'Rolls-Royce',
+    ];
+
     /** Allowed image extensions for uploads. */
     const ALLOWED_IMAGE_TYPES = ['jpg', 'jpeg', 'png', 'webp'];
     /** Max upload size in KB (5 MB). */
@@ -59,6 +87,15 @@ class Vehicle_model extends CI_Model
         if (!$id) return NULL;
         return $this->db
             ->get_where('kfb_vehicles', ['id' => (int)$id])
+            ->row_array();
+    }
+
+    /** kfb_bookings.vehicle_id stores the vehicle's `code`, not its numeric id — used by Legacy_reservations.php. */
+    public function get_by_code($code)
+    {
+        if (!$code) return NULL;
+        return $this->db
+            ->get_where('kfb_vehicles', ['code' => $code])
             ->row_array();
     }
 
@@ -248,6 +285,16 @@ class Vehicle_model extends CI_Model
             }
         }
 
+        // Legacy vehicle type (v20) — optional (NULL means "not mapped
+        // yet"; Legacy_reservations.php falls back to a default), but if
+        // provided must be one of the known catalog ids.
+        if (isset($data['legacy_vehicle_type_id']) && $data['legacy_vehicle_type_id'] !== '') {
+            $v = $data['legacy_vehicle_type_id'];
+            if (!is_numeric($v) || !array_key_exists((int)$v, self::LEGACY_VEHICLE_TYPES)) {
+                $errors['legacy_vehicle_type_id'] = 'Not a recognized legacy vehicle type.';
+            }
+        }
+
         // Luggage capacity — optional integer
         if (isset($data['luggage_capacity']) && $data['luggage_capacity'] !== '' && $data['luggage_capacity'] !== NULL) {
             if (!is_numeric($data['luggage_capacity']) || (int)$data['luggage_capacity'] < 0) {
@@ -416,6 +463,9 @@ class Vehicle_model extends CI_Model
 
             'garage_pickup_fee_per_mile'  => (float)($data['garage_pickup_fee_per_mile']  ?? 0),
             'garage_dropoff_fee_per_mile' => (float)($data['garage_dropoff_fee_per_mile'] ?? 0),
+
+            'legacy_vehicle_type_id' => (isset($data['legacy_vehicle_type_id']) && $data['legacy_vehicle_type_id'] !== '')
+                                            ? (int)$data['legacy_vehicle_type_id'] : NULL,
         ];
 
         if ($uploaded_image_name) {

@@ -69,7 +69,9 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `vehicle_name`    VARCHAR(100) NULL,
   `distance_miles`  DECIMAL(8,2) NOT NULL DEFAULT 0,
   `duration_mins`   INT          NOT NULL DEFAULT 0,
+  `hours_requested` DECIMAL(5,2) NULL DEFAULT NULL COMMENT 'Hourly-service bookings only, for legacy portal sync only (p_trip_min/p_trip_flat) — see Legacy_reservations.php',
   `amount`          DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `transportation_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'One-way base rate, for legacy portal sync only (p_total/p_trip_rate) — see Legacy_reservations.php',
   `discount_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `promo_code`      VARCHAR(40)  NULL,
   `currency`        CHAR(3)      NOT NULL DEFAULT 'USD',
@@ -195,6 +197,7 @@ CREATE TABLE IF NOT EXISTS `kfb_vehicles` (
   -- per vehicle since fuel cost differs. See Pricing_engine::_compute().
   `garage_pickup_fee_per_mile`  DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Travel Fee Till Pickup — $/mile, garage to pickup',
   `garage_dropoff_fee_per_mile` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Back To Garage Fee — $/mile, dropoff to garage',
+  `legacy_vehicle_type_id` INT UNSIGNED NULL DEFAULT NULL COMMENT 'Matching row in the legacy portal''s reservations.vehicles catalog (Sedan/SUV/Stretch Limo/...) — see Legacy_reservations.php',
 
   -- Image (filename only — actual file lives in /uploads/vehicles/)
   `image`           VARCHAR(255) NULL,

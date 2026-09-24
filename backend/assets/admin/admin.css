@@ -425,6 +425,19 @@ body.kfb-admin {
 }
 
 .kfb-table-scroll { overflow-x: auto; }
+/* Vertical scroll for a card that now lists every row instead of just the
+   first N (e.g. dashboard "Recent vehicles") — sticky header so it stays
+   readable while scrolling through the list. */
+.kfb-table-scroll-v {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.kfb-table-scroll-v .kfb-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--kfb-surface);
+  z-index: 1;
+}
 .kfb-table {
   width: 100%; border-collapse: collapse;
   font-size: 13px;
