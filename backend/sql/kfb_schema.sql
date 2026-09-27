@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `distance_miles`  DECIMAL(8,2) NOT NULL DEFAULT 0,
   `duration_mins`   INT          NOT NULL DEFAULT 0,
   `hours_requested` DECIMAL(5,2) NULL DEFAULT NULL COMMENT 'Hourly-service bookings only, for legacy portal sync only (p_trip_min/p_trip_flat) — see Legacy_reservations.php',
+  `legacy_sync_log` TEXT NULL DEFAULT NULL COMMENT 'JSON log of the last legacy-portal sync attempt(s) on accept — see Legacy_reservations.php',
   `amount`          DECIMAL(10,2) NOT NULL DEFAULT 0,
   `transportation_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'One-way base rate, for legacy portal sync only (p_total/p_trip_rate) — see Legacy_reservations.php',
   `discount_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,

@@ -68,23 +68,33 @@ class Legacy_reservations
      * Syncs $booking (as returned by Booking_model::get_booking() — must
      * include the 'return_leg' key) into the legacy portal. Silent
      * no-op if legacy_sync_enabled is off. Never throws.
+     *
+     * Returns a log array (one entry per leg posted, or one 'disabled'/
+     * 'exception' entry) so the caller can persist it for admins to
+     * inspect — see Admin_api::reservations_accept() and the "View
+     * Legacy Sync Log" button on the reservation detail page.
      */
     public function sync(array $booking)
     {
-        if (!$this->CI->config->item('legacy_sync_enabled')) return;
+        if (!$this->CI->config->item('legacy_sync_enabled')) {
+            return [['leg' => 'outbound', 'skipped' => TRUE, 'reason' => 'legacy_sync_enabled is FALSE', 'at' => date('Y-m-d H:i:s')]];
+        }
 
+        $logs = [];
         // Belt-and-suspenders on top of _post()'s own network-error
         // handling — this runs inside the payment-capture/approve path,
         // which must never fail because of this integration.
         try {
-            $this->_post($this->_map_leg($booking, FALSE));
+            $logs[] = $this->_post('outbound', $this->_map_leg($booking, FALSE));
 
             if (!empty($booking['is_return_trip']) && !empty($booking['return_leg'])) {
-                $this->_post($this->_map_leg($booking, TRUE, $booking['return_leg']));
+                $logs[] = $this->_post('return', $this->_map_leg($booking, TRUE, $booking['return_leg']));
             }
         } catch (Throwable $e) {
             log_message('error', '[Legacy_reservations] sync threw for ' . ($booking['booking_id'] ?? '?') . ': ' . $e->getMessage());
+            $logs[] = ['leg' => 'exception', 'error' => $e->getMessage(), 'at' => date('Y-m-d H:i:s')];
         }
+        return $logs;
     }
 
     /**
@@ -239,8 +249,18 @@ class Legacy_reservations
         return (string)$expiry;
     }
 
-    /** POSTs one mapped row to the legacy portal's sync endpoint. Logs and returns on any failure — never throws. */
-    protected function _post(array $payload)
+    /**
+     * POSTs one mapped row to the legacy portal's sync endpoint. Logs and
+     * returns a log entry on any failure — never throws.
+     *
+     * CURLOPT_USERAGENT is required here: both booking/ and works/ sit
+     * behind the host's ModSecurity, which returns a blanket "406 Not
+     * Acceptable" for any request with no User-Agent header — which is
+     * exactly what PHP's curl sends by default. Without this, every
+     * sync POST was silently swallowed as a network failure before it
+     * ever reached works/'s own X-Sync-Key check.
+     */
+    protected function _post($leg, array $payload)
     {
         $url = rtrim($this->CI->config->item('legacy_sync_base_url'), '/') . '/api/create_reservation';
         $ch = curl_init();
@@ -253,6 +273,7 @@ class Legacy_reservations
                 'Content-Type: application/json',
                 'X-Sync-Key: ' . $this->CI->config->item('legacy_sync_api_key'),
             ],
+            CURLOPT_USERAGENT      => 'KafehBookingSync/1.0',
             CURLOPT_TIMEOUT        => 10,
         ]);
         $body = curl_exec($ch);
@@ -260,10 +281,21 @@ class Legacy_reservations
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
+        $entry = [
+            'leg'          => $leg,
+            'res_reference'=> $payload['res_reference'] ?? '?',
+            'url'          => $url,
+            'http_code'    => $code,
+            'response'     => $body === FALSE ? NULL : $body,
+            'curl_error'   => $err ?: NULL,
+            'at'           => date('Y-m-d H:i:s'),
+        ];
+
         if ($body === FALSE || $code >= 300) {
-            log_message('error', '[Legacy_reservations] sync failed for ' . ($payload['res_reference'] ?? '?') . ': HTTP ' . $code . ' ' . ($err ?: $body));
-            return;
+            log_message('error', '[Legacy_reservations] sync failed for ' . $entry['res_reference'] . ': HTTP ' . $code . ' ' . ($err ?: $body));
+        } else {
+            log_message('info', '[Legacy_reservations] synced ' . $entry['res_reference'] . ': ' . $body);
         }
-        log_message('info', '[Legacy_reservations] synced ' . ($payload['res_reference'] ?? '?') . ': ' . $body);
+        return $entry;
     }
 }

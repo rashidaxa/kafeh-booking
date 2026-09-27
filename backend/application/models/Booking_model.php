@@ -481,6 +481,14 @@ class Booking_model extends CI_Model
         ]) ? TRUE : FALSE;
     }
 
+    /** Persist the JSON log of the most recent legacy-portal sync attempt(s) — see Legacy_reservations::sync(). */
+    public function save_legacy_sync_log($booking_id, $json)
+    {
+        return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
+            'legacy_sync_log' => $json,
+        ]) ? TRUE : FALSE;
+    }
+
     /** Persist the DoCapture transaction id — used as the reference for later DoReferenceTransaction charges. */
     public function save_paypal_capture($booking_id, $captureTransactionId)
     {

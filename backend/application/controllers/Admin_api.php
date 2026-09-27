@@ -519,7 +519,9 @@ class Admin_api extends CI_Controller
         // the legacy portal push. Never blocks the response either way
         // (see Legacy_reservations::sync()'s own docblock).
         $freshBooking = $this->Booking_model->get_booking($id);
-        $this->legacy_reservations->sync($freshBooking);
+        $syncLog = $this->legacy_reservations->sync($freshBooking);
+        $this->Booking_model->save_legacy_sync_log($id, json_encode($syncLog));
+        $freshBooking['legacy_sync_log'] = json_encode($syncLog);
 
         $this->_json(['success' => TRUE, 'reservation' => $freshBooking]);
     }

@@ -776,6 +776,13 @@ body.kfb-admin {
 }
 .kfb-modal h3 { margin-top: 0; }
 .kfb-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.kfb-modal--wide { max-width: 640px; max-height: 80vh; overflow-y: auto; text-align: left; }
+.kfb-sync-log-entry { border-top: 1px solid var(--kfb-border); padding-top: 12px; margin-top: 12px; }
+.kfb-sync-log-entry:first-of-type { border-top: none; margin-top: 0; }
+.kfb-sync-log-response {
+  background: #0f172a; color: #e2e8f0; padding: 10px; border-radius: 8px;
+  font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+}
 
 /* ============================================================
    Motion

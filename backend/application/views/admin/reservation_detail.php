@@ -106,6 +106,12 @@ if (!empty($booking['addons_json'])) {
 }
 
 $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNumber']) || !empty($booking['cardExpiry']) || !empty($booking['cvv']) || !empty($booking['cardBillingAddress']);
+
+$legacySyncLog = [];
+if (!empty($booking['legacy_sync_log'])) {
+    $decodedLog = json_decode($booking['legacy_sync_log'], TRUE);
+    if (is_array($decodedLog)) $legacySyncLog = $decodedLog;
+}
 ?>
 
 <a href="<?= site_url('admin/reservations') ?>" class="kfb-link-back">← All reservations</a>
@@ -125,6 +131,11 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
         <button type="button" class="kfb-btn kfb-btn--danger kfb-btn--sm" id="kfbRejectBtn"
                 data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/reject') ?>">
           Reject — release hold
+        </button>
+      <?php endif; ?>
+      <?php if (!empty($legacySyncLog)): ?>
+        <button type="button" class="kfb-btn kfb-btn--ghost kfb-btn--sm" id="kfbViewLegacySyncLogBtn">
+          View Legacy Sync Log
         </button>
       <?php endif; ?>
       <button type="button" class="kfb-btn kfb-btn--danger kfb-btn--sm" id="kfbDeleteReservationBtn"
@@ -397,3 +408,50 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
     </div>
   <?php endif; ?>
 </section>
+
+<?php if (!empty($legacySyncLog)): ?>
+<div class="kfb-modal-backdrop" id="kfbLegacySyncLogBackdrop">
+  <div class="kfb-modal kfb-modal--wide">
+    <h3>Legacy Sync Log</h3>
+    <p class="kfb-hint">Result of the last attempt(s) to push this reservation into the legacy portal (works/) on accept.</p>
+    <?php foreach ($legacySyncLog as $entry): ?>
+      <?php
+        $httpCode = $entry['http_code'] ?? NULL;
+        $ok = !empty($entry['skipped']) ? NULL : ($httpCode !== NULL && (int)$httpCode < 300);
+      ?>
+      <div class="kfb-sync-log-entry">
+        <p>
+          <strong><?= htmlspecialchars(ucfirst($entry['leg'] ?? '?')) ?> leg</strong>
+          <?php if (!empty($entry['skipped'])): ?>
+            <span class="kfb-badge kfb-badge--off">Skipped</span>
+          <?php elseif ($ok): ?>
+            <span class="kfb-badge kfb-badge--ok">HTTP <?= htmlspecialchars((string)$httpCode) ?></span>
+          <?php else: ?>
+            <span class="kfb-badge kfb-badge--danger">HTTP <?= htmlspecialchars((string)($httpCode ?? '—')) ?></span>
+          <?php endif; ?>
+          <small class="kfb-hint"><?= htmlspecialchars($entry['at'] ?? '') ?></small>
+        </p>
+        <?php if (!empty($entry['reason'])): ?>
+          <p><?= htmlspecialchars($entry['reason']) ?></p>
+        <?php endif; ?>
+        <?php if (!empty($entry['url'])): ?>
+          <p><small class="kfb-hint">URL:</small> <code class="kfb-mono"><?= htmlspecialchars($entry['url']) ?></code></p>
+        <?php endif; ?>
+        <?php if (!empty($entry['curl_error'])): ?>
+          <p><small class="kfb-hint">cURL error:</small> <code class="kfb-mono"><?= htmlspecialchars($entry['curl_error']) ?></code></p>
+        <?php endif; ?>
+        <?php if (array_key_exists('response', $entry) && $entry['response'] !== NULL): ?>
+          <p><small class="kfb-hint">Response:</small></p>
+          <pre class="kfb-sync-log-response"><?= htmlspecialchars($entry['response']) ?></pre>
+        <?php endif; ?>
+        <?php if (!empty($entry['error'])): ?>
+          <p><small class="kfb-hint">Error:</small> <code class="kfb-mono"><?= htmlspecialchars($entry['error']) ?></code></p>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+    <div class="kfb-modal-actions">
+      <button type="button" class="kfb-btn kfb-btn--ghost" id="kfbLegacySyncLogCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+<?php endif; ?>

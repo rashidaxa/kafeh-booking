@@ -700,6 +700,26 @@
     return errors;
   }
 
+  // -------- Legacy sync log viewer (reservation detail page) --------
+  (function () {
+    var openBtn = document.getElementById("kfbViewLegacySyncLogBtn");
+    var backdrop = document.getElementById("kfbLegacySyncLogBackdrop");
+    var closeBtn = document.getElementById("kfbLegacySyncLogCloseBtn");
+    if (!openBtn || !backdrop) return;
+
+    openBtn.addEventListener("click", function () {
+      backdrop.classList.add("is-open");
+    });
+    var close = function () { backdrop.classList.remove("is-open"); };
+    if (closeBtn) closeBtn.addEventListener("click", close);
+    backdrop.addEventListener("click", function (e) {
+      if (e.target === backdrop) close();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") close();
+    });
+  })();
+
   // -------- Confirm modal for destructive actions --------
   // Returns a Promise that resolves with true (confirm) or false (cancel).
   // The backdrop element is removed inside the click handler so it's
