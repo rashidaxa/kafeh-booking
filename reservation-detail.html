@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A1 Limousine</title>
+  <title>A1 Limousine — Reservation Details</title>
 
   <!-- Test harness styles -->
   <link rel="stylesheet" href="test.css">
 
-  <!-- V3 Widget styles -->
+  <!-- V3 Widget styles (shared, unchanged — no pricing/payment styling to fork) -->
   <link rel="stylesheet" href="embed/booking.css?v=20260912">
 
   <!-- jQuery — required by the widget. -->
@@ -28,22 +28,6 @@
     <div class="kfb-widget" id="kfbBookingWidget">
       <div class="kfb-container">
 
-        <!-- ========== ACCOUNT BAR ========== -->
-        <div class="kfb-account-bar" id="kfbAccountBar">
-          <div class="kfb-account-bar-guest" id="kfbAccountBarGuest">
-            <button type="button" class="kfb-link-btn" id="kfbShowLoginBtn">Log in</button>
-            <span class="kfb-account-bar-sep">·</span>
-            <button type="button" class="kfb-link-btn" id="kfbShowRegisterBtn">Create account</button>
-          </div>
-          <div class="kfb-account-bar-user" id="kfbAccountBarUser" hidden>
-            <span>Hi, <b id="kfbAccountBarName">—</b></span>
-            <span class="kfb-account-bar-sep">·</span>
-            <button type="button" class="kfb-link-btn" id="kfbShowProfileBtn">Profile</button>
-            <span class="kfb-account-bar-sep">·</span>
-            <button type="button" class="kfb-link-btn" id="kfbLogoutBtn">Log out</button>
-          </div>
-        </div>
-
         <!-- ========== BOOKING VIEW (3-step wizard) ========== -->
         <div id="kfbBookingView">
 
@@ -60,7 +44,7 @@
             </li>
             <li class="kfb-step" data-step="3">
               <span class="kfb-step-number">3</span>
-              <span class="kfb-step-label">Payment &amp; Confirm</span>
+              <span class="kfb-step-label">Confirm Details</span>
             </li>
           </ol>
         </nav>
@@ -402,8 +386,9 @@
               <!-- ===================== STEP 3: PAYMENT & CONFIRM ===================== -->
               <section class="kfb-panel" data-panel="3" hidden>
                 <div class="kfb-panel-head">
-                  <h2 class="kfb-panel-title">Payment &amp; Confirm</h2>
+                  <h2 class="kfb-panel-title">Confirm Details</h2>
                 </div>
+                <p class="kfb-panel-sub">Your rate has already been agreed by phone — just confirm your details below.</p>
 
                 <!-- Passenger Info -->
                 <h3 class="kfb-section-title" style="margin:6px 0 12px">Passenger Info</h3>
@@ -416,43 +401,25 @@
                   <label class="kfb-field"><span>Email *</span><input type="email" name="email" required></label>
                 </div>
 
-                <!-- Promo Code -->
-                <h3 class="kfb-section-title" style="margin:24px 0 12px">Promo Code</h3>
-                <div class="kfb-promo">
-                  <label class="kfb-promo-label" for="kfbPromoInput">Have a Promo Code?</label>
-                  <div class="kfb-promo-row">
-                    <input type="text" id="kfbPromoInput" class="kfb-promo-input" maxlength="40" autocomplete="off" placeholder="Enter Promo Code">
-                    <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbPromoApply">Apply</button>
-                  </div>
-                  <div class="kfb-promo-status" id="kfbPromoStatus"></div>
-                </div>
-
-                <!-- Add-On Services (v4) -->
+                <!-- Add-On Services (v4) — selection only, no pricing shown here -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Add-On Services</h3>
                 <div class="kfb-addon-list" id="kfbAddonList">
                   <p class="kfb-empty">Loading add-ons…</p>
                 </div>
 
-                <!-- Billing Information -->
+                <!-- Card Details — collected on file for the already-agreed rate.
+                     No PayPal here: nothing is charged from this page. -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Payment Information</h3>
-                <label class="kfb-field" id="kfbSavedCardWrap" hidden>
-                  <span>Use a Saved Card</span>
-                  <select id="kfbSavedCardSelect">
-                    <option value="">+ Enter a new card</option>
-                  </select>
-                </label>
-                <p class="kfb-field-hint" id="kfbSavedCardHint" hidden>
-                  Using This Saved Card — No Need To Re-Enter The Card Details Below.
+                <p class="kfb-hint" style="margin:-6px 0 12px">
+                  Your rate has already been agreed by phone — these details are kept on file only; nothing is charged from this page.
                 </p>
-                <div id="kfbNewCardFieldsWrap">
-                  <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Enter Full Name</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
-                    <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
-                  </div>
-                  <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
-                    <label class="kfb-field"><span>Security Code</span><input type="text" name="cvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
-                  </div>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>Enter Full Name</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
+                  <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
+                </div>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
+                  <label class="kfb-field"><span>Security Code</span><input type="text" name="cvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
                 </div>
                 <label class="kfb-field">
                   <span>Credit Card Billing Address *</span>
@@ -481,7 +448,7 @@
 
                 <div id="kfbPaymentStatus" class="kfb-payment-status" hidden>
                   <div class="kfb-spinner"></div>
-                  <p>Processing your payment...</p>
+                  <p>Submitting your trip details...</p>
                 </div>
 
                 <div class="kfb-actions">
@@ -529,20 +496,6 @@
                   <div class="kfb-srow" id="kfbSumChildSeatsRow" hidden><span>Child Safety Seats</span><b id="kfbSumChildSeats">—</b></div>
                 </div>
 
-                <div class="kfb-ssection" id="kfbBreakdown" hidden>
-                  <h4 class="kfb-ssection-title">Rate Details</h4>
-                  <div class="kfb-srow"><span>Base Rate</span><b id="kfbSumBase">—</b></div>
-                  <div class="kfb-srow" id="kfbSumTravelFeeRow" hidden><span>Travel Fee</span><b id="kfbSumTravelFee">—</b></div>
-                  <div id="kfbSumSurcharges"></div>
-                  <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
-                  <div class="kfb-srow" id="kfbSumDiscountRow" hidden><span>Promo Discount</span><b id="kfbSumDiscount">—</b></div>
-                  <div class="kfb-srow" id="kfbSumReturnTripRow" hidden><span>Round trip (× 2)</span><b id="kfbSumReturnTrip">—</b></div>
-                </div>
-
-                <div class="kfb-srow kfb-stotal"><span>Estimated Price</span><b id="kfbSumTotal">$0.00</b></div>
-
-                <p class="kfb-srate-disclaimer"><strong>Rate Disclaimer:</strong> Estimate includes applicable surcharges, gratuity, and taxes/fees shown above. Wait time, tolls, parking, and services beyond those listed may apply and are not included. Additional services or itinerary changes may affect the final rate.</p>
-
                 <!-- Mobile-only shortcut under the Trip Summary — on mobile
                      the summary sits below the whole form, so without this
                      the customer has to scroll all the way back up to reach
@@ -560,217 +513,15 @@
 
         <section class="kfb-success" id="kfbSuccess" hidden>
           <div class="kfb-success-icon">✓</div>
-          <h3>Reservation Submitted</h3>
-          <p>Thank you, <b id="kfbSuccessName">rider</b>. Your PayPal payment has been authorized — you have <strong>not</strong> been charged yet.
-            We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
-          <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
+          <h3>Details Submitted</h3>
+          <p>Thank you, <b id="kfbSuccessName">rider</b>. We've received your trip details. our team will be in touch shortly to confirm.
+            We'll follow up at <b id="kfbSuccessEmail">—</b>.</p>
+          <p class="kfb-success-id">Reference: <code id="kfbSuccessId">—</code></p>
 
-          <!-- Shown for guest checkouts only — promptAccountCreation() unhides
-               this and logs the customer straight in on success. -->
-          <div class="kfb-account-prompt" id="kfbAccountPrompt" hidden>
-            <p class="kfb-account-prompt-msg">Want to track this reservation and edit it later? Create an account. You won’t need to re-enter your information.</p>
-            <div class="kfb-account-prompt-fields">
-              <label class="kfb-field"><span>Choose a password</span><input type="password" name="accountPassword" autocomplete="new-password"></label>
-              <button type="button" class="kfb-btn kfb-btn-ghost kfb-account-prompt-btn">Create Account</button>
-            </div>
-          </div>
-
-          <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
+          <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Submit Another Trip</button>
         </section>
 
         </div><!-- /#kfbBookingView -->
-
-        <!-- ========== LOG IN ========== -->
-        <section class="kfb-view" id="kfbLoginView" hidden>
-          <div class="kfb-view-card">
-            <h2 class="kfb-view-title">Log In</h2>
-            <label class="kfb-field"><span>Email</span><input type="email" name="loginEmail" autocomplete="username" required></label>
-            <label class="kfb-field"><span>Password</span><input type="password" name="loginPassword" autocomplete="current-password" required></label>
-            <div class="kfb-view-error" id="kfbLoginError" hidden></div>
-            <div class="kfb-actions">
-              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbLoginSubmitBtn">Log In</button>
-            </div>
-            <p class="kfb-view-links">
-              <button type="button" class="kfb-link-btn" id="kfbLoginToForgotBtn">Forgot password?</button>
-              &nbsp;·&nbsp; Don't have an account? <button type="button" class="kfb-link-btn" id="kfbLoginToRegisterBtn">Create one</button>
-              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbLoginBackBtn">Back to booking</button>
-            </p>
-          </div>
-        </section>
-
-        <!-- ========== CREATE ACCOUNT ========== -->
-        <section class="kfb-view" id="kfbRegisterView" hidden>
-          <div class="kfb-view-card">
-            <h2 class="kfb-view-title">Create Account</h2>
-            <div class="kfb-field-row-2">
-              <label class="kfb-field"><span>First Name</span><input type="text" name="registerFirstName" required></label>
-              <label class="kfb-field"><span>Last Name</span><input type="text" name="registerLastName" required></label>
-            </div>
-            <label class="kfb-field"><span>Phone</span><input type="tel" name="registerPhone"></label>
-            <label class="kfb-field"><span>Email</span><input type="email" name="registerEmail" autocomplete="username" required></label>
-            <label class="kfb-field"><span>Password</span><input type="password" name="registerPassword" autocomplete="new-password" required></label>
-            <div class="kfb-view-error" id="kfbRegisterError" hidden></div>
-            <div class="kfb-actions">
-              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbRegisterSubmitBtn">Create Account</button>
-            </div>
-            <p class="kfb-view-links">
-              Already have an account? <button type="button" class="kfb-link-btn" id="kfbRegisterToLoginBtn">Log in</button>
-              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbRegisterBackBtn">Back to booking</button>
-            </p>
-          </div>
-        </section>
-
-        <!-- ========== FORGOT PASSWORD ========== -->
-        <section class="kfb-view" id="kfbForgotView" hidden>
-          <div class="kfb-view-card">
-            <h2 class="kfb-view-title">Forgot Password</h2>
-            <p class="kfb-hint">Enter your email and we'll send you a link to reset your password.</p>
-            <label class="kfb-field"><span>Email</span><input type="email" name="forgotEmail" required></label>
-            <div class="kfb-view-error" id="kfbForgotError" hidden></div>
-            <div class="kfb-view-success" id="kfbForgotSuccess" hidden></div>
-            <div class="kfb-actions">
-              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbForgotSubmitBtn">Send Reset Link</button>
-            </div>
-            <p class="kfb-view-links">
-              <button type="button" class="kfb-link-btn" id="kfbForgotToLoginBtn">Back to log in</button>
-            </p>
-          </div>
-        </section>
-
-        <!-- ========== RESET PASSWORD (arrived via ?kfb_reset_token=) ========== -->
-        <section class="kfb-view" id="kfbResetView" hidden>
-          <div class="kfb-view-card">
-            <h2 class="kfb-view-title">Reset Password</h2>
-            <input type="hidden" name="resetToken">
-            <label class="kfb-field"><span>New Password</span><input type="password" name="resetPassword" autocomplete="new-password" required></label>
-            <div class="kfb-view-error" id="kfbResetError" hidden></div>
-            <div class="kfb-actions">
-              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetSubmitBtn">Set New Password</button>
-            </div>
-          </div>
-        </section>
-
-        <!-- ========== VERIFY EMAIL (OTP) ========== -->
-        <section class="kfb-view" id="kfbVerifyView" hidden>
-          <div class="kfb-view-card">
-            <h2 class="kfb-view-title">Verify Your Email</h2>
-            <p class="kfb-hint" id="kfbVerifyEmailLabel">We sent a 6-digit code to your email.</p>
-            <label class="kfb-field">
-              <span>Verification Code</span>
-              <input type="text" name="verifyOtp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" autocomplete="one-time-code">
-            </label>
-            <div class="kfb-view-error" id="kfbVerifyError" hidden></div>
-            <div class="kfb-actions">
-              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbVerifySubmitBtn">Verify</button>
-            </div>
-            <p class="kfb-view-links">
-              <button type="button" class="kfb-link-btn" id="kfbVerifyResendBtn">Resend code</button>
-              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbVerifyBackBtn">Back to log in</button>
-            </p>
-          </div>
-        </section>
-
-        <!-- ========== PROFILE ========== -->
-        <section class="kfb-view" id="kfbProfileView" hidden>
-          <div class="kfb-profile-layout">
-            <nav class="kfb-profile-sidebar">
-              <button type="button" class="kfb-profile-tab is-active" data-profile-tab="reservations">My Reservations</button>
-              <button type="button" class="kfb-profile-tab" data-profile-tab="receipts">Invoices &amp; Receipts</button>
-              <button type="button" class="kfb-profile-tab" data-profile-tab="account">Account Settings</button>
-              <button type="button" class="kfb-profile-tab" data-profile-tab="password">Reset Password</button>
-              <button type="button" class="kfb-profile-tab" data-profile-tab="cards">Saved Cards</button>
-            </nav>
-
-            <div class="kfb-profile-content">
-              <div class="kfb-profile-panel" id="kfbProfilePanelReservations">
-                <div class="kfb-view-card kfb-view-card--wide">
-                  <h2 class="kfb-view-title">My Reservations</h2>
-                  <div id="kfbReservationsList">
-                    <p class="kfb-empty">Loading…</p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="kfb-profile-panel" id="kfbProfilePanelReceipts" hidden>
-                <div class="kfb-view-card kfb-view-card--wide">
-                  <h2 class="kfb-view-title">Invoices &amp; Receipts</h2>
-                  <p class="kfb-panel-sub" style="margin:-10px 0 16px">
-                    Download or print a receipt for any of your bookings, and track each one's payment status.
-                  </p>
-                  <div id="kfbReceiptsList">
-                    <p class="kfb-empty">Loading…</p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="kfb-profile-panel" id="kfbProfilePanelAccount" hidden>
-                <div class="kfb-view-card kfb-view-card--wide">
-                  <h2 class="kfb-view-title">Account Settings</h2>
-                  <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>First Name</span><input type="text" name="profileFirstName" required></label>
-                    <label class="kfb-field"><span>Last Name</span><input type="text" name="profileLastName" required></label>
-                  </div>
-                  <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Phone</span><input type="tel" name="profilePhone"></label>
-                    <label class="kfb-field"><span>Email</span><input type="email" name="profileEmail" required></label>
-                  </div>
-                  <div class="kfb-view-error" id="kfbProfileUpdateError" hidden></div>
-                  <div class="kfb-view-success" id="kfbProfileUpdateSuccess" hidden>Profile updated ✓</div>
-                  <div class="kfb-actions">
-                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbProfileUpdateBtn">Save Changes</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="kfb-profile-panel" id="kfbProfilePanelPassword" hidden>
-                <div class="kfb-view-card kfb-view-card--wide">
-                  <h2 class="kfb-view-title">Reset Password</h2>
-                  <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Current Password</span><input type="password" name="profileCurrentPassword" autocomplete="current-password"></label>
-                    <label class="kfb-field"><span>New Password</span><input type="password" name="profileNewPassword" autocomplete="new-password"></label>
-                  </div>
-                  <div class="kfb-view-error" id="kfbPasswordChangeError" hidden></div>
-                  <div class="kfb-view-success" id="kfbPasswordChangeSuccess" hidden>Password updated ✓</div>
-                  <div class="kfb-actions">
-                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbPasswordChangeBtn">Update Password</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="kfb-profile-panel" id="kfbProfilePanelCards" hidden>
-                <div class="kfb-view-card kfb-view-card--wide">
-                  <h2 class="kfb-view-title">Saved Cards</h2>
-                  <p class="kfb-panel-sub" style="margin:-10px 0 16px">
-                    We only save the card type, last 4 digits, and expiry — never the full number or CVV. Pick a default to have it pre-selected at checkout.
-                  </p>
-                  <div id="kfbSavedCardsList">
-                    <p class="kfb-empty">Loading…</p>
-                  </div>
-
-                  <hr class="kfb-divider">
-
-                  <h3 class="kfb-view-subtitle">Add a Card</h3>
-                  <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Card Number</span><input type="text" name="newCardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
-                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="newCardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
-                    <label class="kfb-field"><span>Security Code</span><input type="text" name="newCardCvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
-                  </div>
-                  <p class="kfb-field-hint">We only save the card type, last 4 digits, and expiry — never the full number or CVV.</p>
-                  <label class="kfb-field"><span>Name on Card</span><input type="text" name="newCardNickname" placeholder="E.g. John Smith" autocomplete="cc-name"></label>
-                  <div class="kfb-view-error" id="kfbAddCardError" hidden></div>
-                  <div class="kfb-view-success" id="kfbAddCardSuccess" hidden>Card saved ✓</div>
-                  <div class="kfb-actions">
-                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbAddCardBtn">Save Card</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <p class="kfb-view-links">
-            <button type="button" class="kfb-link-btn" id="kfbProfileBackBtn">← Back to booking</button>
-          </p>
-        </section>
 
       </div>
     </div>
@@ -785,13 +536,13 @@
   ============================================================
   Vendor scripts.
     1. embed/airports.js        — airport & airline catalogs
-    2. embed/booking.js         — widget logic (V3 design)
-    3. test-map.js              — Google Maps controller (shared)
+    2. embed/booking-lite.js    — widget logic, no pricing/payment/accounts (see file header)
+    3. test-map.js              — Google Maps controller (shared with the full widget)
     4. Google Maps SDK LAST — callback=kfbTestInitMap owned by test-map.js
   ============================================================
 -->
 <script src="embed/airports.js"></script>
-<script src="embed/booking.js?v=20260912"></script>
+<script src="embed/booking-lite.js?v=20260927"></script>
 <script src="test-map.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbTestInitMap" async defer></script>
 <script src="test-status.js"></script>

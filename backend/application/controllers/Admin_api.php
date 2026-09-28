@@ -30,7 +30,7 @@ class Admin_api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model']);
         $this->load->library(['session', 'paypal', 'legacy_reservations', 'mailer']);
         $this->load->helper('url');
         $this->_set_cors_headers();
@@ -593,6 +593,23 @@ class Admin_api extends CI_Controller
 
         $ok = $this->Booking_model->delete_booking($id);
         if (!$ok) return $this->_error('Could not delete reservation', 500);
+        $this->_json(['success' => TRUE]);
+    }
+
+    /**
+     * POST /admin/api/client-bookings/:id/delete — no PayPal hold to
+     * release here (client bookings are never priced/authorized), so
+     * this is a plain delete.
+     */
+    public function client_bookings_delete($id = NULL)
+    {
+        if (!$this->_require_login()) return;
+        if (!$id) return $this->_error('ID required', 400);
+        $booking = $this->Client_booking_model->get_booking($id);
+        if (!$booking) return $this->_error('Client booking not found', 404);
+
+        $ok = $this->Client_booking_model->delete_booking($id);
+        if (!$ok) return $this->_error('Could not delete client booking', 500);
         $this->_json(['success' => TRUE]);
     }
 

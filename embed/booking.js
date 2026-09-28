@@ -37,7 +37,7 @@
 
   function showDependencyError(message) {
     try {
-      var host = document.getElementById("kafehBookingWidget") || document.body;
+      var host = document.getElementById("kfbBookingWidget") || document.body;
       if (!host) return;
       var box = document.createElement("div");
       box.setAttribute("role", "alert");

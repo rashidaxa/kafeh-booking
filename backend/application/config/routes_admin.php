@@ -41,6 +41,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST /admin/api/reservations/:id/reject  → Admin_api::reservations_reject/:id
  *   POST /admin/api/reservations/:id/charge  → Admin_api::reservations_charge/:id
  *   POST /admin/api/reservations/:id/delete  → Admin_api::reservations_delete/:id
+ *   GET  /admin/client-bookings               → Admin::client_bookings
+ *   GET  /admin/client-bookings/:id            → Admin::client_booking_detail/:id
+ *   POST /admin/api/client-bookings/:id/delete → Admin_api::client_bookings_delete/:id
  */
 
 // ---- Auth ----
@@ -69,6 +72,9 @@ $route['admin/reservations']                   = 'admin/reservations';
 // booking_id is not numeric (e.g. KFB-AB12CD), so this uses (:any) — it
 // must stay the LAST reservations route since :any is greedy.
 $route['admin/reservations/(:any)']            = 'admin/reservation_detail/$1';
+$route['admin/client-bookings']                 = 'admin/client_bookings';
+// booking_id is not numeric, same (:any) ordering caveat as reservations above.
+$route['admin/client-bookings/(:any)']          = 'admin/client_booking_detail/$1';
 
 // ---- JSON API ----
 $route['admin/api/me']                         = 'admin_api/me';
@@ -102,3 +108,4 @@ $route['admin/api/reservations/(:any)/reject'] = 'admin_api/reservations_reject/
 $route['admin/api/reservations/(:any)/charge'] = 'admin_api/reservations_charge/$1';
 $route['admin/api/reservations/(:any)/delete'] = 'admin_api/reservations_delete/$1';
 $route['admin/api/reservations/(:any)']        = 'admin_api/reservations_get/$1';
+$route['admin/api/client-bookings/(:any)/delete'] = 'admin_api/client_bookings_delete/$1';

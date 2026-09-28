@@ -16,6 +16,7 @@ $route['api/surcharges']             = 'api/surcharges';
 $route['api/addons']                 = 'api/addons';
 $route['api/flights/validate']       = 'api/flights_validate';
 $route['api/reservation']            = 'api/reservation_create';
+$route['api/client-reservation']     = 'api/client_reservation_create';
 // More specific routes must come before the (:any) wildcard below —
 // CI3 matches routes in declaration order, so reservation/sign would
 // otherwise be swallowed by reservation/(:any) and never reached.

@@ -10,6 +10,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST /api/pricing/quote               → price one vehicle, or every enabled vehicle (Pricing_engine)
  *   GET  /api/surcharges                  → enabled surcharge catalog
  *   POST /api/reservation                 → create booking (returns booking_id)
+ *   POST /api/client-reservation          → create an unpriced client booking (reservation-detail.html; see Client_booking_model)
  *   GET  /api/reservation/:id             → fetch booking detail
  *   POST /api/reservation/:id/update      → edit a pre-acceptance booking (customer, auth required)
  *   POST /api/paypal/create-order         → open a PayPal order, returns the approval redirect URL
@@ -50,7 +51,7 @@ class Api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model', 'Surcharge_model']);
+        $this->load->model(['Booking_model', 'Client_booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model', 'Surcharge_model']);
         $this->load->library(['paypal', 'flights', 'mailer', 'pricing_engine']);
         $this->_set_cors_headers();
     }
@@ -223,6 +224,35 @@ class Api extends CI_Controller
             'success'    => TRUE,
             'booking_id' => $booking_id,
             'status'     => 'pending',
+        ], 201);
+    }
+
+    /**
+     * POST /api/client-reservation  { ...same trip/customer fields as
+     * /api/reservation, minus amount/pricing }
+     *
+     * Backs reservation-detail.html — the client already agreed a price
+     * with the customer by phone, so this endpoint never touches
+     * Pricing_engine, PayPal, or customer accounts. It just records the
+     * submitted trip details into kfb_client_bookings for an admin to
+     * review manually under the "Client Bookings" menu. See
+     * Client_booking_model::create_booking().
+     */
+    public function client_reservation_create()
+    {
+        $raw = $this->_read_json();
+
+        $err = $this->_validate_client_reservation_payload($raw);
+        if ($err) return $this->_error($err[0], $err[1]);
+
+        // dropoff can be missing if "return at same location" — fall back to pickup
+        if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
+
+        $booking_id = $this->Client_booking_model->create_booking($raw);
+
+        $this->_json([
+            'success'    => TRUE,
+            'booking_id' => $booking_id,
         ], 201);
     }
 
@@ -1056,6 +1086,27 @@ class Api extends CI_Controller
         if (!$raw) return ['Invalid JSON body', 400];
         $required = ['service', 'pickupDate', 'pickupTime', 'pickup',
                      'passengers', 'vehicle_id', 'amount',
+                     'firstName', 'lastName', 'email', 'phone'];
+        foreach ($required as $field) {
+            if (!isset($raw[$field]) || $raw[$field] === '') {
+                return ["Missing field: $field", 422];
+            }
+        }
+        if (!filter_var($raw['email'], FILTER_VALIDATE_EMAIL)) {
+            return ['Invalid email address', 422];
+        }
+        return NULL;
+    }
+
+    /**
+     * Required-field check for POST /api/client-reservation — same idea as
+     * _validate_reservation_payload(), minus 'amount' (no pricing here).
+     */
+    protected function _validate_client_reservation_payload($raw)
+    {
+        if (!$raw) return ['Invalid JSON body', 400];
+        $required = ['service', 'pickupDate', 'pickupTime', 'pickup',
+                     'passengers', 'vehicle_id',
                      'firstName', 'lastName', 'email', 'phone'];
         foreach ($required as $field) {
             if (!isset($raw[$field]) || $raw[$field] === '') {

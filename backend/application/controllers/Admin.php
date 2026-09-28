@@ -20,7 +20,7 @@ class Admin extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model']);
         $this->load->library('session');
         $this->load->helper(['url', 'form']);
         $this->_require_login();
@@ -306,6 +306,61 @@ class Admin extends CI_Controller
         ];
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/reservation_detail', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /**
+     * GET /admin/client-bookings — unpriced submissions from
+     * reservation-detail.html, reviewed manually (no accept/reject,
+     * no status). See Client_booking_model.
+     */
+    public function client_bookings()
+    {
+        $search  = trim((string)$this->input->get('q'));
+        $filters = [];
+        if ($search !== '') $filters['search'] = $search;
+
+        $perPage = 50;
+        $total   = $this->Client_booking_model->count_all($filters);
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $page    = max(1, min($totalPages, (int)$this->input->get('page')));
+        $offset  = ($page - 1) * $perPage;
+
+        $data = [
+            'page_title'      => 'Client Bookings',
+            'admin'           => $this->_current_admin(),
+            'client_bookings' => $this->Client_booking_model->list_all($filters, $perPage, $offset),
+            'search_query'    => $search,
+            'pagination'      => [
+                'page'        => $page,
+                'per_page'    => $perPage,
+                'total'       => $total,
+                'total_pages' => $totalPages,
+            ],
+            'flash'           => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/client_bookings', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** GET /admin/client-bookings/:id — trip detail + delete */
+    public function client_booking_detail($id = NULL)
+    {
+        if (!$id) return redirect('admin/client-bookings');
+        $booking = $this->Client_booking_model->get_booking($id);
+        if (!$booking) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Client booking not found.']);
+            return redirect('admin/client-bookings');
+        }
+        $data = [
+            'page_title' => 'Client Booking ' . $booking['booking_id'],
+            'admin'      => $this->_current_admin(),
+            'booking'    => $booking,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/client_booking_detail', $data);
         $this->load->view('admin/_layout_footer', $data);
     }
 
