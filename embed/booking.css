@@ -33,6 +33,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+button:focus{ outline: 0px;}
 
 .kfb-widget {
   font-family: var(--kfb-font);
@@ -169,7 +170,6 @@ nav.kfb-stepper {
 .kfb-service-pill + .kfb-service-pill { border-left: 0; }
 .kfb-service-pill:last-child  { border-radius: 0 var(--kfb-radius) var(--kfb-radius) 0; }
 .kfb-service-pill.is-active   { background: var(--kfb-accent); color: #fff; }
-.kfb-service-pill:focus       { outline: 2px solid #93c5fd; outline-offset: 2px; }
 
 /* ===================== SECTIONS (card-like) ===================== */
 .kfb-section {
@@ -430,7 +430,6 @@ div.kfb-stepper > button {
   transition: background-color .12s;
 }
 div.kfb-stepper > button:hover { background: var(--kfb-card); }
-div.kfb-stepper > button:focus { outline: 2px solid #93c5fd; outline-offset: -2px; }
 div.kfb-stepper > .kfb-stepper-out {
   border: 0 !important;
   background: #fff !important;
@@ -486,7 +485,6 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
   text-decoration: none; line-height: 1.2;
   min-width: 110px;
 }
-.kfb-btn:focus { outline: 2px solid #93c5fd; outline-offset: 2px; }
 .kfb-btn-primary { background: var(--kfb-accent); color: #fff; }
 .kfb-btn-primary:hover { background: #000; }
 .kfb-btn-ghost {
