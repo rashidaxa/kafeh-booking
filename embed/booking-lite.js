@@ -408,6 +408,11 @@
       if (!$('input[name="passengers"]').val() || parseInt($('input[name="passengers"]').val(), 10) < 1) {
         missing.push("Travellers");
       }
+      // Hourly service: customer must explicitly enter hours — no default.
+      if (isHourlyService()) {
+        var hoursVal = parseFloat($("#kfbHoursInput").val());
+        if (!isFinite(hoursVal) || hoursVal <= 0) missing.push("Number of Hours");
+      }
       // If pickup is Airport, require airline + flight #
       if (pickupType === "Airport") {
         if (!$('input[name="airline"]').val().trim()) missing.push("Airline");
@@ -471,7 +476,7 @@
       });
     }
     function updateStopsHint() {
-      $("#kfbStopsHint").text(isHourlyService() ? "optional, no limit" : "optional, up to " + TRANSFER_MAX_STOPS);
+      $("#kfbStopsHint").text(isHourlyService() ? "As Directed" : "You May Add Up To " + TRANSFER_MAX_STOPS + " Stops");
     }
 
     // -------- Location type BUTTONS (Search All / Address / Airport / Landmark) --------
@@ -725,12 +730,12 @@
     function addChildSeatRow() {
       var $c = $("#kfbChildSeatsContainer");
       if (!$c.length) return;
-      var opts = CHILD_SEAT_TYPES.map(function (t) {
+      var opts = '<option value="" selected disabled>Select Seat Type...</option>' + CHILD_SEAT_TYPES.map(function (t) {
         return '<option value="' + t.key + '">' + escapeHtml(t.label) + '</option>';
       }).join("");
       var $row = $(
         '<div class="kfb-cs-row">' +
-          '<select class="kfb-cs-type" aria-label="Child seat type">' + opts + '</select>' +
+          '<select class="kfb-cs-type" aria-label="Child seat type" required>' + opts + '</select>' +
           '<div class="kfb-stepper kfb-stepper--inline kfb-cs-qty-wrap" role="group" aria-label="Quantity">' +
             '<button type="button" class="kfb-stepper-minus" aria-label="Decrease">&minus;</button>' +
             '<input type="number" class="kfb-stepper-out kfb-cs-qty" value="1" min="1" max="10" inputmode="numeric">' +
@@ -1218,6 +1223,15 @@
       }
       if ($("#kfbSignatureBlock").is(":visible") && !state.signatureData) {
         missing.push("Signature");
+      }
+      // Any added child-seat row left on the "Select Seat Type..." placeholder
+      // must be resolved (picked or removed) before submitting.
+      var $unsetSeatRow = $("#kfbChildSeatsContainer .kfb-cs-row").filter(function () {
+        return !$(this).find(".kfb-cs-type").val();
+      }).first();
+      if ($unsetSeatRow.length) {
+        missing.push("Child Seat Type");
+        if (!$firstBad) $firstBad = $unsetSeatRow.find(".kfb-cs-type");
       }
 
       if (missing.length || invalid.length) {

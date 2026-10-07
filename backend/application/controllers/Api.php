@@ -220,6 +220,9 @@ class Api extends CI_Controller
             }
         }
 
+        $freshBooking = $this->Booking_model->get_booking($booking_id);
+        if ($freshBooking) $this->_notify_admin_reservation($freshBooking, 'New Reservation');
+
         $this->_json([
             'success'    => TRUE,
             'booking_id' => $booking_id,
@@ -249,6 +252,9 @@ class Api extends CI_Controller
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
 
         $booking_id = $this->Client_booking_model->create_booking($raw);
+
+        $freshBooking = $this->Client_booking_model->get_booking($booking_id);
+        if ($freshBooking) $this->_notify_admin_reservation($freshBooking, 'New Client Booking');
 
         $this->_json([
             'success'    => TRUE,
@@ -328,6 +334,9 @@ class Api extends CI_Controller
 
         $this->Booking_model->update_booking($id, $raw);
         $this->Booking_model->mark_edited_by_customer($id);
+
+        $freshBooking = $this->Booking_model->get_booking($id);
+        if ($freshBooking) $this->_notify_admin_reservation($freshBooking, 'Reservation Change Requested');
 
         $newAmount = (float)($raw['amount'] ?? 0);
         // A reservation can be "editable" (pre-acceptance) simply because
@@ -1178,6 +1187,36 @@ class Api extends CI_Controller
             "We received a request to reset your password. Click the link below to choose a new one " .
             "(this link expires in 1 hour):\n\n" . $resetLink . "\n\n" .
             "If you didn't request this, you can safely ignore this email.\n";
+        $this->mailer->send($to, $subject, $body);
+    }
+
+    /**
+     * Best-effort admin notification — a new reservation was made (widget
+     * or Client Bookings intake) or a logged-in customer requested a
+     * change to their own reservation. Sent via SMTP (see Mailer
+     * library), not mail(), to admin_notification_email (crmsync.php).
+     * $booking is the fresh DB row (Booking_model/Client_booking_model
+     * get_booking() shape) so this always reflects what was actually
+     * saved, not just what the client submitted.
+     */
+    protected function _notify_admin_reservation(array $booking, $eventLabel)
+    {
+        $to = $this->config->item('admin_notification_email');
+        if (!$to) return;
+        $name = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
+        $subject = $eventLabel . ' — Booking ' . ($booking['booking_id'] ?? '');
+        $body =
+            "{$eventLabel}\n\n" .
+            "Booking ID: " . ($booking['booking_id'] ?? '—') . "\n" .
+            "Customer:   " . ($name !== '' ? $name : '—') . "\n" .
+            "Email:      " . ($booking['email'] ?? '—') . "\n" .
+            "Phone:      " . ($booking['phone'] ?? '—') . "\n" .
+            "Service:    " . ($booking['service_type'] ?? '—') . "\n" .
+            "Pickup:     " . ($booking['pickup_date'] ?? '—') . ' at ' . ($booking['pickup_time'] ?? '—') . "\n" .
+            "From:       " . ($booking['pickup'] ?? '—') . "\n" .
+            "To:         " . ($booking['dropoff'] ?? '—') . "\n" .
+            "Vehicle:    " . ($booking['vehicle_name'] ?? '—') . "\n" .
+            (isset($booking['amount']) ? "Amount:     \${$booking['amount']}\n" : "");
         $this->mailer->send($to, $subject, $body);
     }
 

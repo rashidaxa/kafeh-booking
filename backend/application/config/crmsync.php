@@ -33,3 +33,10 @@ $config['smtp_email']    = 'no-reply@grounddispatch.com';
 $config['smtp_password'] = 'K88&n)Mm(rr).YY-88';
 $config['smtp_port']     = 465;
 $config['smtp_secure']   = 'ssl';
+
+/*
+| Admin inbox notified on every new reservation (widget, client bookings)
+| and every change a logged-in customer makes to their own reservation —
+| see Api::_notify_admin_reservation().
+*/
+$config['admin_notification_email'] = 'info@a1limousines.com';
