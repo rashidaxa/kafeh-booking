@@ -116,7 +116,20 @@ class Legacy_reservations
             ? (int)$vehicle['legacy_vehicle_type_id']
             : self::DEFAULT_LEGACY_VEHICLE_ID;
 
-        $tripType = $this->trip_type_map[$booking['service_type'] ?? ''] ?? 'POINT TO POINT';
+        $tripType = $this->_trip_type($booking['service_type'] ?? '', $leg);
+
+        // Client = the credit card holder (v23); passenger = whoever
+        // Passenger Info names. Bookings from before v23 have no
+        // cardholder, so they keep the old behaviour (client = passenger).
+        $passengerName = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
+        $clientName    = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
+        if ($clientName === '') {
+            $clientName = $passengerName;
+        } elseif (!empty($booking['cc_company'])) {
+            $clientName .= ' | ' . trim($booking['cc_company']);
+        }
+        $clientPhone = (string)(!empty($booking['cc_phone']) ? $booking['cc_phone'] : ($booking['phone'] ?? ''));
+        $clientEmail = (string)(!empty($booking['cc_email']) ? $booking['cc_email'] : ($booking['email'] ?? ''));
 
         // Pricing always comes from the outbound row (see docblock) —
         // these are the one-way, per-leg figures already, nothing here
@@ -148,16 +161,16 @@ class Legacy_reservations
             // outbound's id with a suffix tacked on.
             'res_reference'          => $isReturn ? ($legRow['booking_id'] ?? ($booking['booking_id'] . '-RT')) : $booking['booking_id'],
             'res_date'               => $leg['pickup_date'],
-            'client_name'            => trim($booking['first_name'] . ' ' . $booking['last_name']),
-            'passenger_name'         => trim($booking['first_name'] . ' ' . $booking['last_name']),
+            'client_name'            => $clientName,
+            'passenger_name'         => $passengerName,
             'passenger_count'        => (string)$booking['passengers'],
-            'client_phone'           => (string)$booking['phone'],
+            'client_phone'           => $clientPhone,
             'trip_status'            => '0', // new/unassigned — matches a fresh entry made in that portal's own UI
             'res_final_status'       => '',
             'assigned_driver'        => 0,
             'quote_status'           => 0, // this is a confirmed, paid booking, not a quote
-            'email'                  => (string)$booking['email'],
-            'order_by_number'        => (string)$booking['phone'],
+            'email'                  => $clientEmail,
+            'order_by_number'        => $clientPhone,
             'trip_type'              => $tripType,
             'select_vehicle'         => $legacyVehicleId,
             'client_passenger_text'  => '',
@@ -177,16 +190,18 @@ class Legacy_reservations
             'dropoff_time'           => '00:00:00', // not tracked as a distinct value here (existing legacy rows default the same way)
             'pickup_address'         => $pickupAddress,
             'drop_off_address'       => (string)($leg['dropoff'] ?? ''),
-            'trip_notice_details'    => (string)($booking['notes'] ?? ''),
+            'trip_notice_details'    => $this->_trip_notes($booking, $leg, $clientPhone, $clientEmail),
             'client_preferences'     => '',
-            // Airline is free text on this side (e.g. "American Airlines")
-            // but an FK id on the legacy side, referencing a table this
-            // app has no direct access to in production — left at 0 (that
-            // portal's own "unset" convention); the flight number alone
-            // still gets through.
+            // Airline is free text on this side but an FK id on the legacy
+            // side (locations.location_id), which only that portal can
+            // look up. Sent as 0 plus the name in `*_airline_name`; the
+            // portal's create_reservation endpoint resolves the name to
+            // an id, and appends it to trip_notice_details if no match.
             'pickup_airline'         => 0,
+            'pickup_airline_name'    => (string)($leg['airline'] ?? ''),
             'pickup_flight_number'   => (string)($leg['flight_number'] ?? ''),
             'drop_off_airline'       => 0,
+            'drop_off_airline_name'  => (string)($leg['dropoff_airline'] ?? ''),
             'drop_off_flight_number' => (string)($leg['dropoff_flight_number'] ?? ''),
             'pickup_connecting_city' => '',
             'dropoff_connecting_city' => '',
@@ -207,6 +222,48 @@ class Legacy_reservations
             'prices'                 => json_encode($this->_prices_breakdown($booking)),
             'created_at'             => date('Y-m-d H:i:s'),
         ];
+    }
+
+    /**
+     * Legacy trip_type for one leg. Pickup at an airport -> ARRIVAL (FROM
+     * AIRPORT); otherwise dropoff at an airport -> DEPARTURE (TO
+     * AIRPORT); otherwise the plain service mapping (POINT TO POINT for
+     * Transfer/Point to Point). Hourly/Wedding/Tour keep their own types
+     * regardless of airport endpoints. Evaluated per leg, so a round
+     * trip's return leg (pickup/dropoff swapped) flips correctly.
+     */
+    protected function _trip_type($service, array $leg)
+    {
+        $base = $this->trip_type_map[$service] ?? 'POINT TO POINT';
+        if (in_array($service, ['Hourly', 'Wedding', 'Tour'], TRUE)) return $base;
+        if (($leg['pickup_loc_type'] ?? '') === 'Airport')  return 'ARRIVAL (FROM AIRPORT)';
+        if (($leg['dropoff_loc_type'] ?? '') === 'Airport') return 'DEPARTURE (TO AIRPORT)';
+        return $base;
+    }
+
+    /**
+     * The legacy portal has no columns for arrival time, FBO tail number
+     * or a separate passenger contact, so they ride along in the free-text
+     * trip_notice_details after the customer's own notes. Only present
+     * items are included.
+     */
+    protected function _trip_notes(array $booking, array $leg, $clientPhone, $clientEmail)
+    {
+        $parts = [];
+        $fmt = function ($t) { return $t ? date('g:i A', strtotime($t)) : ''; };
+
+        if (!empty($leg['arrival_time']))         $parts[] = 'Arrival: ' . $fmt($leg['arrival_time']);
+        if (!empty($leg['tail_number']))          $parts[] = 'Tail #: ' . $leg['tail_number'];
+        if (!empty($leg['dropoff_arrival_time'])) $parts[] = 'Drop-off Arrival: ' . $fmt($leg['dropoff_arrival_time']);
+        if (!empty($leg['dropoff_tail_number']))  $parts[] = 'Drop-off Tail #: ' . $leg['dropoff_tail_number'];
+
+        // Passenger contact only when it isn't already the client's.
+        if (!empty($booking['phone']) && $booking['phone'] !== $clientPhone) $parts[] = 'Passenger Phone: ' . $booking['phone'];
+        if (!empty($booking['email']) && strcasecmp($booking['email'], $clientEmail) !== 0) $parts[] = 'Passenger Email: ' . $booking['email'];
+
+        $notes = trim((string)($booking['notes'] ?? ''));
+        $extra = implode(' | ', $parts);
+        return $notes !== '' && $extra !== '' ? $notes . "\n" . $extra : $notes . $extra;
     }
 
     /**

@@ -181,6 +181,7 @@ class Api extends CI_Controller
 
         $err = $this->_validate_reservation_payload($raw);
         if ($err) return $this->_error($err[0], $err[1]);
+        $this->_sync_card_holder_name($raw);
 
         // dropoff can be missing if "return at same location" — fall back to pickup
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
@@ -220,9 +221,11 @@ class Api extends CI_Controller
             }
         }
 
-        $freshBooking = $this->Booking_model->get_booking($booking_id);
-        if ($freshBooking) $this->_notify_admin_reservation($freshBooking, 'New Reservation');
-
+        // Admin is NOT notified here: this row is still just `pending` —
+        // the customer hasn't been to PayPal yet and may never complete
+        // it. paypal_return() sends the "New Reservation" email once the
+        // authorization hold actually succeeds (the only state an admin
+        // can accept from).
         $this->_json([
             'success'    => TRUE,
             'booking_id' => $booking_id,
@@ -309,8 +312,18 @@ class Api extends CI_Controller
         // also prevents a booking silently drifting to a different email
         // than the account it's still linked to via customer_id.
         if (is_array($raw)) $raw['email'] = $customer['email'];
+        // Reservations made before v23 have no cardholder on file — carry
+        // them forward rather than failing an edit of an old booking.
+        if (is_array($raw) && empty($raw['ccFirstName']) && !empty($booking['cc_first_name'])) {
+            $raw['ccFirstName'] = $booking['cc_first_name'];
+            $raw['ccLastName']  = $booking['cc_last_name'];
+            $raw['ccCompany']   = $booking['cc_company'];
+            $raw['ccPhone']     = $booking['cc_phone'];
+            $raw['ccEmail']     = $booking['cc_email'];
+        }
         $err = $this->_validate_reservation_payload($raw);
         if ($err) return $this->_error($err[0], $err[1]);
+        $this->_sync_card_holder_name($raw);
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
 
         // Same authoritative recompute as reservation_create() — an edit
@@ -463,6 +476,8 @@ class Api extends CI_Controller
             return $this->_redirect_to_site($siteReturn, $bookingId, 'error', 'Payment could not be authorized');
         }
 
+        $alreadyAuthorized = !empty($booking['paypal_auth_transaction_id']);
+
         $this->Booking_model->save_paypal_auth($bookingId, [
             'paypal_auth_transaction_id' => $result['TRANSACTIONID'] ?? NULL,
             'card_brand'                 => NULL,
@@ -473,6 +488,18 @@ class Api extends CI_Controller
             'currency' => 'USD',
             'result'   => $result,
         ]);
+
+        // The hold succeeded, so this reservation is now acceptable by an
+        // admin — this is the moment they need to hear about it (not when
+        // the unpaid `pending` row was first saved). Guarded so a browser
+        // refresh of this callback can't send it twice.
+        if (!$alreadyAuthorized) {
+            $fresh = $this->Booking_model->get_booking($bookingId);
+            if ($fresh) {
+                $label = !empty($fresh['edit_count']) ? 'Reservation Updated — Payment Authorized' : 'New Reservation';
+                $this->_notify_admin_reservation($fresh, $label);
+            }
+        }
 
         $this->_redirect_to_site($siteReturn, $bookingId, 'success', '');
     }
@@ -1095,16 +1122,31 @@ class Api extends CI_Controller
         if (!$raw) return ['Invalid JSON body', 400];
         $required = ['service', 'pickupDate', 'pickupTime', 'pickup',
                      'passengers', 'vehicle_id', 'amount',
-                     'firstName', 'lastName', 'email', 'phone'];
+                     'firstName', 'lastName', 'email', 'phone',
+                     'ccFirstName', 'ccLastName', 'ccPhone', 'ccEmail'];
         foreach ($required as $field) {
-            if (!isset($raw[$field]) || $raw[$field] === '') {
+            if (!isset($raw[$field]) || trim((string)$raw[$field]) === '') {
                 return ["Missing field: $field", 422];
             }
         }
         if (!filter_var($raw['email'], FILTER_VALIDATE_EMAIL)) {
             return ['Invalid email address', 422];
         }
+        if (!filter_var($raw['ccEmail'], FILTER_VALIDATE_EMAIL)) {
+            return ['Invalid card holder email address', 422];
+        }
         return NULL;
+    }
+
+    /**
+     * Keeps the older kfb_bookings.cardHolderName column ("billing name")
+     * in step with the new Credit Card Holder first/last name, so admin
+     * views and anything else still reading it see the real cardholder.
+     */
+    protected function _sync_card_holder_name(array &$raw)
+    {
+        $name = trim(($raw['ccFirstName'] ?? '') . ' ' . ($raw['ccLastName'] ?? ''));
+        if ($name !== '') $raw['cardHolderName'] = $name;
     }
 
     /**
@@ -1204,11 +1246,18 @@ class Api extends CI_Controller
         $to = $this->config->item('admin_notification_email');
         if (!$to) return;
         $name = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
+        $ccName = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
+        if ($ccName !== '' && !empty($booking['cc_company'])) $ccName .= ' | ' . $booking['cc_company'];
         $subject = $eventLabel . ' — Booking ' . ($booking['booking_id'] ?? '');
         $body =
             "{$eventLabel}\n\n" .
             "Booking ID: " . ($booking['booking_id'] ?? '—') . "\n" .
-            "Customer:   " . ($name !== '' ? $name : '—') . "\n" .
+            ($ccName !== ''
+                ? "Card holder: {$ccName}\n" .
+                  "CH Email:   " . ($booking['cc_email'] ?? '—') . "\n" .
+                  "CH Phone:   " . ($booking['cc_phone'] ?? '—') . "\n"
+                : "") .
+            "Passenger:  " . ($name !== '' ? $name : '—') . "\n" .
             "Email:      " . ($booking['email'] ?? '—') . "\n" .
             "Phone:      " . ($booking['phone'] ?? '—') . "\n" .
             "Service:    " . ($booking['service_type'] ?? '—') . "\n" .

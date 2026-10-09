@@ -220,6 +220,12 @@ class Booking_model extends CI_Model
             'email'                 => $data['email'] ?? NULL,
             'phone'                 => $data['phone'] ?? NULL,
             'cardHolderName'        => !empty($data['cardHolderName']) ? trim($data['cardHolderName']) : NULL,
+            // Credit card holder (v23) — the booker/"client", may differ from the passenger above.
+            'cc_first_name'         => !empty($data['ccFirstName']) ? trim($data['ccFirstName']) : NULL,
+            'cc_last_name'          => !empty($data['ccLastName']) ? trim($data['ccLastName']) : NULL,
+            'cc_company'            => !empty($data['ccCompany']) ? trim($data['ccCompany']) : NULL,
+            'cc_phone'              => !empty($data['ccPhone']) ? trim($data['ccPhone']) : NULL,
+            'cc_email'              => !empty($data['ccEmail']) ? trim($data['ccEmail']) : NULL,
             'cardNumber'            => !empty($data['cardNumber']) ? trim($data['cardNumber']) : NULL,
             'cardExpiry'            => !empty($data['cardExpiry']) ? trim($data['cardExpiry']) : NULL,
             'cvv'                   => !empty($data['cvv']) ? trim($data['cvv']) : NULL,
@@ -472,13 +478,19 @@ class Booking_model extends CI_Model
      */
     public function save_paypal_auth($booking_id, array $data)
     {
-        return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
+        $ok = $this->db->where('booking_id', $booking_id)->update('kfb_bookings', [
             'paypal_auth_transaction_id' => $data['paypal_auth_transaction_id'] ?? NULL,
             'card_brand'                 => $data['card_brand'] ?? NULL,
             'card_last4'                 => $data['card_last4'] ?? NULL,
             'status'                     => 'awaiting_approval',
             'updated_at'                 => date('Y-m-d H:i:s'),
         ]) ? TRUE : FALSE;
+
+        // A round trip is two linked rows authorized as one PayPal
+        // transaction — the return leg must move to awaiting_approval too,
+        // not stay `pending` (update_booking_status() syncs the linked row).
+        if ($ok) $this->update_booking_status($booking_id, 'awaiting_approval');
+        return $ok;
     }
 
     /** Persist the JSON log of the most recent legacy-portal sync attempt(s) — see Legacy_reservations::sync(). */

@@ -354,6 +354,24 @@ input.kfb-field-locked {
   background: #fff; border: 1px solid var(--kfb-border-strong);
   border-radius: var(--kfb-radius); box-shadow: var(--kfb-shadow);
 }
+.kfb-dt-dropdown .kfb-dt-custom {
+  position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px; background: var(--kfb-card-2); border-bottom: 1px solid var(--kfb-border);
+}
+.kfb-dt-dropdown .kfb-dt-custom-label {
+  display: none;
+}
+.kfb-dt-dropdown .kfb-dt-custom select {
+  width: auto; flex: 1 1 0; min-width: 0; margin: 0;
+  font: inherit; font-size: 13px; padding: 6px 4px; line-height: 1.2;
+  border: 1px solid var(--kfb-border-strong); border-radius: var(--kfb-radius);
+  background: #fff; color: var(--kfb-text); cursor: pointer;
+}
+.kfb-dt-dropdown .kfb-dt-colon { font-weight: 700; flex: 0 0 auto; }
+.kfb-dt-dropdown .kfb-dt-set {
+  flex: 0 0 auto; margin: 0; font: inherit; font-size: 13px; font-weight: 700; padding: 7px 12px; cursor: pointer;
+  border: 1px solid var(--kfb-accent); border-radius: var(--kfb-radius); background: var(--kfb-accent); color: #fff;
+}
 .kfb-dt-option {
   padding: 8px 12px; font-size: 14px; cursor: pointer;
 }

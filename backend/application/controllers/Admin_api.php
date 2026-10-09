@@ -684,12 +684,17 @@ class Admin_api extends CI_Controller
     /** Best-effort confirmation email, sent once a reservation is accepted — sent via SMTP (see Mailer library), not mail(). */
     protected function _send_confirmation($booking)
     {
-        $to      = $booking['email'];
+        // The cardholder is the booker — confirmations go to them (older
+        // bookings without one fall back to the passenger's details).
+        $to      = !empty($booking['cc_email']) ? $booking['cc_email'] : $booking['email'];
+        $greet   = !empty($booking['cc_first_name']) ? $booking['cc_first_name'] : $booking['first_name'];
+        $passenger = trim($booking['first_name'] . ' ' . $booking['last_name']);
         $subject = 'Booking ' . $booking['booking_id'] . ' Confirmed';
         $body    =
-            "Hi {$booking['first_name']},\n\n" .
+            "Hi {$greet},\n\n" .
             "Your booking is confirmed.\n\n" .
             "Booking ID: {$booking['booking_id']}\n" .
+            "Passenger:  {$passenger}\n" .
             "Service:    {$booking['service_type']}\n" .
             "Pickup:     {$booking['pickup_date']} at {$booking['pickup_time']}\n" .
             "From:       {$booking['pickup']}\n" .

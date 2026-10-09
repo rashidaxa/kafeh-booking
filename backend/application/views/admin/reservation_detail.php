@@ -105,7 +105,7 @@ if (!empty($booking['addons_json'])) {
     if (is_array($decoded)) $addons = $decoded;
 }
 
-$hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNumber']) || !empty($booking['cardExpiry']) || !empty($booking['cvv']) || !empty($booking['cardBillingAddress']);
+$hasBillingInfo = !empty($booking['cc_first_name']) || !empty($booking['cardHolderName']) || !empty($booking['cardNumber']) || !empty($booking['cardExpiry']) || !empty($booking['cvv']) || !empty($booking['cardBillingAddress']);
 
 $legacySyncLog = [];
 if (!empty($booking['legacy_sync_log'])) {
@@ -251,9 +251,12 @@ if (!empty($booking['legacy_sync_log'])) {
 <?php if ($hasBillingInfo): ?>
   <section class="kfb-card">
     <header class="kfb-card-head"><h2>Credit Card Information</h2></header>
-    <p class="kfb-hint" style="margin: -4px 0 12px;">Provided because billing differs from the passenger above.</p>
+    <p class="kfb-hint" style="margin: -4px 0 12px;">Card holder = the client/booker (legacy Client Name); may differ from the passenger above.</p>
     <div class="kfb-detail-grid">
-      <div><span class="kfb-hint">Card holder name</span><p><?= kfb_or_dash($booking['cardHolderName'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Card holder name</span><p><?= kfb_or_dash(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')) ?: ($booking['cardHolderName'] ?? NULL)) ?></p></div>
+      <div><span class="kfb-hint">Card holder company</span><p><?= kfb_or_dash($booking['cc_company'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Card holder phone</span><p><?= kfb_or_dash($booking['cc_phone'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Card holder email</span><p><?= kfb_or_dash($booking['cc_email'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Card number</span><p><?= kfb_or_dash($booking['cardNumber'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Card expiry</span><p><?= kfb_or_dash($booking['cardExpiry'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">CVV</span><p><?= kfb_or_dash($booking['cvv'] ?? NULL) ?></p></div>

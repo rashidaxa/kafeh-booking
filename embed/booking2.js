@@ -28,11 +28,11 @@
   // page (or a manually-added <link> left over from testing) don't
   // double up.
   (function injectStylesheet() {
-    var href = PROD_BASE + "/embed/booking.css?v=20261009";
+    var href = PROD_BASE + "/embed/booking2.css?v=20261011";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
-      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking.css") !== -1) { link = links[i]; break; }
+      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking2.css") !== -1) { link = links[i]; break; }
     }
     if (!link) {
       link = document.createElement("link");
@@ -644,6 +644,46 @@
         }
       }
       var $dd = $('<div class="kfb-dt-dropdown" role="listbox"></div>');
+
+      // Exact-minute entry (e.g. 10:03 PM) on top of the 30-minute quick
+      // list below — hour / minute / AM-PM selects with an explicit Set.
+      var cur = /^(\d{1,2}):(\d{2})/.exec(current || "");
+      var curH24 = cur ? parseInt(cur[1], 10) : null;
+      var curH12 = curH24 === null ? 12 : (curH24 % 12 === 0 ? 12 : curH24 % 12);
+      var curMin = cur ? parseInt(cur[2], 10) : 0;
+      var curPm  = curH24 !== null && curH24 >= 12;
+      function selOpts(from, to, sel, pad) {
+        var h = "";
+        for (var i = from; i <= to; i++) {
+          h += '<option value="' + i + '"' + (i === sel ? " selected" : "") + ">" + (pad ? String(i).padStart(2, "0") : i) + "</option>";
+        }
+        return h;
+      }
+      var $custom = $(
+        '<div class="kfb-dt-custom">' +
+          '<span class="kfb-dt-custom-label">Exact time</span>' +
+          '<select class="kfb-dt-h" aria-label="Hour">' + selOpts(1, 12, curH12, false) + "</select>" +
+          '<span class="kfb-dt-colon">:</span>' +
+          '<select class="kfb-dt-m" aria-label="Minute">' + selOpts(0, 59, curMin, true) + "</select>" +
+          '<select class="kfb-dt-ap" aria-label="AM or PM"><option value="AM"' + (curPm ? "" : " selected") + '>AM</option><option value="PM"' + (curPm ? " selected" : "") + ">PM</option></select>" +
+          '<button type="button" class="kfb-dt-set">Set</button>' +
+        "</div>"
+      );
+      $custom.on("click", function (e) { e.stopPropagation(); });
+      $custom.find(".kfb-dt-set").on("click", function (e) {
+        e.preventDefault();
+        var h = parseInt($custom.find(".kfb-dt-h").val(), 10) % 12;
+        if ($custom.find(".kfb-dt-ap").val() === "PM") h += 12;
+        var value = String(h).padStart(2, "0") + ":" + String(parseInt($custom.find(".kfb-dt-m").val(), 10)).padStart(2, "0");
+        if (dateField && $('input[name="' + dateField + '"]').val() === todayDateString() && value < nowTimeString()) {
+          toast("That Time Has Already Passed Today.", "error");
+          return;
+        }
+        $input.val(value).trigger("change").trigger("input");
+        closeAllTimeDropdowns();
+      });
+      $dd.append($custom);
+
       if (!options.length) {
         $dd.append('<div class="kfb-dt-empty">No times left today — pick a later date</div>');
       }
@@ -1639,6 +1679,12 @@
         lastName:        $('input[name="lastName"]').val(),
         email:           $('input[name="email"]').val(),
         phone:           $('input[name="phone"]').val(),
+        // Credit card holder (the booker/"client") — separate from the passenger above.
+        ccFirstName:     $('input[name="ccFirstName"]').val(),
+        ccLastName:      $('input[name="ccLastName"]').val(),
+        ccCompany:       $('input[name="ccCompany"]').val() || null,
+        ccPhone:         $('input[name="ccPhone"]').val(),
+        ccEmail:         $('input[name="ccEmail"]').val(),
         cardBillingAddress:   $('input[name="cardBillingAddress"]').val()   || null,
       };
 
@@ -1654,7 +1700,6 @@
         payload.cardExpiry = cardExpiryLabel(savedCard);
         payload.cvv = savedCard.cvv;
       } else {
-        payload.cardHolderName = $('input[name="cardHolderName"]').val() || null;
         payload.cardNumber     = $('input[name="cardNumber"]').val()     || null;
         payload.cardExpiry     = $('input[name="cardExpiry"]').val()     || null;
         payload.cvv            = $('input[name="cvv"]').val()             || null;
@@ -1758,6 +1803,10 @@
         if (!ok) { invalid.push(label); if (!$firstBad) $firstBad = $el; }
       }
 
+      requireField("ccFirstName", "Card Holder First Name", isValidName);
+      requireField("ccLastName", "Card Holder Last Name", isValidName);
+      requireField("ccPhone", "Card Holder Phone", isValidPhone);
+      requireField("ccEmail", "Card Holder Email", isValidEmail);
       requireField("firstName", "First Name", isValidName);
       requireField("lastName", "Last Name", isValidName);
       requireField("email", "Email", isValidEmail);
@@ -1867,8 +1916,12 @@
         if (!bookingId) { showSuccess(bookingId); return; }
         $.ajax({ url: API_BASE + "/reservation/" + encodeURIComponent(bookingId), method: "GET", dataType: "json", timeout: 10000 })
           .then(function (res) {
-            if (res && res.first_name) $('input[name="firstName"]').val(res.first_name);
-            if (res && res.email)      $('input[name="email"]').val(res.email);
+            // Thank-you text addresses the card holder (the booker); older
+            // bookings without one fall back to the passenger.
+            if (res) {
+              $('input[name="ccFirstName"]').val(res.cc_first_name || res.first_name || "");
+              $('input[name="ccEmail"]').val(res.cc_email || res.email || "");
+            }
             showSuccess(bookingId);
             // Check authToken, not state.customer — the /customers/me
             // call that populates state.customer is still async and may
@@ -1890,8 +1943,8 @@
       $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").hide();
       var $ok = $("#kfbSuccess").show();
       $("#kfbSuccessId").text(bookingId || state.bookingId || "—");
-      $("#kfbSuccessName").text($('input[name="firstName"]').val() || "rider");
-      $("#kfbSuccessEmail").text($('input[name="email"]').val() || "—");
+      $("#kfbSuccessName").text($('input[name="ccFirstName"]').val() || $('input[name="firstName"]').val() || "rider");
+      $("#kfbSuccessEmail").text($('input[name="ccEmail"]').val() || $('input[name="email"]').val() || "—");
       $("html, body").animate({ scrollTop: 0 }, 200);
     }
     // ============================================================
@@ -2825,7 +2878,11 @@
       // Api::reservation_update()), so this just keeps the form honest.
       if (state.customer) lockEmailToAccount(state.customer.email);
       else $('input[name="email"]').val(booking.email || "");
-      $('input[name="cardHolderName"]').val(booking.cardHolderName || "");
+      $('input[name="ccFirstName"]').val(booking.cc_first_name || "");
+      $('input[name="ccLastName"]').val(booking.cc_last_name || "");
+      $('input[name="ccCompany"]').val(booking.cc_company || "");
+      $('input[name="ccPhone"]').val(booking.cc_phone || "");
+      $('input[name="ccEmail"]').val(booking.cc_email || "");
       $('input[name="cardNumber"]').val(booking.cardNumber || "");
       $('input[name="cardExpiry"]').val(booking.cardExpiry || "");
       $('input[name="cvv"]').val(booking.cvv || "");
@@ -3142,6 +3199,8 @@
       var FIELD_VALIDATORS = {
         firstName: isValidName, lastName: isValidName,
         email: isValidEmail, phone: isValidPhone,
+        ccFirstName: isValidName, ccLastName: isValidName,
+        ccEmail: isValidEmail, ccPhone: isValidPhone,
         cardNumber: isValidCardNumber, cardExpiry: isValidCardExpiry, cvv: isValidCVV,
         newCardNumber: isValidCardNumber, newCardExpiry: isValidCardExpiry, newCardCvv: isValidCVV,
       };

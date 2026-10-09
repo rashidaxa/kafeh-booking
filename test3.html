@@ -19,7 +19,7 @@
             it needs. A client site copies that one block as plain
             text, pastes it inside their own container <div>, and is
             done — no separate <head> edits, no CSS link to add by
-            hand (embed/booking.js injects its own stylesheet), no
+            hand (embed/booking2.js injects its own stylesheet), no
             config file to edit (every site shares the same
             grounddispatch.com production backend).
        ============================================================ -->
@@ -29,7 +29,7 @@
 
   <!-- ============================================================
        LOCAL DEV ONLY — do not copy to a client site.
-       embed/booking.js defaults to the production backend
+       embed/booking2.js defaults to the production backend
        (grounddispatch.com) when these globals aren't set. Setting
        them here, before the widget scripts load, points THIS page
        at your local XAMPP backend instead while you're developing.
@@ -64,14 +64,14 @@
          right after it — as ONE piece, and paste it inside the
          client site's own container <div>. Nothing else needs to
          change anywhere else on their page. Do not rename the outer
-         id (kfbBookingWidget) or any id/class inside it; embed/booking.js
+         id (kfbBookingWidget) or any id/class inside it; embed/booking2.js
          and embed/booking-map.js both look elements up by these exact
          names.
          ============================================================ -->
     <div class="kfb-widget" id="kfbBookingWidget">
 
       <!-- Pre-CSS skeleton. Self-styled (its own <style>, no dependency on
-           booking.css) so it can paint instantly; embed/booking.js removes it
+           booking.css) so it can paint instantly; embed/booking2.js removes it
            and fades the real widget in once booking.css has loaded. Copy it
            along with the rest of this block. -->
       <style>
@@ -517,8 +517,21 @@
                   <h2 class="kfb-panel-title">Payment &amp; Confirm</h2>
                 </div>
 
+                <!-- Credit Card Holder — the booker/"client" (legacy Client Name); may differ from the passenger. Always starts empty. -->
+                <h3 class="kfb-section-title" style="margin:6px 0 4px">Credit Card Holder Name</h3>
+                <p class="kfb-field-hint" style="margin:0 0 12px">Enter the name on the credit card used for this reservation.</p>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>First Name *</span><input type="text" name="ccFirstName" autocomplete="off" required></label>
+                  <label class="kfb-field"><span>Last Name *</span><input type="text" name="ccLastName" autocomplete="off" required></label>
+                </div>
+                <label class="kfb-field"><span>Company Name</span><input type="text" name="ccCompany" autocomplete="off"></label>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>Phone *</span><input type="tel" name="ccPhone" placeholder="+1 555 000 0000" autocomplete="off" required></label>
+                  <label class="kfb-field"><span>Email *</span><input type="email" name="ccEmail" autocomplete="off" required></label>
+                </div>
+
                 <!-- Passenger Info -->
-                <h3 class="kfb-section-title" style="margin:6px 0 12px">Passenger Info</h3>
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Passenger Info</h3>
                 <div class="kfb-field-row-2">
                   <label class="kfb-field"><span>First Name *</span><input type="text" name="firstName" required></label>
                   <label class="kfb-field"><span>Last Name *</span><input type="text" name="lastName" required></label>
@@ -558,11 +571,10 @@
                 </p>
                 <div id="kfbNewCardFieldsWrap">
                   <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Enter Full Name</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
                     <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
+                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
                   </div>
                   <div class="kfb-field-row-2">
-                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
                     <label class="kfb-field"><span>Security Code</span><input type="text" name="cvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
                   </div>
                 </div>
@@ -900,7 +912,7 @@
 
     <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
     <script src="https://grounddispatch.com/booking/embed/airports.js"></script>
-    <script src="https://grounddispatch.com/booking/embed/booking.js?v=20261009"></script>
+    <script src="https://grounddispatch.com/booking/embed/booking2.js?v=20261011"></script>
     <script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
          ============================================================ -->
@@ -916,7 +928,7 @@
          ============================================================ -->
     <script src="vendor/jquery-3.7.1.min.js"></script>
     <script src="embed/airports.js"></script>
-    <script src="embed/booking.js?v=20261009"></script>
+    <script src="embed/booking2.js?v=20261011"></script>
     <script src="embed/booking-map.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
 
