@@ -5,12 +5,75 @@
    - Right column: Map (step 1) OR Trip Summary (steps 2-3)
    - Location type is a button-pill group (not radio)
    - Airport mode reveals Airline / Flight # / Arrival Time / Pickup Point
-   - All Google Maps / Places / Directions logic lives in test-map.js
+   - All Google Maps / Places / Directions logic lives in embed/booking-map.js
      (which publishes route state on window.kfbRoute)
    ============================================================ */
 
 (function () {
   "use strict";
+
+  // Every embed of this widget — on any client site — talks to the
+  // same shared production backend, so this is a fixed default, not
+  // per-site config a client ever edits. window.API / window.UPLOADS
+  // (set before this script runs) still override it, which is how
+  // local development points at a different backend instead — see
+  // the "LOCAL DEV ONLY" block in test3.html's <head>.
+  var PROD_BASE = "https://grounddispatch.com/booking";
+
+  // -------- Auto-inject the widget's stylesheet --------
+  // Lets a client site include just this one script (plus jQuery and
+  // the map controller) without also having to separately add a
+  // <link> tag in their <head> — one less place for a non-technical
+  // site owner to edit. Guarded so multiple widget instances on one
+  // page (or a manually-added <link> left over from testing) don't
+  // double up.
+  (function injectStylesheet() {
+    var href = PROD_BASE + "/embed/booking.css?v=20261009";
+    var links = document.getElementsByTagName("link");
+    var link = null;
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking.css") !== -1) { link = links[i]; break; }
+    }
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      document.head.appendChild(link);
+    }
+
+    // Until the stylesheet is in, the widget's markup is unstyled, so the
+    // embed snippet ships a self-styled skeleton (#kfbBoot) and hides the
+    // real .kfb-container. Once the CSS is ready (or has failed / timed
+    // out — better a plain widget than a skeleton forever), drop the
+    // `kfb-ready` class on the widget: the real content fades in and the
+    // skeleton fades out and is removed.
+    var revealed = false;
+    function reveal() {
+      if (revealed) return;
+      var widget = document.getElementById("kfbBookingWidget");
+      if (!widget) { // script ran before the widget markup was parsed
+        document.addEventListener("DOMContentLoaded", reveal);
+        return;
+      }
+      revealed = true;
+      widget.className += " kfb-ready";
+      var boot = document.getElementById("kfbBoot");
+      if (boot) {
+        boot.className += " is-leaving";
+        setTimeout(function () { if (boot.parentNode) boot.parentNode.removeChild(boot); }, 350);
+      }
+      // the map container had no size while hidden
+      try { window.dispatchEvent(new Event("resize")); } catch (e) {}
+    }
+    var sheetReady = false;
+    try { sheetReady = !!link.sheet && link.sheet.cssRules.length > 0; } catch (e) { sheetReady = !!link.sheet; }
+    if (sheetReady) reveal();
+    else {
+      link.addEventListener("load", reveal);
+      link.addEventListener("error", reveal);
+      setTimeout(reveal, 8000);
+    }
+  })();
 
   // -------- Boot the widget as soon as jQuery is available --------
   function bootWhenReady() {
@@ -62,7 +125,7 @@
     "use strict";
 
     // -------- Config --------
-    var API_BASE      = (window.API || "/api").replace(/\/$/, "");
+    var API_BASE      = (window.API || (PROD_BASE + "/backend/api")).replace(/\/$/, "");
     var UPLOADS_BASE  = (window.UPLOADS || (API_BASE.replace(/\/api$/, "") + "/uploads/vehicles/"));
     var HOURLY_KEYS   = ["hourly", "as directed", "as-directed", "hourly / as directed"];
 
@@ -91,7 +154,7 @@
       addonsCatalog: [],     // fetched from backend at boot
       distanceMiles: 0,
       durationMins: 0,
-      pickupDistanceMiles: null,  // real driving distance, garage -> pickup (v19) — null until test-map.js resolves it
+      pickupDistanceMiles: null,  // real driving distance, garage -> pickup (v19) — null until embed/booking-map.js resolves it
       dropoffDistanceMiles: null, // real driving distance, garage -> dropoff (v19)
       pickup:  { lat: null, lng: null, state: "", country: "" },
       dropoff: { lat: null, lng: null, state: "", country: "" },
@@ -320,7 +383,7 @@
       clearTimeout(el._hideTimer);
       el._hideTimer = setTimeout(function () { el.classList.remove("is-open"); }, 3200);
     }
-    // test-map.js can't reach this closure's toast() directly (separate
+    // embed/booking-map.js can't reach this closure's toast() directly (separate
     // script/IIFE), so it dispatches this event instead — e.g. when it
     // rejects a too-vague (city/country-only) place selection.
     window.addEventListener("kfb:toast", function (e) {
@@ -505,7 +568,7 @@
           airportBlock.find("input, select").prop("disabled", true);
         }
 
-        // Notify test-map.js to re-attach autocomplete with the new type filter
+        // Notify embed/booking-map.js to re-attach autocomplete with the new type filter
         window.dispatchEvent(new CustomEvent("kfb:loc-type-changed", {
           detail: { group: group, value: value }
         }));
@@ -770,7 +833,7 @@
       state.pickup  = r.pickup  || { lat: null, lng: null, state: "", country: "" };
       state.dropoff = r.dropoff || { lat: null, lng: null, state: "", country: "" };
       // Real driving distance, garage -> pickup / garage -> dropoff (v19)
-      // — null until test-map.js's DistanceMatrix call resolves; the
+      // — null until embed/booking-map.js's DistanceMatrix call resolves; the
       // server falls back to straight-line for either side that's still
       // null, so there's nothing to guard here before it arrives.
       state.pickupDistanceMiles  = (r.pickupDistanceMiles  != null) ? +r.pickupDistanceMiles  : null;

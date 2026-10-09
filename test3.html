@@ -5,27 +5,139 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>A1 Limousine</title>
 
-  <!-- Test harness styles -->
+  <!-- ============================================================
+       This whole page is TWO things at once:
+         1. An internal test harness — this <head>'s test.css, the
+            "LOCAL DEV ONLY" blocks (here and further down in
+            <body>), the <header>/<footer> page chrome, and
+            test-status.js at the bottom. None of that ships to a
+            client site, and none of it is part of what gets copied.
+         2. The live reference copy of the embeddable widget — ONE
+            block in <body>, marked "EMBED: COPY START" / "COPY END",
+            containing the widget's <div> and (as inert, commented-out
+            text right after it — see that comment) the 5 script tags
+            it needs. A client site copies that one block as plain
+            text, pastes it inside their own container <div>, and is
+            done — no separate <head> edits, no CSS link to add by
+            hand (embed/booking.js injects its own stylesheet), no
+            config file to edit (every site shares the same
+            grounddispatch.com production backend).
+       ============================================================ -->
+
+  <!-- Test harness styles ONLY — do not copy to a client site. -->
   <link rel="stylesheet" href="test.css">
 
-  <!-- V3 Widget styles -->
-  <link rel="stylesheet" href="embed/booking.css?v=20260912">
-
-  <!-- jQuery — required by the widget. -->
-  <script src="vendor/jquery-3.7.1.min.js"></script>
-  <script src="test-config.js"></script>
+  <!-- ============================================================
+       LOCAL DEV ONLY — do not copy to a client site.
+       embed/booking.js defaults to the production backend
+       (grounddispatch.com) when these globals aren't set. Setting
+       them here, before the widget scripts load, points THIS page
+       at your local XAMPP backend instead while you're developing.
+       A real client site sets neither of these and simply gets
+       production, automatically.
+       ============================================================ -->
+  <script>
+    window.API     = "http://localhost/booking/backend/api";
+    window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
+  </script>
 </head>
 <body>
 
+<!-- Test harness chrome ONLY (header/page title) — do not copy. -->
 <header class="test-header">
   <div>
     <h1>A1 Limousine</span></h1>
   </div>
 </header>
 
+<!-- Test harness layout wrapper ONLY — on a client site, replace
+     <main class="test-main"><div class="test-widget-host"> with
+     whatever container <div> that site wants the widget inside. -->
 <main class="test-main">
   <div class="test-widget-host">
+
+    <!-- ============================================================
+         EMBED: COPY START
+         Copy everything from here down to "EMBED: COPY END" — the
+         <div class="kfb-widget"> block, then the 5 script tags shown
+         (as inert, commented-out text — see that comment's own note)
+         right after it — as ONE piece, and paste it inside the
+         client site's own container <div>. Nothing else needs to
+         change anywhere else on their page. Do not rename the outer
+         id (kfbBookingWidget) or any id/class inside it; embed/booking.js
+         and embed/booking-map.js both look elements up by these exact
+         names.
+         ============================================================ -->
     <div class="kfb-widget" id="kfbBookingWidget">
+
+      <!-- Pre-CSS skeleton. Self-styled (its own <style>, no dependency on
+           booking.css) so it can paint instantly; embed/booking.js removes it
+           and fades the real widget in once booking.css has loaded. Copy it
+           along with the rest of this block. -->
+      <style>
+        .kfb-widget:not(.kfb-ready) > .kfb-container { display: none; }
+        .kfb-widget.kfb-ready > .kfb-container { animation: kfbBootIn .35s ease both; }
+        @keyframes kfbBootIn { from { opacity: 0; } to { opacity: 1; } }
+        .kfb-boot { max-width: 1320px; margin: 0 auto; padding: 0 20px 40px; box-sizing: border-box; transition: opacity .3s ease; }
+        .kfb-boot, .kfb-boot * { box-sizing: border-box; }
+        .kfb-boot.is-leaving { opacity: 0; }
+        .kfb-boot i { display: block; background: #e5e7eb; border-radius: 6px; position: relative; overflow: hidden; }
+        .kfb-boot i::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+          animation: kfbBootShimmer 1.3s infinite; }
+        @keyframes kfbBootShimmer { to { transform: translateX(100%); } }
+        .kfb-boot-steps { display: flex; justify-content: space-between; padding: 28px 20px 18px; margin-bottom: 24px; }
+        .kfb-boot-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .kfb-boot-step i:first-child { width: 36px; height: 36px; border-radius: 50%; }
+        .kfb-boot-step i:last-child { width: 110px; height: 12px; }
+        .kfb-boot-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+        .kfb-boot-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px 28px 28px;
+          box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+        .kfb-boot-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+        .kfb-boot-title { width: 180px; height: 24px; }
+        .kfb-boot-pills { width: 170px; height: 34px; }
+        .kfb-boot-label { width: 90px; height: 11px; margin-bottom: 8px; }
+        .kfb-boot-field { width: 100%; height: 44px; margin-bottom: 20px; }
+        .kfb-boot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .kfb-boot-btn { width: 130px; height: 44px; margin: 8px 0 0 auto; }
+        .kfb-boot-side { padding: 0; overflow: hidden; }
+        .kfb-boot-side .kfb-boot-sidehead { height: 40px; border-radius: 0; }
+        .kfb-boot-side .kfb-boot-map { height: 480px; border-radius: 0; }
+        @media (max-width: 900px) {
+          .kfb-boot-body { grid-template-columns: 1fr; }
+          .kfb-boot-step i:last-child { width: 60px; }
+          .kfb-boot-card { padding: 18px; }
+          .kfb-boot-row { grid-template-columns: 1fr; gap: 0; }
+          .kfb-boot-side .kfb-boot-map { height: 300px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .kfb-boot i::after { animation: none; }
+          .kfb-widget.kfb-ready > .kfb-container { animation: none; }
+        }
+      </style>
+      <div class="kfb-boot" id="kfbBoot" aria-hidden="true">
+        <div class="kfb-boot-steps">
+          <div class="kfb-boot-step"><i></i><i></i></div>
+          <div class="kfb-boot-step"><i></i><i></i></div>
+          <div class="kfb-boot-step"><i></i><i></i></div>
+        </div>
+        <div class="kfb-boot-body">
+          <div class="kfb-boot-card">
+            <div class="kfb-boot-head"><i class="kfb-boot-title"></i><i class="kfb-boot-pills"></i></div>
+            <i class="kfb-boot-label"></i><i class="kfb-boot-field"></i>
+            <i class="kfb-boot-label"></i><i class="kfb-boot-field"></i>
+            <div class="kfb-boot-row">
+              <div><i class="kfb-boot-label"></i><i class="kfb-boot-field"></i></div>
+              <div><i class="kfb-boot-label"></i><i class="kfb-boot-field"></i></div>
+            </div>
+            <i class="kfb-boot-btn"></i>
+          </div>
+          <div class="kfb-boot-card kfb-boot-side">
+            <i class="kfb-boot-sidehead"></i><i class="kfb-boot-map"></i>
+          </div>
+        </div>
+      </div>
+
       <div class="kfb-container">
 
         <!-- ========== ACCOUNT BAR ========== -->
@@ -463,7 +575,7 @@
                 <div id="kfbTermsBlock">
                   <label class="kfb-check kfb-check-block" style="margin-top:14px">
                     <input type="checkbox" name="terms" required>
-                    <span>I agree to the <a href="#" data-kfb-link>Terms &amp; Conditions</a> and <a href="#" data-kfb-link>Cancellation Policy</a>.</span>
+                    <span>I agree to the <a href="#" target="_blank" rel="noopener noreferrer" data-kfb-link>Master Terms &amp; Conditions</a>, especially the Cancellation Policy contained therein, and explicitly acknowledge that my card on file will be charged a 60% non-refundable retainer today, with the remaining 40% balance automatically processed at the Point of No Return cutoff (45 days for all buses / 30 days for all other vehicles). I further acknowledge that cancellation within the applicable Point of No Return period will result in 100% of the total contract price being permanently forfeited, and I assume full personal responsibility for any subsequent collection agency fees, court costs, and legal fees.</span>
                   </label>
                 </div>
 
@@ -773,27 +885,51 @@
         </section>
 
       </div>
-    </div>
+    </div><!-- /#kfbBookingWidget -->
+
+    <!-- ============================================================
+         The 5 tags below, between here and "EMBED: COPY END", are
+         shown as inert commented-out TEXT (not live tags) — select
+         and copy them exactly as shown, absolute URLs and all, and
+         paste them right after the widget div on the client's page.
+         This harness page does NOT run off these — the real, live
+         tags that make THIS page work are further below, marked
+         "LOCAL DEV ONLY". Swap the Google Maps key for your own if
+         the client needs their own billing account; leave
+         callback=kfbInitMap as-is either way.
+
+    <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
+    <script src="https://grounddispatch.com/booking/embed/airports.js"></script>
+    <script src="https://grounddispatch.com/booking/embed/booking.js?v=20261009"></script>
+    <script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
+         ============================================================ -->
+    <!-- ============ EMBED: COPY END ============ -->
+
+    <!-- ============================================================
+         LOCAL DEV ONLY — do not copy. These are the REAL, live tags
+         that make this test page actually run, loading THIS repo's
+         own local files (not production) so you see your own
+         uncommitted edits when you reload. A client site must use the
+         absolute-URL versions in the comment above instead — relative
+         paths here only resolve correctly on grounddispatch.com itself.
+         ============================================================ -->
+    <script src="vendor/jquery-3.7.1.min.js"></script>
+    <script src="embed/airports.js"></script>
+    <script src="embed/booking.js?v=20261009"></script>
+    <script src="embed/booking-map.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
+
   </div>
 </main>
 
+<!-- Test harness chrome ONLY — do not copy. -->
 <footer class="test-footer">
   A1 Limousine</b>
 </footer>
 
-<!--
-  ============================================================
-  Vendor scripts.
-    1. embed/airports.js        — airport & airline catalogs
-    2. embed/booking.js         — widget logic (V3 design)
-    3. test-map.js              — Google Maps controller (shared)
-    4. Google Maps SDK LAST — callback=kfbTestInitMap owned by test-map.js
-  ============================================================
--->
-<script src="embed/airports.js"></script>
-<script src="embed/booking.js?v=20260912"></script>
-<script src="test-map.js"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbTestInitMap" async defer></script>
+<!-- Test harness only — fills the (removed) status checklist; safe to
+     drop, it no-ops without the harness's own elements. Do not copy. -->
 <script src="test-status.js"></script>
 
 </body>

@@ -1,13 +1,15 @@
 /* ============================================================
-   Booking API — Test page map controller
+   Booking API — Map controller (REQUIRED, not a test file)
    ------------------------------------------------------------
    Owns the Google Map, the pickup/stops/dropoff markers, the
-   route line, and the distance/time readout for the test
-   harness.
+   route line, and the distance/time readout. Despite living
+   alongside the widget, this is a required dependency of
+   embed/booking.js (and embed/booking-lite.js) — every page
+   that embeds the widget must also load this file.
 
    The embed widget (embed/booking.js) intentionally
-   does NOT init the map anymore — that lives here. The Google
-   Maps <script> tag in test3.html uses callback=kfbTestInitMap
+   does NOT init the map itself — that lives here. The Google
+   Maps <script> tag on the host page uses callback=kfbInitMap
    so this file is the single source of truth for the map.
 
    Features (per user spec):
@@ -16,10 +18,10 @@
      3. Selecting a dropoff place → drops the last marker
      4. All places selected      → draws pickup → stops → dropoff
                                    route on the map
-     5. Each route update        → console.log AND alert the
-                                   total miles + minutes for a
-                                   car / SUV (sum of all legs,
-                                   so waypoints are included)
+     5. Each route update        → console.log the total miles +
+                                   minutes for a car / SUV (sum
+                                   of all legs, so waypoints are
+                                   included)
    ============================================================ */
 
 (function () {
@@ -145,7 +147,7 @@
   const LABEL_POOL = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
   // -------- Public callback: called by Google Maps when SDK ready --------
-  window.kfbTestInitMap = function () {
+  window.kfbInitMap = function () {
     if (typeof google === "undefined" || !google.maps) {
       console.warn("[BookingMap] Google Maps SDK did not load — map disabled.");
       return;

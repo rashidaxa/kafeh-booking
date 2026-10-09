@@ -17,8 +17,9 @@
 
   // Wait until the widget has booted so the widget JS has had a chance
   // to pick up the globals. We don't strictly need to — the globals
-  // are set in test-config.js before this script runs — but this keeps
-  // the panel in sync with whatever the widget actually sees.
+  // (when set at all — see the "LOCAL DEV ONLY" block in the page's
+  // <head>) are set before this script runs — but this keeps the
+  // panel in sync with whatever the widget actually sees.
   function paint() {
     var apiEl = $("checkApi");
     var ppEl  = $("checkPp");

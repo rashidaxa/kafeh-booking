@@ -7,8 +7,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A chauffeur/limousine booking system: a CodeIgniter 3 (PHP) REST API + admin portal in `backend/`, and a
 drop-in, dependency-light (jQuery only) embed widget in `embed/` that any HTML site can paste in. No build
 step anywhere in this repo — PHP is served as-is, and the widget JS/CSS is loaded directly by the browser.
-`test3.html` (+ `test-map.js`, `test-config.js`) is the local manual test harness that exercises the widget
-against a real backend and Google Maps; there is no automated test suite.
+`test3.html` is both the local manual test harness (exercises the widget against a real backend and Google
+Maps; there is no automated test suite) AND the live reference copy of the embeddable markup — see the
+`EMBED: COPY START`/`COPY END` comment block inside it. Every client site is pasted-onto-but-not-hosted-by
+— it always talks back to the **shared production backend on grounddispatch.com** — so the snippet is
+self-contained: the copied script tags are **absolute** `https://grounddispatch.com/booking/...` URLs (a
+relative path would 404 on the client's own domain), `embed/booking.js` injects its own `<link>` for
+`embed/booking.css` at boot (no manual stylesheet tag to add), and `window.API`/`window.UPLOADS` default
+to the production backend with no config file needed — they're only ever overridden locally, via the
+"LOCAL DEV ONLY" `<script>` block in `test3.html`/`reservation-detail.html`'s own `<head>`, never by a
+client site. `embed/booking-map.js` (the Google Maps/route controller) is a required dependency of
+`booking.js`/`booking-lite.js` despite its name not saying so.
 
 Payments are PayPal Orders v2 REST, redirect checkout, **authorize-then-capture**: the customer approves on
 paypal.com (funds are held, not charged), and an admin explicitly **accepts** (captures) or **rejects**
@@ -44,10 +53,10 @@ PHP changes with `php -l <file>`; verify JS changes with `node --check <file>`.
 ## Architecture
 
 **Two independent front-ends share one backend.** `embed/booking.js` (the production widget) and
-`test-map.js` (Google Maps: autocomplete, route line, distance calc) are both loaded by `test3.html` and
-talk to the CI3 API in `backend/`. `embed/booking.js` never touches Google Maps directly — it reads
-`window.kfbRoute` (published by `test-map.js` on every route change, plus a `kfb:route-updated` DOM event)
-for distance/duration/pickup/dropoff coordinates.
+`embed/booking-map.js` (Google Maps: autocomplete, route line, distance calc) are both loaded by `test3.html`
+and talk to the CI3 API in `backend/`. `embed/booking.js` never touches Google Maps directly — it reads
+`window.kfbRoute` (published by `embed/booking-map.js` on every route change, plus a `kfb:route-updated`
+DOM event) for distance/duration/pickup/dropoff coordinates.
 
 **Two separate auth mechanisms, deliberately not shared:**
 - Admin portal (`Auth.php`, `Admin.php`, `Admin_api.php`) — CI session cookies. `Admin_api`'s constructor
@@ -77,7 +86,7 @@ need cross-file reading:
   `Pricing_engine::classify_zone()` measures straight-line (Haversine) distance from the garage to
   pickup/dropoff to decide `local` vs `regional` (same state) vs `long_distance` (different US state) vs
   `worldwide`; the pickup↔dropoff route mileage used for the actual `$/mile` math still comes from
-  Google's road distance, computed client-side in `test-map.js` and submitted as `distanceMiles`/`hours`.
+  Google's road distance, computed client-side in `embed/booking-map.js` and submitted as `distanceMiles`/`hours`.
 - `kfb_surcharges` is an admin-editable catalog (Airport fee, Meet & Greet, tolls, etc.) — most are manual
   add-ons, but a couple carry an `auto_trigger` (`airport`, `airport_meet_greet`) that `Pricing_engine`
   matches against the trip's pickup/dropoff type before applying them automatically.

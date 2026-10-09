@@ -10,18 +10,20 @@ A drop-in chauffeur/limousine booking widget for any HTML/jQuery website, backed
 
 ```
 booking/
-├── embed/                                 # Drop-in widget (paste into any site)
-│   ├── booking.css / .js                  # widget styles + logic
-│   └── airports.js                        # Airport autocomplete data/helper
+├── embed/                                 # Everything a client site's snippet points at (by absolute
+│   │                                       #   URL — see "Embedding" below), served from grounddispatch.com
+│   ├── booking.css / .js                  # widget styles + logic (booking.js injects its own <link> to booking.css)
+│   ├── booking-lite.js                    # no-payment "Client Bookings" fork (reservation-detail.html)
+│   ├── airports.js                        # Airport autocomplete data/helper
+│   └── booking-map.js                     # Google Maps controller — REQUIRED, not optional
 │
 ├── vendor/                                # Local copies of vendor libs (offline test)
 │   └── jquery-3.7.1.min.js
 │
-├── test3.html                             # Local test harness (loads embed/booking.*)
-├── test.css                               # Shared test harness styles
-├── test-config.js                         # KAFEH_API + KAFEH_UPLOADS globals
-├── test-status.js                         # Tiny status panel filler
-├── test-map.js                            # Google Maps controller (markers, route, mi/min)
+├── test3.html                             # Local test harness AND the live reference copy of the
+│                                           #   embeddable markup — see its "EMBED: COPY START/END" comments
+├── test.css                               # Test harness chrome styles ONLY — never copied
+├── test-status.js                         # Test harness status panel filler — never copied
 │
 ├── backend/                               # CodeIgniter 3 application
 │   ├── application/
@@ -70,12 +72,18 @@ booking/
 
 ### 1. Open the test page
 
-Open **`test3.html`** in your browser — it loads the widget from `embed/booking.css` / `.js`.
+Open **`test3.html`** in your browser — it loads the widget from the local `embed/booking.css` / `.js`
+copies in this repo (relative paths), so you see your own uncommitted edits immediately on reload. This
+page is also the live reference copy of the embeddable markup — see its `EMBED: COPY START` / `COPY END`
+comment block for exactly what a client site copies (which uses **absolute** `grounddispatch.com` URLs
+instead, since the widget always talks back to the shared production backend regardless of which site
+it's pasted onto — see "Embedding" below).
 
 - Loads **jQuery** from `vendor/jquery-3.7.1.min.js` (local copy, no internet needed for this)
 - Card number/expiry/CVV are collected in the widget's own form (Step 3) and submitted straight to the backend — no third-party payment script to load
-- Loads **Google Maps** — replace `YOUR_GOOGLE_MAPS_KEY` with your own key
-- Sets `KAFEH_API` via `test-config.js`
+- Loads **Google Maps** — replace the key in the script tag with your own
+- `embed/booking.js` injects its own `<link>` tag for `embed/booking.css` at boot — no separate stylesheet include needed
+- Defaults `window.API` / `window.UPLOADS` to the production backend; the page's own `<head>` overrides them to localhost for local testing (see next section)
 
 No build step, no server required. Works on `file://` as long as your browser allows CDN scripts (most do).
 
@@ -88,11 +96,15 @@ No build step, no server required. Works on `file://` as long as your browser al
 
 ### 2. Wire it up to the backend
 
-Edit `test-config.js` and change `KAFEH_API` to your backend URL:
+`embed/booking.js` / `embed/booking-lite.js` default `window.API` / `window.UPLOADS` to the production
+backend (`https://grounddispatch.com/booking/backend/...`) — every real deployment shares that one
+backend, so there's no per-site config file to edit. For **local** testing against your own XAMPP backend
+instead, `test3.html` (and `reservation-detail.html`) each set an override in their own `<head>`, in a
+block marked `LOCAL DEV ONLY`:
 
 ```js
-window.KAFEH_API = "http://localhost/booking/backend"; // local XAMPP
-window.KAFEH_API = "https://api.kafeh.com";             // production
+window.API     = "http://localhost/booking/backend/api";
+window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
 ```
 
 ### 3. Backend (CodeIgniter 3)
@@ -113,33 +125,50 @@ Config files under `backend/application/config/` (e.g. `paypal.php`) are tracked
 
 ---
 
-## 🧩 Embedding the widget in a production site
+## 🧩 Embedding the widget on a client's site
 
-All CSS lives in `embed/booking.css` and all wizard JS in `embed/booking.js` — no inline CSS or scripts. The canonical reference markup is the `<div class="kfb-widget">…</div>` block in `test3.html`.
+The widget is **not** copied onto the client's own server — it's always served live from
+`grounddispatch.com`, and the client's page just references it there by absolute URL. This keeps every
+site on one always-current copy with nothing to redeploy per client, and keeps the paste itself trivial
+for a non-technical site owner: **one block, one place, no separate `<head>` edits.**
+
+Open `test3.html` and copy everything between `<!-- EMBED: COPY START -->` and `<!-- EMBED: COPY END -->`
+(the widget's `<div>`, plus the 5 absolute-URL script tags shown right after it as commented-out text — see
+that comment's own note for why they're not the page's own live tags). Paste it, as-is, inside whatever
+container `<div>` the client's page wants the widget in:
 
 ```html
-<!-- 1. Styles -->
-<link rel="stylesheet" href="/path/to/embed/booking.css">
+<!-- Paste this whole block inside your own container <div>. Nothing
+     else needs to change anywhere else on the page: no <head> edit,
+     no separate stylesheet <link> (embed/booking.js adds its own). -->
 
-<!-- 2. Widget markup (copy from test3.html's <div class="kfb-widget"> block) -->
-<div class="kfb-widget" id="kafehBookingWidget"> … </div>
+<div class="kfb-widget" id="kfbBookingWidget"> … </div>
 
-<!-- 3. Required vendor scripts (BEFORE the widget JS) -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-<!-- 4. Globals the widget reads at boot time -->
-<script>
-  window.KAFEH_API = "https://api.kafeh.com";
-</script>
-
-<!-- 5. Google Maps LAST -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&libraries=places&callback=kfbTestInitMap" async defer></script>
-
-<!-- 6. Widget script (after jQuery + Google Maps) -->
-<script src="/path/to/embed/booking.js"></script>
+<script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
+<script src="https://grounddispatch.com/booking/embed/airports.js"></script>
+<script src="https://grounddispatch.com/booking/embed/booking.js"></script>
+<script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&libraries=places&callback=kfbInitMap" async defer></script>
 ```
 
-**Required load order:** jQuery → widget JS → Google Maps. No payment SDK to load — "Book Now" redirects the browser straight to a PayPal-hosted approval URL the backend returns, and PayPal redirects back to the same page when the customer approves or cancels.
+A few things that make this work:
+
+- **Absolute URLs, always.** The snippet is pasted onto someone else's domain, so a relative path like
+  `embed/booking.css` would resolve against *their* site and 404 — every asset reference has to be the
+  full `https://grounddispatch.com/booking/...` URL.
+- **No config file.** `embed/booking.js` / `embed/booking-lite.js` default `window.API` / `window.UPLOADS`
+  to the production backend — every client site shares that one backend, so there's nothing to edit per
+  site. (Internally, `test3.html` and `reservation-detail.html` override these to localhost for local
+  testing — see their own `<head>`, marked `LOCAL DEV ONLY` — but a client site sets neither.)
+- **No manual stylesheet `<link>`.** `embed/booking.js` injects its own `<link>` for `embed/booking.css`
+  into `<head>` at boot.
+- **`embed/booking-map.js` is required** despite its name not saying so — it's the Google Maps/route
+  controller `embed/booking.js` depends on (`window.kfbRoute`), not a test file.
+- **Load order matters:** jQuery → the rest, in the order shown. No payment SDK to load — "Book Now"
+  redirects the browser straight to a PayPal-hosted approval URL the backend returns, and PayPal redirects
+  back to the same page when the customer approves or cancels.
+- Swap `YOUR_GOOGLE_MAPS_KEY` for a key whose HTTP-referrer restrictions cover the client's domain (the
+  shared key must be allowed for every domain the widget is pasted onto, or get its own per-client key).
 
 ---
 
@@ -349,7 +378,7 @@ mysql -u root -p kafeh < backend/sql/kfb_migration_v11.sql
 | "Charge additional amount" always errors | Not supported under Orders v2 redirect checkout (no retained payment method) | Expected — see **Known gaps**. Process the charge manually from the PayPal dashboard, or ask the customer for a new payment |
 | Can log into `sandbox.paypal.com` but not `developer.paypal.com` | Same login for both, different sections | Try the same PayPal credentials at `developer.paypal.com` directly; if it still won't let you in, the PayPal account itself needs the developer/API-access feature enabled (or you need to be added as a member if it's a company account) |
 | Flight lookup always returns unavailable | No `aviationstack_access_key` configured | Set a key in `config/aviationstack.php`, or accept manual entry as the default |
-| Network error at payment step | `KAFEH_API` points to a host that isn't running | Edit `test-config.js` to a live URL, or run the CI3 backend |
+| Network error at payment step | `window.API` points to a host that isn't running | Edit the `LOCAL DEV ONLY` block in the page's `<head>` to a live URL, or run the CI3 backend |
 
 ---
 

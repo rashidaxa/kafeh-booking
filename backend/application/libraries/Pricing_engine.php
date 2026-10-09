@@ -151,7 +151,7 @@ class Pricing_engine
     /**
      * Real driving distance (v19) from the garage to one point (pickup
      * or dropoff), in miles. $submittedMiles is what the browser
-     * computed via Google's DistanceMatrixService (test-map.js) and sent
+     * computed via Google's DistanceMatrixService (embed/booking-map.js) and sent
      * up with the quote/reservation request — trusted at face value,
      * the same way route_miles (pickup<->dropoff) already is. Falls
      * back to straight-line (haversine_miles()) only when nothing

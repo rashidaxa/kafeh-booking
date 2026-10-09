@@ -16,7 +16,7 @@
      Details/Estimated Price section (see reservation-detail.html)
    - Location type is a button-pill group (not radio)
    - Airport mode reveals Airline / Flight # / Arrival Time / Pickup Point
-   - All Google Maps / Places / Directions logic lives in test-map.js
+   - All Google Maps / Places / Directions logic lives in embed/booking-map.js
      (which publishes route state on window.kfbRoute) — unchanged,
      shared with the full widget, since address entry is structural,
      not pricing.
@@ -24,6 +24,14 @@
 
 (function () {
   "use strict";
+
+  // Every use of this flow — always on grounddispatch.com itself, via
+  // a link an admin sends a customer — talks to the same production
+  // backend, so this is a fixed default, not per-site config.
+  // window.API / window.UPLOADS (set before this script runs) still
+  // override it for local development — see the "LOCAL DEV ONLY"
+  // block in reservation-detail.html's <head>.
+  var PROD_BASE = "https://grounddispatch.com/booking";
 
   // -------- Boot the widget as soon as jQuery is available --------
   function bootWhenReady() {
@@ -75,7 +83,7 @@
     "use strict";
 
     // -------- Config --------
-    var API_BASE      = (window.API || "/api").replace(/\/$/, "");
+    var API_BASE      = (window.API || (PROD_BASE + "/backend/api")).replace(/\/$/, "");
     var UPLOADS_BASE  = (window.UPLOADS || (API_BASE.replace(/\/api$/, "") + "/uploads/vehicles/"));
     var HOURLY_KEYS   = ["hourly", "as directed", "as-directed", "hourly / as directed"];
 
@@ -104,7 +112,7 @@
       addonsCatalog: [],     // fetched from backend at boot
       distanceMiles: 0,
       durationMins: 0,
-      pickupDistanceMiles: null,  // real driving distance, garage -> pickup (v19) — null until test-map.js resolves it
+      pickupDistanceMiles: null,  // real driving distance, garage -> pickup (v19) — null until embed/booking-map.js resolves it
       dropoffDistanceMiles: null, // real driving distance, garage -> dropoff (v19)
       pickup:  { lat: null, lng: null, state: "", country: "" },
       dropoff: { lat: null, lng: null, state: "", country: "" },
@@ -321,7 +329,7 @@
       clearTimeout(el._hideTimer);
       el._hideTimer = setTimeout(function () { el.classList.remove("is-open"); }, 3200);
     }
-    // test-map.js can't reach this closure's toast() directly (separate
+    // embed/booking-map.js can't reach this closure's toast() directly (separate
     // script/IIFE), so it dispatches this event instead — e.g. when it
     // rejects a too-vague (city/country-only) place selection.
     window.addEventListener("kfb:toast", function (e) {
@@ -504,7 +512,7 @@
           airportBlock.find("input, select").prop("disabled", true);
         }
 
-        // Notify test-map.js to re-attach autocomplete with the new type filter
+        // Notify embed/booking-map.js to re-attach autocomplete with the new type filter
         window.dispatchEvent(new CustomEvent("kfb:loc-type-changed", {
           detail: { group: group, value: value }
         }));
@@ -768,7 +776,7 @@
       state.pickup  = r.pickup  || { lat: null, lng: null, state: "", country: "" };
       state.dropoff = r.dropoff || { lat: null, lng: null, state: "", country: "" };
       // Real driving distance, garage -> pickup / garage -> dropoff (v19)
-      // — null until test-map.js's DistanceMatrix call resolves; the
+      // — null until embed/booking-map.js's DistanceMatrix call resolves; the
       // server falls back to straight-line for either side that's still
       // null, so there's nothing to guard here before it arrives.
       state.pickupDistanceMiles  = (r.pickupDistanceMiles  != null) ? +r.pickupDistanceMiles  : null;

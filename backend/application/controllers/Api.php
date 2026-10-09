@@ -67,7 +67,7 @@ class Api extends CI_Controller
      * GET /api/settings
      * Public global settings the widget needs before a vehicle is picked —
      * the Meet & Greet fee (Chicago vs. all other airports), plus the
-     * garage's own coordinates (v19) so test-map.js can compute real
+     * garage's own coordinates (v19) so embed/booking-map.js can compute real
      * driving distance garage->pickup/garage->dropoff itself, client-side,
      * with the same Google Maps key already loaded for the route line —
      * read from the same admin-editable setting Pricing_engine itself
@@ -992,7 +992,7 @@ class Api extends CI_Controller
             'dropoff_country'         => (string)($raw['dropoffCountry'] ?? ''),
             'route_miles'             => (float)($raw['distanceMiles'] ?? 0),
             // Real driving distance, garage -> pickup / garage -> dropoff
-            // (v19) — computed client-side in test-map.js via
+            // (v19) — computed client-side in embed/booking-map.js via
             // DistanceMatrixService (same Google Maps key already used
             // for the route line), trusted at face value the same way
             // route_miles above already is. Pricing_engine falls back to
