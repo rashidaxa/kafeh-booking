@@ -354,22 +354,27 @@ input.kfb-field-locked {
   background: #fff; border: 1px solid var(--kfb-border-strong);
   border-radius: var(--kfb-radius); box-shadow: var(--kfb-shadow);
 }
+.kfb-dt-dropdown { min-width: 250px; max-height: none; overflow: visible; }
 .kfb-dt-dropdown .kfb-dt-custom {
-  position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px;
-  padding: 8px 10px; background: var(--kfb-card-2); border-bottom: 1px solid var(--kfb-border);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 5px;
+  padding: 10px; background: var(--kfb-card-2); border-bottom: 1px solid var(--kfb-border);
 }
-.kfb-dt-dropdown .kfb-dt-custom-label {
-  display: none;
-}
+.kfb-dt-dropdown .kfb-dt-custom-label { display: none; }
 .kfb-dt-dropdown .kfb-dt-custom select {
+  /* appearance:none + our own chevron — the native macOS/Chrome select ignores
+     padding and clipped "PM" down to "P" in this narrow box. */
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
   width: auto; flex: 1 1 0; min-width: 0; margin: 0;
-  font: inherit; font-size: 13px; padding: 6px 4px; line-height: 1.2;
+  font: inherit; font-size: 14px; line-height: 1.2; text-align: left; text-indent: 0;
+  padding: 9px 20px 9px 8px; overflow: visible; text-overflow: clip;
   border: 1px solid var(--kfb-border-strong); border-radius: var(--kfb-radius);
-  background: #fff; color: var(--kfb-text); cursor: pointer;
+  background-color: #fff; color: var(--kfb-text); cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23111' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 7px center; background-size: 9px 6px;
 }
 .kfb-dt-dropdown .kfb-dt-colon { font-weight: 700; flex: 0 0 auto; }
 .kfb-dt-dropdown .kfb-dt-set {
-  flex: 0 0 auto; margin: 0; font: inherit; font-size: 13px; font-weight: 700; padding: 7px 12px; cursor: pointer;
+  flex: 1 0 100%; margin: 0; font: inherit; font-size: 14px; font-weight: 700; padding: 10px 14px; cursor: pointer;
   border: 1px solid var(--kfb-accent); border-radius: var(--kfb-radius); background: var(--kfb-accent); color: #fff;
 }
 .kfb-dt-option {

@@ -142,9 +142,10 @@ $hasAddons = (float)($b['addons_total'] ?? 0) > 0;
     <div class="kfbr-section">
       <h2>Billed to</h2>
       <div class="kfbr-grid">
-        <div class="kfbr-field"><span>Name</span><p><?= kfb_r_or_dash(trim(($b['first_name'] ?? '') . ' ' . ($b['last_name'] ?? '')) ?: NULL) ?></p></div>
-        <div class="kfbr-field"><span>Email</span><p><?= kfb_r_or_dash($b['email'] ?? NULL) ?></p></div>
-        <div class="kfbr-field"><span>Phone</span><p><?= kfb_r_or_dash($b['phone'] ?? NULL) ?></p></div>
+        <?php $ccName = trim(($b['cc_first_name'] ?? '') . ' ' . ($b['cc_last_name'] ?? '')); ?>
+        <div class="kfbr-field"><span>Name</span><p><?= kfb_r_or_dash($ccName !== '' ? $ccName : (trim(($b['first_name'] ?? '') . ' ' . ($b['last_name'] ?? '')) ?: NULL)) ?></p></div>
+        <div class="kfbr-field"><span>Email</span><p><?= kfb_r_or_dash(!empty($b['cc_email']) ? $b['cc_email'] : ($b['email'] ?? NULL)) ?></p></div>
+        <div class="kfbr-field"><span>Phone</span><p><?= kfb_r_or_dash(!empty($b['cc_phone']) ? $b['cc_phone'] : ($b['phone'] ?? NULL)) ?></p></div>
         <div class="kfbr-field"><span>Booked on</span><p><?= kfb_r_date($b['created_at'] ?? NULL) ?></p></div>
       </div>
     </div>

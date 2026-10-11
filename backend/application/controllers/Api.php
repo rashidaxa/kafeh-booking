@@ -168,15 +168,15 @@ class Api extends CI_Controller
     {
         $raw = $this->_read_json();
 
-        // If a logged-in customer is booking, their account email is
-        // authoritative — overwrite whatever was submitted so the booking
-        // always links to the right customer_id (and never to a second,
-        // accidental customer record created from a mistyped email).
+        // The account holder is the CARD HOLDER (the booker); the passenger
+        // may be someone else entirely, so passenger name/email are left as
+        // submitted. A logged-in customer's account email is authoritative
+        // for the card holder email — it decides ownership, so overwrite
+        // whatever was submitted (never a second, accidental customer
+        // record from a mistyped email).
         $customer = $this->_optional_authenticate_customer();
         if ($customer && is_array($raw)) {
-            $raw['email']     = $customer['email'];
-            $raw['firstName'] = $customer['first_name'];
-            $raw['lastName']  = $customer['last_name'];
+            $raw['ccEmail'] = $customer['email'];
         }
 
         $err = $this->_validate_reservation_payload($raw);
@@ -208,13 +208,16 @@ class Api extends CI_Controller
         if ($customer) {
             // Already know exactly which account this is — no email lookup needed.
             $this->db->where('booking_id', $booking_id)->update('kfb_bookings', ['customer_id' => (int)$customer['id']]);
-        } elseif (!empty($raw['email'])) {
-            // Guest checkout — auto-link to a customer record (creates one if new)
+        } elseif (!empty($raw['ccEmail'])) {
+            // Guest checkout — link to the CARD HOLDER's customer record
+            // (created if new). Registering that same email later claims
+            // this record and with it every booking made under it; a
+            // different card holder email never lands in that profile.
             $customerId = $this->Customer_model->upsert_from_booking([
-                'email'      => $raw['email'],
-                'first_name' => $raw['firstName'] ?? '',
-                'last_name'  => $raw['lastName']  ?? '',
-                'phone'      => $raw['phone']      ?? '',
+                'email'      => $raw['ccEmail'],
+                'first_name' => $raw['ccFirstName'] ?? '',
+                'last_name'  => $raw['ccLastName']  ?? '',
+                'phone'      => $raw['ccPhone']      ?? '',
             ]);
             if ($customerId) {
                 $this->db->where('booking_id', $booking_id)->update('kfb_bookings', ['customer_id' => $customerId]);
@@ -306,12 +309,12 @@ class Api extends CI_Controller
         }
 
         $raw = $this->_read_json();
-        // Email is locked to the account on edit — name/phone stay editable
-        // (the client explicitly distinguished "pre-populated" from
-        // "readonly"). Changing the email client-side has no effect; this
-        // also prevents a booking silently drifting to a different email
-        // than the account it's still linked to via customer_id.
-        if (is_array($raw)) $raw['email'] = $customer['email'];
+        // The card holder email is locked to the account on edit — name/phone
+        // stay editable. Changing it client-side has no effect; this also
+        // prevents a booking silently drifting to a different email than
+        // the account it's still linked to via customer_id. The passenger
+        // (name/email/phone) is free to differ.
+        if (is_array($raw)) $raw['ccEmail'] = $customer['email'];
         // Reservations made before v23 have no cardholder on file — carry
         // them forward rather than failing an edit of an old booking.
         if (is_array($raw) && empty($raw['ccFirstName']) && !empty($booking['cc_first_name'])) {

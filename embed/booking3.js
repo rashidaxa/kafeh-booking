@@ -28,11 +28,11 @@
   // page (or a manually-added <link> left over from testing) don't
   // double up.
   (function injectStylesheet() {
-    var href = PROD_BASE + "/embed/booking2.css?v=20261011";
+    var href = PROD_BASE + "/embed/booking3.css?v=20261017";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
-      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking2.css") !== -1) { link = links[i]; break; }
+      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking3.css") !== -1) { link = links[i]; break; }
     }
     if (!link) {
       link = document.createElement("link");
@@ -631,22 +631,11 @@
     var TIME_TO_DATE_FIELD = { pickupTime: "pickupDate", returnTime: "returnDate" };
     function openTimeDropdown($input) {
       var current = $input.val();
-      var options = TIME_OPTIONS;
       var dateField = TIME_TO_DATE_FIELD[$input.attr("name")];
-      if (dateField && $('input[name="' + dateField + '"]').val() === todayDateString()) {
-        var nowMin = nowTimeString();
-        options = TIME_OPTIONS.filter(function (o) { return o.value >= nowMin; });
-        // Don't yank away a value the customer already picked just because
-        // a few minutes have ticked by since — only filter for new picks.
-        if (current && !options.some(function (o) { return o.value === current; })) {
-          var existing = TIME_OPTIONS.filter(function (o) { return o.value === current; })[0];
-          if (existing) options = [existing].concat(options);
-        }
-      }
       var $dd = $('<div class="kfb-dt-dropdown" role="listbox"></div>');
 
-      // Exact-minute entry (e.g. 10:03 PM) on top of the 30-minute quick
-      // list below — hour / minute / AM-PM selects with an explicit Set.
+      // Exact-minute entry only (e.g. 10:03 PM): hour / minute / AM-PM on one
+      // line, Set below — no predefined 30-minute list.
       var cur = /^(\d{1,2}):(\d{2})/.exec(current || "");
       var curH24 = cur ? parseInt(cur[1], 10) : null;
       var curH12 = curH24 === null ? 12 : (curH24 % 12 === 0 ? 12 : curH24 % 12);
@@ -684,21 +673,7 @@
       });
       $dd.append($custom);
 
-      if (!options.length) {
-        $dd.append('<div class="kfb-dt-empty">No times left today — pick a later date</div>');
-      }
-      options.forEach(function (o) {
-        var $item = $('<div class="kfb-dt-option" role="option" data-value="' + o.value + '">' + o.label + "</div>");
-        if (o.value === current) $item.addClass("is-selected");
-        $item.on("click", function () {
-          $input.val(o.value).trigger("change").trigger("input");
-          closeAllTimeDropdowns();
-        });
-        $dd.append($item);
-      });
       $input.closest(".kfb-dt-wrap").append($dd);
-      var $sel = $dd.find(".is-selected");
-      if ($sel.length) $dd.scrollTop($sel[0].offsetTop - $dd.height() / 2 + $sel.height() / 2);
     }
     function enhanceDateTimeInputs() {
       // Touch devices (phones/tablets) already open a full native
@@ -1920,6 +1895,8 @@
             // bookings without one fall back to the passenger.
             if (res) {
               $('input[name="ccFirstName"]').val(res.cc_first_name || res.first_name || "");
+              $('input[name="ccLastName"]').val(res.cc_last_name || res.last_name || "");
+              $('input[name="ccPhone"]').val(res.cc_phone || res.phone || "");
               $('input[name="ccEmail"]').val(res.cc_email || res.email || "");
             }
             showSuccess(bookingId);
@@ -2137,20 +2114,24 @@
      * account (reservations are looked up by customer_id, not by the
      * email typed into the form).
      */
+    // The logged-in account holder is the CARD HOLDER (the booker), not the
+    // passenger — Passenger Info is left alone so they can book for someone
+    // else. The card holder email decides which account owns the booking, so
+    // it is locked to the account email (name/phone stay editable).
     function prefillContactFromCustomer() {
       if (!state.customer) return;
-      $('input[name="firstName"]').val(state.customer.first_name || "");
-      $('input[name="lastName"]').val(state.customer.last_name || "");
-      if (state.customer.phone) $('input[name="phone"]').val(state.customer.phone);
+      $('input[name="ccFirstName"]').val(state.customer.first_name || "");
+      $('input[name="ccLastName"]').val(state.customer.last_name || "");
+      if (state.customer.phone) $('input[name="ccPhone"]').val(state.customer.phone);
       lockEmailToAccount(state.customer.email);
     }
 
     function lockEmailToAccount(email) {
-      $('input[name="email"]').val(email || "").prop("readonly", true).addClass("kfb-field-locked");
+      $('input[name="ccEmail"]').val(email || "").prop("readonly", true).addClass("kfb-field-locked");
     }
 
     function unlockEmailField() {
-      $('input[name="email"]').prop("readonly", false).removeClass("kfb-field-locked");
+      $('input[name="ccEmail"]').prop("readonly", false).removeClass("kfb-field-locked");
     }
 
     /**
@@ -2872,17 +2853,17 @@
       $('input[name="firstName"]').val(booking.first_name || "");
       $('input[name="lastName"]').val(booking.last_name || "");
       $('input[name="phone"]').val(booking.phone || "");
-      // Email is locked to the current account email, not the booking's
-      // historical value — editing is only reachable while logged in, and
-      // the backend forces the email server-side too (see
-      // Api::reservation_update()), so this just keeps the form honest.
-      if (state.customer) lockEmailToAccount(state.customer.email);
-      else $('input[name="email"]').val(booking.email || "");
+      $('input[name="email"]').val(booking.email || "");
       $('input[name="ccFirstName"]').val(booking.cc_first_name || "");
       $('input[name="ccLastName"]').val(booking.cc_last_name || "");
       $('input[name="ccCompany"]').val(booking.cc_company || "");
       $('input[name="ccPhone"]').val(booking.cc_phone || "");
       $('input[name="ccEmail"]').val(booking.cc_email || "");
+      // Card holder email is locked to the current account email, not the
+      // booking's historical value — editing is only reachable while logged
+      // in, and the backend forces it server-side too (see
+      // Api::reservation_update()), so this just keeps the form honest.
+      if (state.customer) lockEmailToAccount(state.customer.email);
       $('input[name="cardNumber"]').val(booking.cardNumber || "");
       $('input[name="cardExpiry"]').val(booking.cardExpiry || "");
       $('input[name="cvv"]').val(booking.cvv || "");
@@ -2998,7 +2979,8 @@
           toast("Password Must Be At Least 6 Characters.", "error");
           return;
         }
-        var email = $('input[name="email"]').val();
+        // The account is for the card holder (the booker), not the passenger.
+        var email = $('input[name="ccEmail"]').val();
         $.ajax({
           url: API_BASE + "/customers/register",
           method: "POST",
@@ -3006,9 +2988,9 @@
           data: JSON.stringify({
             email:      email,
             password:   pw,
-            first_name: $('input[name="firstName"]').val(),
-            last_name:  $('input[name="lastName"]').val(),
-            phone:      $('input[name="phone"]').val(),
+            first_name: $('input[name="ccFirstName"]').val(),
+            last_name:  $('input[name="ccLastName"]').val(),
+            phone:      $('input[name="ccPhone"]').val(),
           }),
           dataType: "json",
           timeout: 8000,

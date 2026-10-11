@@ -5,37 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>A1 Limousine</title>
 
-  <!-- ============================================================
-       This whole page is TWO things at once:
-         1. An internal test harness — this <head>'s test.css, the
-            "LOCAL DEV ONLY" blocks (here and further down in
-            <body>), the <header>/<footer> page chrome, and
-            test-status.js at the bottom. None of that ships to a
-            client site, and none of it is part of what gets copied.
-         2. The live reference copy of the embeddable widget — ONE
-            block in <body>, marked "EMBED: COPY START" / "COPY END",
-            containing the widget's <div> and (as inert, commented-out
-            text right after it — see that comment) the 5 script tags
-            it needs. A client site copies that one block as plain
-            text, pastes it inside their own container <div>, and is
-            done — no separate <head> edits, no CSS link to add by
-            hand (embed/booking2.js injects its own stylesheet), no
-            config file to edit (every site shares the same
-            grounddispatch.com production backend).
-       ============================================================ -->
-
-  <!-- Test harness styles ONLY — do not copy to a client site. -->
   <link rel="stylesheet" href="test.css">
 
-  <!-- ============================================================
-       LOCAL DEV ONLY — do not copy to a client site.
-       embed/booking2.js defaults to the production backend
-       (grounddispatch.com) when these globals aren't set. Setting
-       them here, before the widget scripts load, points THIS page
-       at your local XAMPP backend instead while you're developing.
-       A real client site sets neither of these and simply gets
-       production, automatically.
-       ============================================================ -->
   <script>
     window.API     = "http://localhost/booking/backend/api";
     window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
@@ -43,37 +14,18 @@
 </head>
 <body>
 
-<!-- Test harness chrome ONLY (header/page title) — do not copy. -->
 <header class="test-header">
   <div>
     <h1>A1 Limousine</span></h1>
   </div>
 </header>
 
-<!-- Test harness layout wrapper ONLY — on a client site, replace
-     <main class="test-main"><div class="test-widget-host"> with
-     whatever container <div> that site wants the widget inside. -->
 <main class="test-main">
   <div class="test-widget-host">
 
-    <!-- ============================================================
-         EMBED: COPY START
-         Copy everything from here down to "EMBED: COPY END" — the
-         <div class="kfb-widget"> block, then the 5 script tags shown
-         (as inert, commented-out text — see that comment's own note)
-         right after it — as ONE piece, and paste it inside the
-         client site's own container <div>. Nothing else needs to
-         change anywhere else on their page. Do not rename the outer
-         id (kfbBookingWidget) or any id/class inside it; embed/booking2.js
-         and embed/booking-map.js both look elements up by these exact
-         names.
-         ============================================================ -->
+    <!-- EMBED: COPY START -->
     <div class="kfb-widget" id="kfbBookingWidget">
 
-      <!-- Pre-CSS skeleton. Self-styled (its own <style>, no dependency on
-           booking.css) so it can paint instantly; embed/booking2.js removes it
-           and fades the real widget in once booking.css has loaded. Copy it
-           along with the rest of this block. -->
       <style>
         .kfb-widget:not(.kfb-ready) > .kfb-container { display: none; }
         .kfb-widget.kfb-ready > .kfb-container { animation: kfbBootIn .35s ease both; }
@@ -140,7 +92,6 @@
 
       <div class="kfb-container">
 
-        <!-- ========== ACCOUNT BAR ========== -->
         <div class="kfb-account-bar" id="kfbAccountBar">
           <div class="kfb-account-bar-guest" id="kfbAccountBarGuest">
             <button type="button" class="kfb-link-btn" id="kfbShowLoginBtn">Log in</button>
@@ -156,10 +107,8 @@
           </div>
         </div>
 
-        <!-- ========== BOOKING VIEW (3-step wizard) ========== -->
         <div id="kfbBookingView">
 
-        <!-- ========== STEPPER (top, outside the body) ========== -->
         <nav class="kfb-stepper" aria-label="Booking progress">
           <ol class="kfb-stepper-list" id="kfbStepperList">
             <li class="kfb-step is-active" data-step="1">
@@ -179,11 +128,9 @@
 
         <div class="kfb-body">
 
-          <!-- ========== LEFT COLUMN: form ========== -->
           <div class="kfb-form-col">
             <form id="kfbForm" novalidate>
 
-              <!-- Hidden service radios — pills/chips keep them in sync -->
               <div style="position:absolute;left:-9999px" aria-hidden="true">
                 <label><input type="radio" name="service" value="Transfer" checked> Transfer</label>
                 <label><input type="radio" name="service" value="Point to Point"> Point to Point</label>
@@ -194,7 +141,6 @@
                 <label><input type="radio" name="service" value="Tour"> Tour</label>
               </div>
 
-              <!-- ===================== STEP 1: WHERE & WHEN ===================== -->
               <section class="kfb-panel is-active" data-panel="1">
 
                 <div class="kfb-panel-head">
@@ -205,10 +151,6 @@
                   </div>
                 </div>
 
-                <!-- Hourly service: customer-requested hours (v16 pricing engine) —
-                     shown at the top of the form (before Pickup Date/Time), only
-                     when Hourly is selected, so it isn't buried below Stops/Dropoff/
-                     Travellers by the time the customer needs to fill it in. -->
                 <div class="kfb-section" id="kfbHoursWrap" hidden>
                   <label class="kfb-field">
                     <span>Number of Hours <em>*</em></span>
@@ -216,7 +158,6 @@
                   </label>
                 </div>
 
-                <!-- Date + Time -->
                 <div class="kfb-section">
                   <div class="kfb-field-row-2">
                     <label class="kfb-field">
@@ -236,7 +177,6 @@
                   </div>
                 </div>
 
-                <!-- Pickup -->
                 <div class="kfb-section">
                   <div class="kfb-loc-type" data-group="pickup" role="tablist" aria-label="Pickup location type">
                     <button type="button" class="kfb-loc-type-btn is-active" data-value="Search All" data-group="pickup" role="tab">Search All</button>
@@ -249,7 +189,6 @@
                     <span class="kfb-pickup-label">Pick-Up Location</span>
                     <input type="text" name="pickup" id="kfbPickup" placeholder="Enter Location" required autocomplete="off">
                   </label>
-                  <!-- Airport-only extras -->
                   <div class="kfb-airport-extras" data-group="pickup" hidden>
                     <div class="kfb-field-row-3">
                       <label class="kfb-field">
@@ -285,7 +224,6 @@
                   </div>
                 </div>
 
-                <!-- Stops -->
                 <div class="kfb-section">
                   <div class="kfb-stops-head">
                     <span class="kfb-stops-label">Stops <span class="kfb-stops-hint" id="kfbStopsHint">optional, up to 5</span></span>
@@ -294,7 +232,6 @@
                   <div id="kfbStopsContainer"></div>
                 </div>
 
-                <!-- Dropoff -->
                 <div class="kfb-section">
                   <div class="kfb-loc-type" data-group="dropoff" role="tablist" aria-label="Dropoff location type">
                     <button type="button" class="kfb-loc-type-btn is-active" data-value="Search All" data-group="dropoff" role="tab">Search All</button>
@@ -311,7 +248,6 @@
                     <span>Drop-Off Location</span>
                     <input type="text" name="dropoff" id="kfbDropoff" placeholder="Enter Location" required autocomplete="off">
                   </label>
-                  <!-- Dropoff airport-only extras -->
                   <div class="kfb-airport-extras" data-group="dropoff" hidden>
                     <div class="kfb-field-row-3">
                       <label class="kfb-field">
@@ -347,7 +283,6 @@
                   </div>
                 </div>
 
-                <!-- People & bags -->
                 <div class="kfb-section">
                   <div class="kfb-field-row-2">
                     <div>
@@ -373,7 +308,6 @@
                   </div>
                 </div>
 
-                <!-- Return Trip toggle + return date/time (v4) -->
                 <div class="kfb-section">
                   <label class="kfb-check kfb-check-block">
                     <input type="checkbox" id="kfbReturnTripToggle">
@@ -398,8 +332,6 @@
                     </div>
                     <p class="kfb-hint" style="margin:6px 0 0">On the return leg, the pickup &amp; drop-off are swapped.</p>
 
-                    <!-- Return leg PICKUP flight info — shown when the original drop-off is an airport
-                         (the return leg picks the customer up there for the trip back). -->
                     <div id="kfbReturnPickupFlightBlock" hidden>
                       <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return pickup</strong> — picking you up at the airport for the trip back.</p>
                       <div class="kfb-field-row-3">
@@ -435,8 +367,6 @@
                       </label>
                     </div>
 
-                    <!-- Return leg DROP-OFF flight info — shown when the original pickup is an airport
-                         (the return leg drops the customer back there for their flight home). -->
                     <div id="kfbReturnDropoffFlightBlock" hidden>
                       <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return drop-off</strong> — dropping you back at the airport for your flight home.</p>
                       <div class="kfb-field-row-3">
@@ -474,7 +404,6 @@
                   </div>
                 </div>
 
-                <!-- Special Instructions -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
                 <label class="kfb-field">
                   <textarea name="notes" rows="3" placeholder="Other Notes, Instructions, Or Special Requests."></textarea>
@@ -486,7 +415,6 @@
                 </div>
               </section>
 
-              <!-- ===================== STEP 2: SELECT VEHICLE ===================== -->
               <section class="kfb-panel" data-panel="2" hidden>
                 <div class="kfb-panel-head">
                   <h2 class="kfb-panel-title">Select Vehicle</h2>
@@ -511,13 +439,11 @@
                 </div>
               </section>
 
-              <!-- ===================== STEP 3: PAYMENT & CONFIRM ===================== -->
               <section class="kfb-panel" data-panel="3" hidden>
                 <div class="kfb-panel-head">
                   <h2 class="kfb-panel-title">Payment &amp; Confirm</h2>
                 </div>
 
-                <!-- Credit Card Holder — the booker/"client" (legacy Client Name); may differ from the passenger. Always starts empty. -->
                 <h3 class="kfb-section-title" style="margin:6px 0 4px">Credit Card Holder Name</h3>
                 <p class="kfb-field-hint" style="margin:0 0 12px">Enter the name on the credit card used for this reservation.</p>
                 <div class="kfb-field-row-2">
@@ -530,7 +456,6 @@
                   <label class="kfb-field"><span>Email *</span><input type="email" name="ccEmail" autocomplete="off" required></label>
                 </div>
 
-                <!-- Passenger Info -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Passenger Info</h3>
                 <div class="kfb-field-row-2">
                   <label class="kfb-field"><span>First Name *</span><input type="text" name="firstName" required></label>
@@ -541,7 +466,6 @@
                   <label class="kfb-field"><span>Email *</span><input type="email" name="email" required></label>
                 </div>
 
-                <!-- Promo Code -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Promo Code</h3>
                 <div class="kfb-promo">
                   <label class="kfb-promo-label" for="kfbPromoInput">Have a Promo Code?</label>
@@ -552,13 +476,11 @@
                   <div class="kfb-promo-status" id="kfbPromoStatus"></div>
                 </div>
 
-                <!-- Add-On Services (v4) -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Add-On Services</h3>
                 <div class="kfb-addon-list" id="kfbAddonList">
                   <p class="kfb-empty">Loading add-ons…</p>
                 </div>
 
-                <!-- Billing Information -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Payment Information</h3>
                 <label class="kfb-field" id="kfbSavedCardWrap" hidden>
                   <span>Use a Saved Card</span>
@@ -583,7 +505,6 @@
                   <input type="text" name="cardBillingAddress" required placeholder="Street, City, State, ZIP">
                 </label>
 
-                <!-- Terms & Conditions (v4) — required on every booking -->
                 <div id="kfbTermsBlock">
                   <label class="kfb-check kfb-check-block" style="margin-top:14px">
                     <input type="checkbox" name="terms" required>
@@ -591,7 +512,6 @@
                   </label>
                 </div>
 
-                <!-- E-Signature (v4) — required on every booking -->
                 <div id="kfbSignatureBlock" class="kfb-section" style="margin-top:14px">
                   <h3 class="kfb-section-title">E-Signature Required</h3>
                   <p class="kfb-hint" style="margin:0 0 8px">Please Sign In The Box Below To Confirm Your Booking.</p>
@@ -616,7 +536,6 @@
             </form>
           </div>
 
-          <!-- ========== RIGHT COLUMN: map (step 1) OR summary (steps 2-3) ========== -->
           <div class="kfb-side-col">
             <div class="kfb-side-card kfb-map-card" id="kfbMapCard">
               <div class="kfb-side-head">Map</div>
@@ -667,20 +586,12 @@
 
                 <p class="kfb-srate-disclaimer"><strong>Rate Disclaimer:</strong> Estimate includes applicable surcharges, gratuity, and taxes/fees shown above. Wait time, tolls, parking, and services beyond those listed may apply and are not included. Additional services or itinerary changes may affect the final rate.</p>
 
-                <!-- Mobile-only shortcut under the Trip Summary — on mobile
-                     the summary sits below the whole form, so without this
-                     the customer has to scroll all the way back up to reach
-                     the real action button after reviewing it. Shown on
-                     steps 2-3 (whenever this card is), acting as "Continue"
-                     on step 2 and "Book Now"/"Save Changes" on step 3 — see
-                     gotoStep() for the label swap and the click handler for
-                     the matching behavior. Hidden on desktop via CSS. -->
                 <button type="button" class="kfb-btn kfb-btn-primary kfb-mobile-booknow" id="kfbBookNowBtnMobile" hidden>Book Now</button>
               </div>
             </div>
           </div>
 
-        </div><!-- /.kfb-body -->
+        </div>
 
         <section class="kfb-success" id="kfbSuccess" hidden>
           <div class="kfb-success-icon">✓</div>
@@ -689,8 +600,6 @@
             We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
           <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
 
-          <!-- Shown for guest checkouts only — promptAccountCreation() unhides
-               this and logs the customer straight in on success. -->
           <div class="kfb-account-prompt" id="kfbAccountPrompt" hidden>
             <p class="kfb-account-prompt-msg">Want to track this reservation and edit it later? Create an account. You won’t need to re-enter your information.</p>
             <div class="kfb-account-prompt-fields">
@@ -702,9 +611,8 @@
           <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
         </section>
 
-        </div><!-- /#kfbBookingView -->
+        </div>
 
-        <!-- ========== LOG IN ========== -->
         <section class="kfb-view" id="kfbLoginView" hidden>
           <div class="kfb-view-card">
             <h2 class="kfb-view-title">Log In</h2>
@@ -722,7 +630,6 @@
           </div>
         </section>
 
-        <!-- ========== CREATE ACCOUNT ========== -->
         <section class="kfb-view" id="kfbRegisterView" hidden>
           <div class="kfb-view-card">
             <h2 class="kfb-view-title">Create Account</h2>
@@ -744,7 +651,6 @@
           </div>
         </section>
 
-        <!-- ========== FORGOT PASSWORD ========== -->
         <section class="kfb-view" id="kfbForgotView" hidden>
           <div class="kfb-view-card">
             <h2 class="kfb-view-title">Forgot Password</h2>
@@ -761,7 +667,6 @@
           </div>
         </section>
 
-        <!-- ========== RESET PASSWORD (arrived via ?kfb_reset_token=) ========== -->
         <section class="kfb-view" id="kfbResetView" hidden>
           <div class="kfb-view-card">
             <h2 class="kfb-view-title">Reset Password</h2>
@@ -774,7 +679,6 @@
           </div>
         </section>
 
-        <!-- ========== VERIFY EMAIL (OTP) ========== -->
         <section class="kfb-view" id="kfbVerifyView" hidden>
           <div class="kfb-view-card">
             <h2 class="kfb-view-title">Verify Your Email</h2>
@@ -794,7 +698,6 @@
           </div>
         </section>
 
-        <!-- ========== PROFILE ========== -->
         <section class="kfb-view" id="kfbProfileView" hidden>
           <div class="kfb-profile-layout">
             <nav class="kfb-profile-sidebar">
@@ -897,51 +800,30 @@
         </section>
 
       </div>
-    </div><!-- /#kfbBookingWidget -->
+    </div>
 
-    <!-- ============================================================
-         The 5 tags below, between here and "EMBED: COPY END", are
-         shown as inert commented-out TEXT (not live tags) — select
-         and copy them exactly as shown, absolute URLs and all, and
-         paste them right after the widget div on the client's page.
-         This harness page does NOT run off these — the real, live
-         tags that make THIS page work are further below, marked
-         "LOCAL DEV ONLY". Swap the Google Maps key for your own if
-         the client needs their own billing account; leave
-         callback=kfbInitMap as-is either way.
+    <!--
+      <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
+      <script src="https://grounddispatch.com/booking/embed/airports.js"></script>
+      <script src="https://grounddispatch.com/booking/embed/booking3.js?v=20261017"></script>
+      <script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
+      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
+    -->
+    <!-- EMBED: COPY END -->
 
-    <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
-    <script src="https://grounddispatch.com/booking/embed/airports.js"></script>
-    <script src="https://grounddispatch.com/booking/embed/booking2.js?v=20261011"></script>
-    <script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
-         ============================================================ -->
-    <!-- ============ EMBED: COPY END ============ -->
-
-    <!-- ============================================================
-         LOCAL DEV ONLY — do not copy. These are the REAL, live tags
-         that make this test page actually run, loading THIS repo's
-         own local files (not production) so you see your own
-         uncommitted edits when you reload. A client site must use the
-         absolute-URL versions in the comment above instead — relative
-         paths here only resolve correctly on grounddispatch.com itself.
-         ============================================================ -->
     <script src="vendor/jquery-3.7.1.min.js"></script>
     <script src="embed/airports.js"></script>
-    <script src="embed/booking2.js?v=20261011"></script>
+    <script src="embed/booking3.js?v=20261017"></script>
     <script src="embed/booking-map.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
 
   </div>
 </main>
 
-<!-- Test harness chrome ONLY — do not copy. -->
 <footer class="test-footer">
   A1 Limousine</b>
 </footer>
 
-<!-- Test harness only — fills the (removed) status checklist; safe to
-     drop, it no-ops without the harness's own elements. Do not copy. -->
 <script src="test-status.js"></script>
 
 </body>

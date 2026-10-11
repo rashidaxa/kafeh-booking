@@ -66,8 +66,12 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
             <tr>
               <td><code class="kfb-mono"><?= htmlspecialchars($r['booking_id']) ?></code></td>
               <td>
-                <?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name'])) ?: '—' ?>
-                <br><small class="kfb-hint"><?= htmlspecialchars($r['email']) ?></small>
+<?php $ccName = trim(($r['cc_first_name'] ?? '') . ' ' . ($r['cc_last_name'] ?? '')); $pxName = trim($r['first_name'] . ' ' . $r['last_name']); ?>
+                <?= htmlspecialchars($ccName !== '' ? $ccName : $pxName) ?: '—' ?>
+                <br><small class="kfb-hint"><?= htmlspecialchars(!empty($r['cc_email']) ? $r['cc_email'] : $r['email']) ?></small>
+                <?php if ($ccName !== '' && $pxName !== '' && strcasecmp($ccName, $pxName) !== 0): ?>
+                  <br><small class="kfb-hint">Passenger: <?= htmlspecialchars($pxName) ?></small>
+                <?php endif; ?>
               </td>
               <td><?= htmlspecialchars($r['pickup_date']) ?> <small class="kfb-hint"><?= htmlspecialchars(substr((string)$r['pickup_time'], 0, 5)) ?></small></td>
               <td>$<?= number_format((float)$r['amount'], 2) ?></td>

@@ -149,7 +149,14 @@ if (!empty($booking['legacy_sync_log'])) {
 
   <div class="kfb-detail-grid">
     <div>
-      <span class="kfb-hint">Customer</span>
+      <?php $ccName = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')); ?>
+      <span class="kfb-hint">Customer (card holder)</span>
+      <?php if ($ccName !== ''): ?>
+        <p><?= htmlspecialchars($ccName . (!empty($booking['cc_company']) ? ' | ' . $booking['cc_company'] : '')) ?><br>
+          <?= htmlspecialchars($booking['cc_email'] ?? '') ?><br>
+          <?= htmlspecialchars($booking['cc_phone'] ?? '') ?></p>
+        <span class="kfb-hint">Passenger</span>
+      <?php endif; ?>
       <p><?= htmlspecialchars(trim($booking['first_name'] . ' ' . $booking['last_name'])) ?><br>
         <?= htmlspecialchars($booking['email']) ?><br>
         <?= htmlspecialchars($booking['phone']) ?></p>
