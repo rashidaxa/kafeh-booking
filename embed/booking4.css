@@ -744,6 +744,48 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
 .kfb-success p  { margin: 0 0 8px; color: var(--kfb-text-soft); }
 .kfb-success-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
 
+/* ===================== MODAL (Terms & Conditions popup) ===================== */
+html.kfb-modal-open { overflow: hidden; }
+.kfb-modal {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(17, 24, 39, .55);
+}
+.kfb-modal[hidden] { display: none; }
+.kfb-modal-dialog {
+  display: flex; flex-direction: column;
+  width: 100%; max-width: 780px; max-height: min(88vh, 900px);
+  background: #fff; border-radius: var(--kfb-radius-lg);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, .3); outline: none;
+}
+.kfb-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid var(--kfb-border);
+}
+.kfb-modal-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; }
+.kfb-modal-x {
+  flex: 0 0 auto; width: 32px; height: 32px; border: 0; border-radius: 50%; cursor: pointer;
+  background: transparent; color: var(--kfb-text-soft); font-size: 24px; line-height: 1;
+}
+.kfb-modal-x:hover { background: var(--kfb-card); color: var(--kfb-text); }
+.kfb-modal-body { flex: 1 1 auto; overflow-y: auto; padding: 18px 24px; -webkit-overflow-scrolling: touch; }
+.kfb-modal-foot { padding: 12px 20px; border-top: 1px solid var(--kfb-border); text-align: right; }
+.kfb-terms-body { font-size: 14px; line-height: 1.65; color: var(--kfb-text-soft); }
+.kfb-terms-body h2 { margin: 1.4em 0 .5em; font-size: 18px; color: var(--kfb-text); }
+.kfb-terms-body h3 { margin: 1.4em 0 .4em; font-size: 15px; color: var(--kfb-text); }
+.kfb-terms-body h4 { margin: 1.2em 0 .4em; font-size: 14px; color: var(--kfb-text); }
+.kfb-terms-body > :first-child { margin-top: 0; }
+.kfb-terms-body p { margin: 0 0 .9em; }
+.kfb-terms-body ul, .kfb-terms-body ol { margin: 0 0 .9em; padding-left: 1.4em; }
+.kfb-terms-body a { color: var(--kfb-link); text-decoration: underline; }
+.kfb-terms-body table { width: 100%; border-collapse: collapse; margin: 0 0 1em; }
+.kfb-terms-body th, .kfb-terms-body td { border: 1px solid var(--kfb-border-strong); padding: 6px 8px; text-align: left; vertical-align: top; }
+@media (max-width: 600px) {
+  .kfb-modal { padding: 0; align-items: flex-end; }
+  .kfb-modal-dialog { max-width: none; max-height: 92vh; border-radius: var(--kfb-radius-lg) var(--kfb-radius-lg) 0 0; }
+  .kfb-modal-body { padding: 14px 16px; }
+}
+
 /* ===================== TOAST ===================== */
 .kfb-toast {
   position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 24px);

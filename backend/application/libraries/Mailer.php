@@ -32,8 +32,9 @@ class Mailer
      * replaces; a failed email must never block the request it's
      * attached to (registration, password reset, booking confirmation).
      */
-    public function send($to, $subject, $body, $isHtml = FALSE)
+    public function send($to, $subject, $body, $isHtml = FALSE, array $opts = [])
     {
+        // $opts: from_name, reply_to (a company's contact email), alt_body (plain-text twin of an HTML body)
         try {
             $mail = $this->CI->phpmailer_library->load();
             // PHPMailer defaults to iso-8859-1 — our subjects/bodies use
@@ -49,12 +50,13 @@ class Mailer
             $mail->Password   = $this->CI->config->item('smtp_password');
             $mail->SMTPSecure = $this->CI->config->item('smtp_secure');
             $mail->Port       = $this->CI->config->item('smtp_port');
-            $mail->setFrom($this->CI->config->item('smtp_email'), 'A1 Limousine');
+            $mail->setFrom($this->CI->config->item('smtp_email'), !empty($opts['from_name']) ? $opts['from_name'] : 'A1 Limousine');
             $mail->addAddress($to);
-            $mail->addReplyTo($this->CI->config->item('smtp_email'));
+            $mail->addReplyTo(!empty($opts['reply_to']) && filter_var($opts['reply_to'], FILTER_VALIDATE_EMAIL) ? $opts['reply_to'] : $this->CI->config->item('smtp_email'));
             $mail->Subject = $subject;
             $mail->isHTML($isHtml);
             $mail->Body = $body;
+            if ($isHtml && !empty($opts['alt_body'])) $mail->AltBody = $opts['alt_body'];
 
             $ok = $mail->send();
             if (!$ok) {

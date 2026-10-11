@@ -28,11 +28,21 @@
   // page (or a manually-added <link> left over from testing) don't
   // double up.
   (function injectStylesheet() {
-    var href = PROD_BASE + "/embed/booking3.css?v=20261017";
+    // Load booking4.css from the same place booking4.js itself came from, so a
+    // local page gets its own stylesheet and a client site that pastes the
+    // absolute grounddispatch.com script URL gets production — no URL to swap
+    // by hand when moving to production. Falls back to production if the
+    // script's own URL can't be read.
+    var cssBase = PROD_BASE + "/embed/";
+    var thisScript = document.currentScript;
+    if (thisScript && thisScript.src && /\/booking4\.js(\?|#|$)/.test(thisScript.src)) {
+      cssBase = thisScript.src.replace(/booking4\.js(\?.*)?(#.*)?$/, "");
+    }
+    var href = cssBase + "booking4.css?v=20261022";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
-      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking3.css") !== -1) { link = links[i]; break; }
+      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking4.css") !== -1) { link = links[i]; break; }
     }
     if (!link) {
       link = document.createElement("link");
@@ -2142,6 +2152,7 @@
      */
     function setView(view) {
       state.view = view;
+      if (view !== "login") $("#kfbLoginNotice").attr("hidden", true);
       $("#kfbBookingView, .kfb-view").attr("hidden", true);
       if (view === "booking") {
         $("#kfbBookingView").removeAttr("hidden");
@@ -2349,22 +2360,35 @@
       var token = $('input[name="resetToken"]').val();
       var password = $('input[name="resetPassword"]').val();
       if (!password || password.length < 6) return showViewError($("#kfbResetError"), "Password Must Be At Least 6 Characters.");
+      // The reset link is single-use: a second click while the first request
+      // is in flight (or after it succeeded) would be rejected as "expired",
+      // so lock the button until this attempt finishes.
+      var $btn = $("#kfbResetSubmitBtn");
+      if ($btn.prop("disabled")) return;
+      var btnLabel = $btn.text();
+      $btn.prop("disabled", true).text("Updating…");
+      $("#kfbResetError").attr("hidden", true);
       $.ajax({
         url: API_BASE + "/customers/reset-password", method: "POST", contentType: "application/json",
         data: JSON.stringify({ token: token, password: password }), dataType: "json", timeout: 10000,
       })
       .done(function (res) {
         if (res && res.success) {
-          toast("Password Updated — You Can Log In Now.");
           $('#kfbResetView input[name="resetPassword"]').val("");
+          $('input[name="resetToken"]').val("");
+          // Visible confirmation on the screen the customer lands on (the
+          // toast alone is easy to miss and disappears on its own).
+          $("#kfbLoginNotice").text("Your password has been updated. Please log in with your new password.").removeAttr("hidden");
           setView("login");
+          toast("Password Updated ✓", "ok");
         } else {
           showViewError($("#kfbResetError"), (res && res.error) || "This Reset Link Is Invalid Or Has Expired.");
         }
       })
       .fail(function (xhr) {
         showViewError($("#kfbResetError"), (xhr.responseJSON && xhr.responseJSON.error) || "This Reset Link Is Invalid Or Has Expired.");
-      });
+      })
+      .always(function () { $btn.prop("disabled", false).text(btnLabel); });
     }
 
     /** ?kfb_reset_token=... on load → jump straight to the reset view, same pattern handlePaypalReturn() uses for ?kfb_paypal=. */
@@ -3164,6 +3188,81 @@
 
       $(document).on("click", "[data-next]", function () { gotoStep(parseInt($(this).attr("data-next"), 10)); });
       $(document).on("click", "[data-prev]", function () { gotoStep(parseInt($(this).attr("data-prev"), 10)); });
+
+      // The backend only serves websites an admin has registered as a
+      // company. Any API call from an unregistered site comes back
+      // 403 {code: "unauthorized_domain"} — replace the widget with one
+      // clear message instead of leaving a half-working form.
+      var domainBlocked = false;
+      $(document).ajaxError(function (e, xhr) {
+        var body = xhr && xhr.responseJSON;
+        if (domainBlocked || !body || body.code !== "unauthorized_domain") return;
+        domainBlocked = true;
+        $("#kfbBookingWidget").children().hide();
+        var $msg = $('<div role="alert" class="kfb-view-error" style="margin:24px auto;max-width:560px;text-align:center;"></div>');
+        $msg.text(body.error || "This website is not authorized to take bookings.");
+        $("#kfbBookingWidget").append($msg);
+      });
+
+      // -------- Terms & Conditions popup --------
+      // The "Master Terms & Conditions" link in step 3 opens a popup with the
+      // text an admin maintains under Admin > Terms & Conditions
+      // (GET /api/terms — already sanitized server-side). Fetched on first
+      // open and kept for the rest of the page view.
+      var termsHtml = null;
+      var termsLastFocus = null;
+      function ensureTermsModal() {
+        var $m = $("#kfbTermsModal");
+        if ($m.length) return $m;
+        $m = $(
+          '<div class="kfb-modal" id="kfbTermsModal" hidden>' +
+            '<div class="kfb-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="kfbTermsTitle" tabindex="-1">' +
+              '<div class="kfb-modal-head"><h2 id="kfbTermsTitle">Terms &amp; Conditions</h2>' +
+                '<button type="button" class="kfb-modal-x" aria-label="Close">&times;</button></div>' +
+              '<div class="kfb-modal-body kfb-terms-body" id="kfbTermsBody"></div>' +
+              '<div class="kfb-modal-foot"><button type="button" class="kfb-btn kfb-btn-ghost kfb-modal-close">Close</button></div>' +
+            "</div>" +
+          "</div>"
+        );
+        $("#kfbBookingWidget").append($m);
+        $m.on("click", function (e) { if (e.target === $m[0]) closeTermsModal(); });
+        $m.on("click", ".kfb-modal-x, .kfb-modal-close", closeTermsModal);
+        return $m;
+      }
+      function closeTermsModal() {
+        var $m = $("#kfbTermsModal");
+        if ($m.attr("hidden")) return;
+        $m.attr("hidden", true);
+        $("html").removeClass("kfb-modal-open");
+        if (termsLastFocus && termsLastFocus.focus) { try { termsLastFocus.focus(); } catch (e) { /* ignore */ } }
+      }
+      function renderTerms() {
+        var $body = $("#kfbTermsBody");
+        if (termsHtml) { $body.html(termsHtml).scrollTop(0); return; }
+        $body.html('<p class="kfb-empty">Loading…</p>');
+        $.ajax({ url: API_BASE + "/terms", method: "GET", dataType: "json", timeout: 10000 })
+          .done(function (res) {
+            if (res && res.success && res.html) { termsHtml = res.html; renderTerms(); }
+            else $body.html('<p class="kfb-empty">The Terms &amp; Conditions are not available right now.</p>');
+          })
+          .fail(function () {
+            $body.html('<p class="kfb-empty">Could not load the Terms &amp; Conditions. <button type="button" class="kfb-link-btn" id="kfbTermsRetry">Try again</button></p>');
+          });
+      }
+      $(document).on("click", "#kfbTermsRetry", renderTerms);
+      $(document).on("click", "#kfbTermsBlock a[data-kfb-link]", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        termsLastFocus = document.activeElement;
+        var $m = ensureTermsModal();
+        $m.removeAttr("hidden");
+        $("html").addClass("kfb-modal-open");
+        renderTerms();
+        $m.find(".kfb-modal-dialog")[0].focus();
+      });
+      $(document).on("keydown", function (e) {
+        if (e.key === "Escape" && !$("#kfbTermsModal").attr("hidden") && $("#kfbTermsModal").length) closeTermsModal();
+      });
 
       $("#kfbPromoApply").on("click", applyPromo);
       $("#kfbPromoInput").on("keydown", function (e) {

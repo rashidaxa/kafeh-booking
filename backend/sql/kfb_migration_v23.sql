@@ -16,7 +16,7 @@
 -- the passenger's details everywhere these are read).
 -- ============================================================
 
-USE `kafeh`;
+USE `ground54_bookings_api`;
 
 DELIMITER $$
 DROP PROCEDURE IF EXISTS _kfb_v23_add_column $$

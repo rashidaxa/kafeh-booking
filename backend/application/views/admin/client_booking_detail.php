@@ -107,6 +107,10 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
         <?= htmlspecialchars($booking['phone']) ?></p>
     </div>
     <div>
+      <span class="kfb-hint">Booked via (company)</span>
+      <p><?= htmlspecialchars($booking['company_name'] ?? '—') ?><?php if (!empty($booking['origin_host'])): ?><br><small class="kfb-hint"><?= htmlspecialchars($booking['origin_host']) ?></small><?php endif; ?></p>
+    </div>
+    <div>
       <span class="kfb-hint">Trip</span>
       <p>
         <?= htmlspecialchars($booking['service_type']) ?><br>

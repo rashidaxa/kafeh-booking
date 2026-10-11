@@ -67,6 +67,17 @@ $route['admin/addons/(:num)']                  = 'admin/addon_edit/$1';
 $route['admin/surcharges']                     = 'admin/surcharges';
 $route['admin/surcharges/new']                 = 'admin/surcharge_new';
 $route['admin/surcharges/(:num)']              = 'admin/surcharge_edit/$1';
+$route['admin/terms']                          = 'admin/terms';
+$route['admin/terms/save']                     = 'admin/terms_save';
+$route['admin/users']                          = 'admin/users';
+$route['admin/users/(:num)']                   = 'admin/user_detail/$1';
+$route['admin/users/(:num)/save']              = 'admin/user_save/$1';
+$route['admin/users/(:num)/action']            = 'admin/user_action/$1';
+$route['admin/companies']                      = 'admin/companies';
+$route['admin/companies/new']                  = 'admin/company_new';
+$route['admin/companies/save']                 = 'admin/company_save';
+$route['admin/companies/(:num)']               = 'admin/company_edit/$1';
+$route['admin/companies/(:num)/remove-logo']   = 'admin/company_remove_logo/$1';
 $route['admin/settings']                       = 'admin/settings';
 $route['admin/reservations']                   = 'admin/reservations';
 // booking_id is not numeric (e.g. KFB-AB12CD), so this uses (:any) — it

@@ -10,10 +10,23 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class Customer_model extends CI_Model
 {
+    /**
+     * Company the current request belongs to (set by Api from the website
+     * the widget runs on). When set, every customer lookup/insert is scoped
+     * to it — the same email on two companies' sites is two separate
+     * accounts. NULL (admin side) = unscoped.
+     */
+    protected $company_id = NULL;
+
     public function __construct()
     {
         parent::__construct();
         $this->load->database();
+    }
+
+    public function set_company($company_id)
+    {
+        $this->company_id = $company_id ? (int)$company_id : NULL;
     }
 
     public function get($id)
@@ -25,7 +38,9 @@ class Customer_model extends CI_Model
     public function get_by_email($email)
     {
         if (!$email) return NULL;
-        return $this->db->get_where('kfb_customers', ['email' => strtolower(trim($email))])->row_array();
+        $where = ['email' => strtolower(trim($email))];
+        if ($this->company_id) $where['company_id'] = $this->company_id;
+        return $this->db->get_where('kfb_customers', $where)->row_array();
     }
 
     /**
@@ -52,6 +67,7 @@ class Customer_model extends CI_Model
         }
 
         $row = [
+            'company_id'    => $this->company_id ?: 1,
             'email'         => $email,
             'first_name'    => $data['first_name'] ?? '',
             'last_name'     => $data['last_name']  ?? '',
@@ -155,6 +171,8 @@ class Customer_model extends CI_Model
             ->row_array();
 
         if (!$row || ($row['status'] ?? '') !== 'active') return NULL;
+        // A token only works on the company it was issued for.
+        if ($this->company_id && (int)$row['company_id'] !== $this->company_id) return NULL;
 
         $this->db->where('id', $row['token_id'])->update('kfb_customer_tokens', [
             'last_used_at' => date('Y-m-d H:i:s'),
@@ -439,5 +457,159 @@ class Customer_model extends CI_Model
             }
         }
         return TRUE;
+    }
+
+    // ---------------------- Admin user management ----------------------
+    // Used by the admin portal (Admin.php). These are deliberately
+    // unscoped by company — an admin sees every company's customers.
+
+    /** Booking statuses where the reservation is still open (not accepted/paid/cancelled/refunded). */
+    const OPEN_BOOKING_STATUSES = ['pending', 'awaiting_payment', 'awaiting_approval', 'payment_failed'];
+
+    protected function _admin_filters(array $f)
+    {
+        if (!empty($f['company_id'])) $this->db->where('c.company_id', (int)$f['company_id']);
+        if (!empty($f['status']) && in_array($f['status'], ['active', 'disabled'], TRUE)) $this->db->where('c.status', $f['status']);
+        if (($f['verified'] ?? '') === 'yes') $this->db->where('c.email_verified_at IS NOT NULL', NULL, FALSE);
+        if (($f['verified'] ?? '') === 'no')  $this->db->where('c.email_verified_at IS NULL', NULL, FALSE);
+        $q = trim((string)($f['search'] ?? ''));
+        if ($q !== '') {
+            $this->db->group_start()
+                ->like('c.email', $q)->or_like('c.first_name', $q)->or_like('c.last_name', $q)->or_like('c.phone', $q)
+                ->or_like("CONCAT(c.first_name, ' ', c.last_name)", $q, 'both', FALSE)
+            ->group_end();
+        }
+    }
+
+    /** Users for the admin list: company name + reservation count (return legs excluded), newest first. */
+    public function admin_list(array $filters = [], $limit = 50, $offset = 0)
+    {
+        $this->db->select('c.id, c.company_id, c.email, c.first_name, c.last_name, c.phone, c.status, c.email_verified_at, '
+            . '(c.password_hash IS NOT NULL) AS has_account, c.created_at, co.name AS company_name, '
+            . '(SELECT COUNT(*) FROM kfb_bookings b WHERE b.customer_id = c.id AND NOT (b.is_return_trip = 1 AND b.amount = 0)) AS reservations_count', FALSE)
+            ->from('kfb_customers c')
+            ->join('kfb_companies co', 'co.id = c.company_id', 'left');
+        $this->_admin_filters($filters);
+        return $this->db->order_by('c.created_at', 'DESC')->order_by('c.id', 'DESC')->limit((int)$limit, (int)$offset)->get()->result_array();
+    }
+
+    public function admin_count(array $filters = [])
+    {
+        $this->db->from('kfb_customers c');
+        $this->_admin_filters($filters);
+        return (int)$this->db->count_all_results();
+    }
+
+    public function admin_get($id)
+    {
+        $row = $this->db->select('c.*, (c.password_hash IS NOT NULL) AS has_account, co.name AS company_name, co.widget_page_url, '
+            . '(SELECT COUNT(*) FROM kfb_bookings b WHERE b.customer_id = c.id AND NOT (b.is_return_trip = 1 AND b.amount = 0)) AS reservations_count', FALSE)
+            ->from('kfb_customers c')
+            ->join('kfb_companies co', 'co.id = c.company_id', 'left')
+            ->where('c.id', (int)$id)->get()->row_array();
+        if ($row) unset($row['password_hash']);
+        return $row ?: NULL;
+    }
+
+    /** Fix a typo in name / phone. */
+    public function admin_update_profile($id, $first, $last, $phone)
+    {
+        return $this->db->where('id', (int)$id)->update('kfb_customers', [
+            'first_name' => trim((string)$first),
+            'last_name'  => trim((string)$last),
+            'phone'      => trim((string)$phone) !== '' ? trim((string)$phone) : NULL,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]) ? TRUE : FALSE;
+    }
+
+    /**
+     * Change a customer's email. Takes effect immediately but is marked
+     * UNVERIFIED — they verify the new address with a code at their next
+     * login. All their sessions are ended, and reservations that are still
+     * open (not accepted/paid/cancelled/refunded) get the new card holder
+     * email so the confirmation reaches them; accepted/paid ones keep the
+     * email they were booked with as history. Returns the old email on
+     * success, or a string error key: 'invalid', 'same', 'taken'.
+     */
+    public function admin_change_email($id, $newEmail)
+    {
+        $c = $this->get($id);
+        if (!$c) return 'invalid';
+        $new = strtolower(trim((string)$newEmail));
+        if ($new === '' || !filter_var($new, FILTER_VALIDATE_EMAIL)) return 'invalid';
+        if ($new === strtolower($c['email'])) return 'same';
+        $clash = $this->db->get_where('kfb_customers', ['company_id' => (int)$c['company_id'], 'email' => $new])->row_array();
+        if ($clash) return 'taken';
+
+        $this->db->trans_start();
+        $this->db->where('id', (int)$id)->update('kfb_customers', [
+            'email' => $new, 'email_verified_at' => NULL, 'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $this->db->where('customer_id', (int)$id)->where_in('status', self::OPEN_BOOKING_STATUSES)
+            ->update('kfb_bookings', ['cc_email' => $new, 'updated_at' => date('Y-m-d H:i:s')]);
+        $this->db->trans_complete();
+        if (!$this->db->trans_status()) return 'invalid';
+
+        $this->revoke_all_tokens($id);
+        return $c['email'];
+    }
+
+    /** Disable (sessions ended, can't log in) or re-enable an account. */
+    public function admin_set_status($id, $status)
+    {
+        if (!in_array($status, ['active', 'disabled'], TRUE)) return FALSE;
+        $ok = $this->db->where('id', (int)$id)->update('kfb_customers', ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')]) ? TRUE : FALSE;
+        if ($ok && $status === 'disabled') $this->revoke_all_tokens($id);
+        return $ok;
+    }
+
+    public function admin_mark_verified($id)
+    {
+        return $this->db->where('id', (int)$id)->update('kfb_customers', ['email_verified_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]) ? TRUE : FALSE;
+    }
+
+    /** Admin types a new password for the customer; ends their sessions. */
+    public function admin_set_password($id, $password)
+    {
+        if (strlen((string)$password) < 6) return FALSE;
+        $ok = $this->set_password($id, $password);
+        if ($ok) $this->revoke_all_tokens($id);
+        return $ok ? TRUE : FALSE;
+    }
+
+    /** Reset token for an account that has a password (not a guest record); returns [customer, rawToken] or NULL. */
+    public function admin_create_password_reset($id)
+    {
+        $c = $this->get($id);
+        if (!$c || empty($c['password_hash'])) return NULL;
+        $raw = bin2hex(random_bytes(32));
+        $this->db->insert('kfb_password_resets', [
+            'customer_id' => (int)$c['id'],
+            'token_hash'  => hash('sha256', $raw),
+            'created_at'  => date('Y-m-d H:i:s'),
+            'expires_at'  => date('Y-m-d H:i:s', strtotime('+1 hour')),
+        ]);
+        unset($c['password_hash']);
+        return [$c, $raw];
+    }
+
+    /**
+     * Delete a customer. Saved cards, sessions, codes and reset tokens go
+     * with them (FK cascade). Their reservations are KEPT as guest
+     * records — the link to the customer is cleared rather than left
+     * pointing at nobody. Returns the number of reservations kept, or
+     * FALSE if the customer doesn't exist.
+     */
+    public function admin_delete($id)
+    {
+        $c = $this->admin_get($id);
+        if (!$c) return FALSE;
+        $kept = (int)$c['reservations_count'];
+
+        $this->db->trans_start();
+        $this->db->where('customer_id', (int)$id)->update('kfb_bookings', ['customer_id' => NULL]);
+        $this->db->where('id', (int)$id)->delete('kfb_customers');
+        $this->db->trans_complete();
+        return $this->db->trans_status() ? $kept : FALSE;
     }
 }

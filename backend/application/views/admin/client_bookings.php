@@ -45,6 +45,7 @@ if (!function_exists('kfb_client_bookings_page_url')) {
           <tr>
             <th>Booking</th>
             <th>Customer</th>
+            <th>Company</th>
             <th>Pick-up</th>
             <th>Vehicle</th>
             <th>Created</th>
@@ -59,6 +60,7 @@ if (!function_exists('kfb_client_bookings_page_url')) {
                 <?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name'])) ?: '—' ?>
                 <br><small class="kfb-hint"><?= htmlspecialchars($r['email']) ?></small>
               </td>
+              <td><?= htmlspecialchars($r['company_name'] ?? '—') ?></td>
               <td><?= htmlspecialchars((string)$r['pickup_date']) ?> <small class="kfb-hint"><?= htmlspecialchars(substr((string)$r['pickup_time'], 0, 5)) ?></small></td>
               <td><?= htmlspecialchars($r['vehicle_name']) ?: '—' ?></td>
               <td><small class="kfb-hint"><?= htmlspecialchars($r['created_at']) ?></small></td>

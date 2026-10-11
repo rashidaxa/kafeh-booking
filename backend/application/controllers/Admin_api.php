@@ -30,7 +30,7 @@ class Admin_api extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model']);
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model', 'Company_model']);
         $this->load->library(['session', 'paypal', 'legacy_reservations', 'mailer']);
         $this->load->helper('url');
         $this->_set_cors_headers();
@@ -690,6 +690,20 @@ class Admin_api extends CI_Controller
         $greet   = !empty($booking['cc_first_name']) ? $booking['cc_first_name'] : $booking['first_name'];
         $passenger = trim($booking['first_name'] . ' ' . $booking['last_name']);
         $subject = 'Booking ' . $booking['booking_id'] . ' Confirmed';
+
+        // Branded with the company the booking came from (logo, address,
+        // phones, contact email); plain-text twin kept for clients that
+        // don't render HTML.
+        $company = $this->Company_model->get($booking['company_id'] ?? 1);
+        $companyName = !empty($company['name']) ? $company['name'] : 'A1 Limousine';
+        $html = $this->load->view('emails/booking_confirmation', [
+            'company'   => $company,
+            'booking'   => $booking,
+            'logo_url'  => $company ? $this->Company_model->logo_url($company) : NULL,
+            'greet'     => $greet,
+            'passenger' => $passenger,
+        ], TRUE);
+
         $body    =
             "Hi {$greet},\n\n" .
             "Your booking is confirmed.\n\n" .
@@ -704,9 +718,13 @@ class Admin_api extends CI_Controller
             (!empty($booking['promo_code'])
                 ? "Promo:      {$booking['promo_code']} (-\${$booking['discount_amount']})\n"
                 : "") .
-            "\nThank you for choosing our chauffeur service.\n";
+            "\nThank you for choosing {$companyName}.\n";
 
-        $this->mailer->send($to, $subject, $body);
+        $this->mailer->send($to, $subject, $html, TRUE, [
+            'from_name' => $companyName,
+            'reply_to'  => $company['contact_email'] ?? NULL,
+            'alt_body'  => $body,
+        ]);
     }
 
     /**

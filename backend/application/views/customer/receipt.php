@@ -17,6 +17,14 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 
 $b = isset($booking) ? $booking : [];
+$co = isset($company) && is_array($company) ? $company : [];
+$coName = !empty($co['name']) ? $co['name'] : 'A1 Limousine';
+$coLines = array_filter([
+    trim(($co['address_line_1'] ?? '')),
+    trim(($co['address_line_2'] ?? '')),
+    trim(implode(' · ', array_filter([$co['phone_1'] ?? '', $co['phone_2'] ?? '']))),
+    trim(($co['contact_email'] ?? '')),
+]);
 
 if (!function_exists('kfb_r_or_dash')) {
     function kfb_r_or_dash($v) { return ($v === NULL || $v === '' ) ? '—' : htmlspecialchars((string)$v); }
@@ -125,7 +133,18 @@ $hasAddons = (float)($b['addons_total'] ?? 0) > 0;
 
   <div class="kfbr-sheet">
     <div class="kfbr-head">
-      <div class="kfbr-brand">A1 Limousine<small>Worldwide Chauffeur Services · Bus &amp; Party Bus Rental</small></div>
+      <div class="kfbr-brand">
+        <?php if (!empty($logo_url)): ?>
+          <img src="<?= htmlspecialchars($logo_url) ?>" alt="<?= htmlspecialchars($coName) ?>" style="max-height:56px;max-width:220px;display:block;margin-bottom:4px;">
+        <?php else: ?>
+          <?= htmlspecialchars($coName) ?>
+        <?php endif; ?>
+        <?php if ($coLines): ?>
+          <small><?= implode('<br>', array_map('htmlspecialchars', $coLines)) ?></small>
+        <?php elseif ((int)($co['id'] ?? 1) === 1): ?>
+          <small>Worldwide Chauffeur Services · Bus &amp; Party Bus Rental</small>
+        <?php endif; ?>
+      </div>
       <div class="kfbr-head-right">
         <div class="kfbr-title">Receipt</div>
         <div class="kfbr-booking-id"><?= kfb_r_or_dash($b['booking_id'] ?? NULL) ?></div>

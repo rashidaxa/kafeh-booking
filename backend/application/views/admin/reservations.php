@@ -33,6 +33,7 @@ if (!function_exists('kfb_reservations_page_url')) {
         $params = [];
         if ($status !== '') $params['status'] = $status;
         if ($q !== '') $params['q'] = $q;
+        if ((int)($_GET['company'] ?? 0) > 0) $params['company'] = (int)$_GET['company']; // keep the company filter on tab/page links
         if ($page > 1) $params['page'] = $page;
         return site_url('admin/reservations') . (!empty($params) ? '?' . http_build_query($params) : '');
     }
@@ -53,6 +54,14 @@ if (!function_exists('kfb_reservations_page_url')) {
   <form method="get" action="<?= site_url('admin/reservations') ?>" class="kfb-reservation-search">
     <?php if ($status_filter !== ''): ?>
       <input type="hidden" name="status" value="<?= htmlspecialchars($status_filter) ?>">
+    <?php endif; ?>
+    <?php if (!empty($companies) && count($companies) > 1): ?>
+      <select name="company" onchange="this.form.submit()" class="kfb-reservation-search-input" style="max-width:220px" aria-label="Filter by company">
+        <option value="">All companies</option>
+        <?php foreach ($companies as $co): ?>
+          <option value="<?= (int)$co['id'] ?>" <?= (int)$company_filter === (int)$co['id'] ? 'selected' : '' ?>><?= htmlspecialchars($co['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
     <?php endif; ?>
     <input type="search" name="q" value="<?= htmlspecialchars($search_query) ?>"
            placeholder="Search booking ID, name, email, phone, pickup/dropoff, vehicle, promo code…"
@@ -77,6 +86,7 @@ if (!function_exists('kfb_reservations_page_url')) {
           <tr>
             <th>Booking</th>
             <th>Customer</th>
+            <th>Company</th>
             <th>Pick-up</th>
             <th>Amount</th>
             <th>Card</th>
@@ -97,6 +107,7 @@ if (!function_exists('kfb_reservations_page_url')) {
                   <br><small class="kfb-hint">Passenger: <?= htmlspecialchars($pxName) ?></small>
                 <?php endif; ?>
               </td>
+              <td><?= htmlspecialchars($r['company_name'] ?? '—') ?></td>
               <td><?= htmlspecialchars($r['pickup_date']) ?> <small class="kfb-hint"><?= htmlspecialchars(substr((string)$r['pickup_time'], 0, 5)) ?></small></td>
               <td>$<?= number_format((float)$r['amount'], 2) ?></td>
               <td>

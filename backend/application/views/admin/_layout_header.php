@@ -52,6 +52,18 @@ $admin      = isset($admin) ? $admin : NULL;
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2V3a1 1 0 0 1 1-1Z"></path><line x1="8" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="16" y2="14"></line><line x1="8" y1="18" x2="12" y2="18"></line></svg>
       Client Bookings
     </a>
+    <a href="<?= site_url('admin/terms') ?>" class="<?= $page_title === 'Terms & Conditions' ? 'is-active' : '' ?>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"></path><path d="M14 3v5h5"></path><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg>
+      Terms &amp; Conditions
+    </a>
+    <a href="<?= site_url('admin/users') ?>" class="<?= strpos($page_title, 'User') === 0 ? 'is-active' : '' ?>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20a6.5 6.5 0 0 1 13 0"></path><circle cx="17.5" cy="9" r="2.5"></circle><path d="M17.5 14a5 5 0 0 1 4.5 5"></path></svg>
+      Users
+    </a>
+    <a href="<?= site_url('admin/companies') ?>" class="<?= $page_title === 'Companies' || $page_title === 'Edit Company' ? 'is-active' : '' ?>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V7l8-4v18"></path><path d="M11 9h10v12H11"></path><line x1="6" y1="10" x2="8" y2="10"></line><line x1="6" y1="14" x2="8" y2="14"></line><line x1="14" y1="13" x2="18" y2="13"></line><line x1="14" y1="17" x2="18" y2="17"></line></svg>
+      Companies
+    </a>
     <a href="<?= site_url('admin/settings') ?>" class="<?= $page_title === 'Pricing Settings' ? 'is-active' : '' ?>">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><circle cx="9" cy="6" r="2"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="16" cy="12" r="2"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="11" cy="18" r="2"></circle></svg>
       Settings

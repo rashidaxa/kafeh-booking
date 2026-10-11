@@ -20,8 +20,8 @@ class Admin extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model']);
-        $this->load->library('session');
+        $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model', 'Company_model', 'Customer_model', 'Terms_model']);
+        $this->load->library(['session', 'customer_mail']);
         $this->load->helper(['url', 'form']);
         $this->_require_login();
     }
@@ -98,6 +98,250 @@ class Admin extends CI_Controller
         ];
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/vehicles', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    // ----------------- Terms & Conditions -----------------
+
+    /** GET /admin/terms — rich-text editor for the widget's Terms & Conditions popup */
+    public function terms()
+    {
+        $data = [
+            'page_title' => 'Terms & Conditions',
+            'admin'      => $this->_current_admin(),
+            'terms'      => $this->Terms_model->get(),
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/terms', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** POST /admin/terms/save */
+    public function terms_save()
+    {
+        $admin = $this->_current_admin();
+        $saved = $this->Terms_model->save((string)$this->input->post('html', FALSE), $admin['username'] ?? NULL);
+        $this->session->set_flashdata('flash', $saved === NULL
+            ? ['type' => 'error', 'message' => 'The terms cannot be empty — nothing was saved.']
+            : ['type' => 'success', 'message' => 'Terms & Conditions saved. The booking widget shows the new text straight away.']);
+        return redirect('admin/terms');
+    }
+
+    // ----------------- Users (customers) -----------------
+
+    /** GET /admin/users — all customers across companies; ?q= ?company= ?status= ?verified= ?page= */
+    public function users()
+    {
+        $filters = [
+            'search'     => trim((string)$this->input->get('q')),
+            'company_id' => (int)$this->input->get('company'),
+            'status'     => trim((string)$this->input->get('status')),
+            'verified'   => trim((string)$this->input->get('verified')),
+        ];
+        $perPage    = 50;
+        $total      = $this->Customer_model->admin_count($filters);
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $page       = max(1, min($totalPages, (int)$this->input->get('page')));
+
+        $data = [
+            'page_title' => 'Users',
+            'admin'      => $this->_current_admin(),
+            'users'      => $this->Customer_model->admin_list($filters, $perPage, ($page - 1) * $perPage),
+            'filters'    => $filters,
+            'companies'  => $this->Company_model->list_all(),
+            'pagination' => ['page' => $page, 'per_page' => $perPage, 'total' => $total, 'total_pages' => $totalPages],
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/users', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** GET /admin/users/:id — profile, account actions, saved cards (brand + last 4 only), reservations */
+    public function user_detail($id = NULL)
+    {
+        $user = $this->Customer_model->admin_get($id);
+        if (!$user) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'User not found.']);
+            return redirect('admin/users');
+        }
+        $data = [
+            'page_title'   => 'User ' . trim($user['first_name'] . ' ' . $user['last_name']),
+            'admin'        => $this->_current_admin(),
+            'user'         => $user,
+            'cards'        => $this->Customer_model->list_cards($user['id']),
+            'reservations' => $this->Booking_model->list_for_customer($user['id']),
+            'flash'        => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/user_detail', $data);
+        $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** POST /admin/users/:id/save — form=profile (name, phone) or form=email */
+    public function user_save($id = NULL)
+    {
+        $user = $this->Customer_model->admin_get($id);
+        if (!$user) return $this->_user_flash('admin/users', 'error', 'User not found.');
+        $back = 'admin/users/' . (int)$user['id'];
+
+        if ($this->input->post('form') === 'email') {
+            $res = $this->Customer_model->admin_change_email($user['id'], (string)$this->input->post('email'));
+            if ($res === 'invalid') return $this->_user_flash($back, 'error', 'Enter a valid email address.');
+            if ($res === 'same')    return $this->_user_flash($back, 'info', 'That is already the account email.');
+            if ($res === 'taken')   return $this->_user_flash($back, 'error', 'Another account of this company already uses that email.');
+            $fresh = $this->Customer_model->get($user['id']);
+            $this->customer_mail->send_email_changed($fresh, $res, $fresh['email'], $this->Company_model->get($user['company_id']));
+            return $this->_user_flash($back, 'success', 'Email changed to ' . $fresh['email'] . '. It is unverified — the customer verifies it at their next login — and they were notified by email. Their sessions were ended.');
+        }
+
+        $first = trim((string)$this->input->post('first_name'));
+        $last  = trim((string)$this->input->post('last_name'));
+        if ($first === '' || $last === '') return $this->_user_flash($back, 'error', 'First and last name are required.');
+        $this->Customer_model->admin_update_profile($user['id'], $first, $last, (string)$this->input->post('phone'));
+        return $this->_user_flash($back, 'success', 'Profile updated.');
+    }
+
+    /** POST /admin/users/:id/action — action = disable|enable|mark_verified|resend_code|send_reset_link|set_password|logout_all|delete */
+    public function user_action($id = NULL)
+    {
+        $user = $this->Customer_model->admin_get($id);
+        if (!$user) return $this->_user_flash('admin/users', 'error', 'User not found.');
+        $back   = 'admin/users/' . (int)$user['id'];
+        $action = (string)$this->input->post('action');
+
+        switch ($action) {
+            case 'disable':
+                $this->Customer_model->admin_set_status($user['id'], 'disabled');
+                return $this->_user_flash($back, 'success', 'Account disabled. They cannot log in and their sessions were ended.');
+            case 'enable':
+                $this->Customer_model->admin_set_status($user['id'], 'active');
+                return $this->_user_flash($back, 'success', 'Account enabled.');
+            case 'mark_verified':
+                $this->Customer_model->admin_mark_verified($user['id']);
+                return $this->_user_flash($back, 'success', 'Email marked as verified.');
+            case 'logout_all':
+                $this->Customer_model->revoke_all_tokens($user['id']);
+                return $this->_user_flash($back, 'success', 'All active sessions ended.');
+            case 'resend_code':
+                if (!(int)$user['has_account']) return $this->_user_flash($back, 'error', 'This is a guest record with no account, so there is nothing to verify.');
+                if (!empty($user['email_verified_at'])) return $this->_user_flash($back, 'info', 'This email is already verified.');
+                $otp = $this->Customer_model->create_email_otp($user['id']);
+                $this->customer_mail->send_verification($user, $otp);
+                return $this->_user_flash($back, 'success', 'A new verification code was emailed to ' . $user['email'] . '.');
+            case 'send_reset_link':
+                $base = trim((string)($user['widget_page_url'] ?? ''));
+                if (!preg_match('#^https?://#i', $base)) return $this->_user_flash($back, 'error', 'Set this company\'s "Widget page URL" under Companies first — the reset link opens that page.');
+                $reset = $this->Customer_model->admin_create_password_reset($user['id']);
+                if (!$reset) return $this->_user_flash($back, 'error', 'This is a guest record with no account password to reset.');
+                list($customer, $raw) = $reset;
+                $link = $base . ((strpos($base, '?') === FALSE) ? '?' : '&') . 'kfb_reset_token=' . rawurlencode($raw);
+                $this->customer_mail->send_password_reset($customer, $link);
+                return $this->_user_flash($back, 'success', 'A password-reset link (valid 1 hour) was emailed to ' . $user['email'] . '.');
+            case 'set_password':
+                $pw = (string)$this->input->post('new_password');
+                if (strlen($pw) < 6) return $this->_user_flash($back, 'error', 'The password must be at least 6 characters.');
+                $this->Customer_model->admin_set_password($user['id'], $pw);
+                return $this->_user_flash($back, 'success', 'Password set. The customer\'s sessions were ended — tell them the new password.');
+            case 'delete':
+                $kept = $this->Customer_model->admin_delete($user['id']);
+                if ($kept === FALSE) return $this->_user_flash($back, 'error', 'Could not delete the user.');
+                return $this->_user_flash('admin/users', 'success', 'User deleted.' . ($kept ? " {$kept} reservation(s) were kept as guest records." : ''));
+        }
+        return $this->_user_flash($back, 'error', 'Unknown action.');
+    }
+
+    protected function _user_flash($to, $type, $message)
+    {
+        $this->session->set_flashdata('flash', ['type' => $type, 'message' => $message]);
+        return redirect($to);
+    }
+
+    // ----------------- Companies -----------------
+
+    /** GET /admin/companies — list + create/edit form */
+    public function companies()
+    {
+        $this->_render_companies(NULL);
+    }
+
+    public function company_new()
+    {
+        $this->_render_companies(NULL);
+    }
+
+    /** GET /admin/companies/:id */
+    public function company_edit($id = NULL)
+    {
+        $company = $this->Company_model->get($id);
+        if (!$company) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Company not found.']);
+            return redirect('admin/companies');
+        }
+        $company['domains'] = $this->Company_model->domains_for($company['id']);
+        $this->_render_companies($company);
+    }
+
+    /** POST /admin/companies/save — create or update (hidden `id`), plain multipart form post */
+    public function company_save()
+    {
+        $id = (int)$this->input->post('id');
+        $existing = $id ? $this->Company_model->get($id) : NULL;
+        if ($id && !$existing) {
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Company not found.']);
+            return redirect('admin/companies');
+        }
+
+        $post    = $this->input->post(NULL, TRUE) ?: [];
+        $domains = preg_split('/[\s,;]+/', (string)($post['domains'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
+
+        $logoError = NULL;
+        $logo = $this->Company_model->handle_logo_upload('logo', $logoError);
+
+        $errors = [];
+        $savedId = NULL;
+        if ($logoError) {
+            $errors['logo'] = $logoError;
+        } else {
+            $savedId = $this->Company_model->save($id ?: NULL, $post, $domains, $logo, $errors);
+        }
+
+        if ($savedId) {
+            // Replacing the logo: drop the old file only after the new one is saved.
+            if ($logo && $existing && !empty($existing['logo'])) @unlink(FCPATH . Company_model::LOGO_DIR . $existing['logo']);
+            $this->session->set_flashdata('flash', ['type' => 'success', 'message' => 'Company saved.']);
+            return redirect('admin/companies/' . $savedId);
+        }
+
+        // Validation failed — clean up a just-uploaded logo and redisplay with the posted values.
+        if ($logo) @unlink(FCPATH . Company_model::LOGO_DIR . $logo);
+        $company = array_merge($existing ?: [], $post, ['id' => $id ?: NULL, 'domains' => $domains, 'logo' => $existing['logo'] ?? NULL]);
+        $this->_render_companies($company, $errors);
+    }
+
+    /** POST /admin/companies/:id/remove-logo */
+    public function company_remove_logo($id = NULL)
+    {
+        if ($this->Company_model->get($id)) {
+            $this->Company_model->remove_logo($id);
+            $this->session->set_flashdata('flash', ['type' => 'success', 'message' => 'Logo removed.']);
+        }
+        return redirect('admin/companies/' . (int)$id);
+    }
+
+    protected function _render_companies($editing, array $errors = [])
+    {
+        $data = [
+            'page_title' => $editing && !empty($editing['id']) ? 'Edit Company' : 'Companies',
+            'admin'      => $this->_current_admin(),
+            'companies'  => $this->Company_model->list_all(),
+            'editing'    => $editing,
+            'errors'     => $errors,
+            'flash'      => $this->session->flashdata('flash'),
+        ];
+        $this->load->view('admin/_layout_header', $data);
+        $this->load->view('admin/companies', $data);
         $this->load->view('admin/_layout_footer', $data);
     }
 
@@ -260,9 +504,11 @@ class Admin extends CI_Controller
     {
         $status  = trim((string)$this->input->get('status'));
         $search  = trim((string)$this->input->get('q'));
+        $company = (int)$this->input->get('company');
         $filters = [];
         if ($status !== '') $filters['status'] = $status;
         if ($search !== '') $filters['search'] = $search;
+        if ($company)       $filters['company_id'] = $company;
 
         $perPage = 50;
         $total   = $this->Booking_model->count_all($filters);
@@ -276,6 +522,8 @@ class Admin extends CI_Controller
             'reservations' => $this->Booking_model->list_all($filters, $perPage, $offset),
             'status_filter'=> $status,
             'search_query' => $search,
+            'company_filter' => $company,
+            'companies'    => $this->Company_model->list_all(),
             'pagination'   => [
                 'page'        => $page,
                 'per_page'    => $perPage,

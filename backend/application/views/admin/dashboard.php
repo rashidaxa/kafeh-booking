@@ -54,6 +54,7 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
           <tr>
             <th>Booking</th>
             <th>Customer</th>
+            <th>Company</th>
             <th>Pick-up</th>
             <th>Amount</th>
             <th>Status</th>
@@ -73,6 +74,7 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
                   <br><small class="kfb-hint">Passenger: <?= htmlspecialchars($pxName) ?></small>
                 <?php endif; ?>
               </td>
+              <td><?= htmlspecialchars($r['company_name'] ?? '—') ?></td>
               <td><?= htmlspecialchars($r['pickup_date']) ?> <small class="kfb-hint"><?= htmlspecialchars(substr((string)$r['pickup_time'], 0, 5)) ?></small></td>
               <td>$<?= number_format((float)$r['amount'], 2) ?></td>
               <td><span class="kfb-badge kfb-badge--<?= $badge ?>"><?= htmlspecialchars($label) ?></span></td>

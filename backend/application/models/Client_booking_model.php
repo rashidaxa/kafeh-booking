@@ -37,6 +37,8 @@ class Client_booking_model extends CI_Model
 
         $fields = [
             'booking_id'            => $booking_id,
+            'company_id'            => (int)($data['_company_id'] ?? 1),
+            'origin_host'           => !empty($data['_origin_host']) ? $data['_origin_host'] : NULL,
             'service_type'          => $data['service'] ?? NULL,
             'pickup_date'           => $data['pickupDate'] ?? NULL,
             'pickup_time'           => $data['pickupTime'] ?? NULL,
@@ -99,6 +101,7 @@ class Client_booking_model extends CI_Model
     {
         $row = $this->db->get_where('kfb_client_bookings', ['booking_id' => $booking_id])->row_array();
         if (!$row) return NULL;
+        $row['company_name'] = $this->_company_names()[(int)$row['company_id']] ?? NULL;
         $row['stops'] = $this->db
             ->order_by('sequence', 'ASC')
             ->get_where('kfb_client_booking_stops', ['booking_id' => $booking_id])
@@ -112,15 +115,32 @@ class Client_booking_model extends CI_Model
     /** List client bookings for the admin screen — no status/return-leg concept to filter out. */
     public function list_all(array $filters = [], $limit = NULL, $offset = 0)
     {
+        if (!empty($filters['company_id'])) $this->db->where('company_id', (int)$filters['company_id']);
         $this->_apply_search_filter($filters);
         $this->db->order_by('created_at', 'DESC');
         if ($limit !== NULL) $this->db->limit((int)$limit, (int)$offset);
-        return $this->db->get('kfb_client_bookings')->result_array();
+        $rows = $this->db->get('kfb_client_bookings')->result_array();
+        $names = $this->_company_names();
+        foreach ($rows as &$r) $r['company_name'] = $names[(int)($r['company_id'] ?? 0)] ?? NULL;
+        unset($r);
+        return $rows;
+    }
+
+    /** company id => name, for showing which company a submission came from. */
+    protected function _company_names()
+    {
+        static $names = NULL;
+        if ($names === NULL) {
+            $names = [];
+            foreach ($this->db->select('id, name')->get('kfb_companies')->result_array() as $c) $names[(int)$c['id']] = $c['name'];
+        }
+        return $names;
     }
 
     /** Row count for the same filters list_all() accepts — pairs with it for pagination. */
     public function count_all(array $filters = [])
     {
+        if (!empty($filters['company_id'])) $this->db->where('company_id', (int)$filters['company_id']);
         $this->_apply_search_filter($filters);
         return (int)$this->db->count_all_results('kfb_client_bookings');
     }

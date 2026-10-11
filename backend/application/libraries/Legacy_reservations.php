@@ -61,7 +61,7 @@ class Legacy_reservations
     {
         $this->CI =& get_instance();
         $this->CI->config->load('crmsync');
-        $this->CI->load->model('Vehicle_model');
+        $this->CI->load->model(['Vehicle_model', 'Company_model']);
     }
 
     /**
@@ -115,6 +115,11 @@ class Legacy_reservations
         $legacyVehicleId = (!empty($vehicle['legacy_vehicle_type_id']))
             ? (int)$vehicle['legacy_vehicle_type_id']
             : self::DEFAULT_LEGACY_VEHICLE_ID;
+
+        // Each company maps to its own company in the legacy portal; the
+        // default (A1 Limousine) is LEGACY_COMPANY_ID, as before.
+        $company = $this->CI->Company_model->get($booking['company_id'] ?? 1);
+        $legacyCompanyId = !empty($company['legacy_company_id']) ? (int)$company['legacy_company_id'] : self::LEGACY_COMPANY_ID;
 
         $tripType = $this->_trip_type($booking['service_type'] ?? '', $leg);
 
@@ -183,7 +188,7 @@ class Legacy_reservations
             'cc_approval_code'       => (string)($booking['paypal_capture_transaction_id'] ?? $booking['paypal_auth_transaction_id'] ?? ''),
             'cc_billing_address'     => (string)($booking['cardBillingAddress'] ?? ''),
             'cc_zip_code'            => '',
-            'select_company'         => self::LEGACY_COMPANY_ID,
+            'select_company'         => $legacyCompanyId,
             'driver_payout'          => 0,
             'paid_status'            => 0, // legacy convention: tracks driver payout status, not customer payment — matches existing rows
             'pickup_time'            => $leg['pickup_time'],

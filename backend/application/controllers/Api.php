@@ -7,6 +7,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Routes (defined in application/config/routes_api.php):
  *   GET  /api/fleet                       → list vehicles
  *   GET  /api/settings                    → global settings (Meet & Greet fees)
+ *   GET  /api/terms                       → Terms & Conditions HTML for the widget popup (edited in Admin > Terms & Conditions)
  *   POST /api/pricing/quote               → price one vehicle, or every enabled vehicle (Pricing_engine)
  *   GET  /api/surcharges                  → enabled surcharge catalog
  *   POST /api/reservation                 → create booking (returns booking_id)
@@ -48,12 +49,44 @@ class Api extends CI_Controller
     /** Comma-separated list of allowed origins, or ['*'] for any. */
     protected $allowed_origins = ['*'];
 
+    /** Company this request belongs to (kfb_companies row + '_origin_host'), resolved from the website domain. */
+    protected $company = NULL;
+
+    /** Endpoints that are plain browser redirects/health checks — no Origin header, company comes from the booking instead. */
+    protected $company_exempt = ['health', 'paypal_return', 'paypal_cancel'];
+
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['Booking_model', 'Client_booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model', 'Surcharge_model']);
+        $this->load->model(['Booking_model', 'Client_booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model', 'Surcharge_model', 'Company_model', 'Terms_model']);
         $this->load->library(['paypal', 'flights', 'mailer', 'pricing_engine']);
         $this->_set_cors_headers();
+        $this->_resolve_company();
+    }
+
+    /**
+     * Resolve the company from the website the widget is running on and
+     * scope customers to it. An unknown or inactive domain is refused —
+     * an admin has to add the company + its domains first.
+     */
+    protected function _resolve_company()
+    {
+        if (in_array($this->router->fetch_method(), $this->company_exempt, TRUE)) return;
+
+        $this->company = $this->Company_model->resolve_from_request();
+        if (!$this->company) {
+            $this->_error('This website is not authorized to take bookings. Please contact the site owner.', 403, ['code' => 'unauthorized_domain']);
+            $this->output->_display();
+            exit;
+        }
+        $this->Customer_model->set_company((int)$this->company['id']);
+    }
+
+    /** Tag a booking payload with this request's company + originating domain (server-side only, never from the client). */
+    protected function _tag_company(array &$raw)
+    {
+        $raw['_company_id']  = (int)($this->company['id'] ?? Company_model::DEFAULT_COMPANY_ID);
+        $raw['_origin_host'] = $this->company['_origin_host'] ?? NULL;
     }
 
     // ----------------- ROUTES -----------------
@@ -153,6 +186,13 @@ class Api extends CI_Controller
         $this->_json(['success' => TRUE, 'surcharges' => $out]);
     }
 
+    /** GET /api/terms — the (already sanitized) Terms & Conditions HTML shown in the widget's popup. */
+    public function terms()
+    {
+        $t = $this->Terms_model->get();
+        $this->_json(['success' => TRUE, 'html' => $t['html'], 'updated_at' => $t['updated_at']]);
+    }
+
     public function health()
     {
         $this->_json([
@@ -182,6 +222,7 @@ class Api extends CI_Controller
         $err = $this->_validate_reservation_payload($raw);
         if ($err) return $this->_error($err[0], $err[1]);
         $this->_sync_card_holder_name($raw);
+        $this->_tag_company($raw);
 
         // dropoff can be missing if "return at same location" — fall back to pickup
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
@@ -253,6 +294,7 @@ class Api extends CI_Controller
 
         $err = $this->_validate_client_reservation_payload($raw);
         if ($err) return $this->_error($err[0], $err[1]);
+        $this->_tag_company($raw);
 
         // dropoff can be missing if "return at same location" — fall back to pickup
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
@@ -273,7 +315,8 @@ class Api extends CI_Controller
     {
         if (!$id) return $this->_error('Booking ID required', 400);
         $row = $this->Booking_model->get_booking($id);
-        if (!$row) return $this->_error('Booking not found', 404);
+        // A booking is only visible from the company it was made on.
+        if (!$row || (int)$row['company_id'] !== (int)$this->company['id']) return $this->_error('Booking not found', 404);
         $this->_json($row);
     }
 
@@ -668,6 +711,7 @@ class Api extends CI_Controller
             ]);
         } else {
             $id = $this->db->insert('kfb_customers', [
+                'company_id'    => (int)$this->company['id'],
                 'email'         => $email,
                 'password_hash' => password_hash($password, PASSWORD_BCRYPT),
                 'first_name'    => $raw['first_name'] ?? '',
@@ -830,7 +874,12 @@ class Api extends CI_Controller
         $booking = $this->Booking_model->get_booking_for_customer($id, $customer['id']);
         if (!$booking) return $this->_error('Reservation not found', 404);
 
-        $html = $this->load->view('customer/receipt', ['booking' => $booking], TRUE);
+        $company = $this->Company_model->get($booking['company_id'] ?? 1);
+        $html = $this->load->view('customer/receipt', [
+            'booking'  => $booking,
+            'company'  => $company,
+            'logo_url' => $company ? $this->Company_model->logo_url($company) : NULL,
+        ], TRUE);
         $this->output->set_content_type('text/html', 'utf-8')->set_output($html);
     }
 
@@ -853,8 +902,9 @@ class Api extends CI_Controller
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $this->_error('Valid email is required', 422);
         }
-        if (!preg_match('#^https?://#i', $resetUrlBase)) {
-            return $this->_error('reset_url_base must be an absolute http(s) URL', 422);
+        $resetUrlBase = $this->_reset_link_base($resetUrlBase);
+        if ($resetUrlBase === NULL) {
+            return $this->_error('reset_url_base must be an absolute http(s) URL on this website', 422);
         }
 
         $result = $this->Customer_model->create_password_reset($email);
@@ -866,6 +916,21 @@ class Api extends CI_Controller
         }
 
         $this->_json(['success' => TRUE, 'message' => 'If that email is registered, a reset link has been sent.']);
+    }
+
+    /**
+     * Where the emailed reset link points. The company's own configured
+     * widget page wins; otherwise the page the widget sent, but ONLY when
+     * its host is one of this company's domains — otherwise anyone could
+     * make us email a victim a reset link to a site they control.
+     */
+    protected function _reset_link_base($supplied)
+    {
+        $configured = trim((string)($this->company['widget_page_url'] ?? ''));
+        if (preg_match('#^https?://#i', $configured)) return $configured;
+        if (!preg_match('#^https?://#i', $supplied)) return NULL;
+        $host = $this->Company_model->normalize_host($supplied);
+        return ($host !== '' && in_array($host, $this->Company_model->domains_for($this->company['id']), TRUE)) ? $supplied : NULL;
     }
 
     /**
@@ -1212,27 +1277,15 @@ class Api extends CI_Controller
     /** Best-effort email-verification OTP email — sent via SMTP (see Mailer library), not mail(). */
     protected function _send_verification_email(array $customer, $otp)
     {
-        $to = $customer['email'];
-        $name = trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? ''));
-        $subject = 'Verify your email — your code is ' . $otp;
-        $body = "Hi " . ($name !== '' ? $name : 'there') . ",\n\n" .
-            "Your verification code is: " . $otp . "\n\n" .
-            "Enter this code to verify your email and activate your account (expires in 10 minutes).\n\n" .
-            "If you didn't request this, you can safely ignore this email.\n";
-        $this->mailer->send($to, $subject, $body);
+        $this->load->library('customer_mail');
+        $this->customer_mail->send_verification($customer, $otp);
     }
 
     /** Best-effort password-reset email — sent via SMTP (see Mailer library), not mail(). */
     protected function _send_password_reset_email(array $customer, $resetLink)
     {
-        $to = $customer['email'];
-        $name = trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? ''));
-        $subject = 'Reset your password';
-        $body = "Hi " . ($name !== '' ? $name : 'there') . ",\n\n" .
-            "We received a request to reset your password. Click the link below to choose a new one " .
-            "(this link expires in 1 hour):\n\n" . $resetLink . "\n\n" .
-            "If you didn't request this, you can safely ignore this email.\n";
-        $this->mailer->send($to, $subject, $body);
+        $this->load->library('customer_mail');
+        $this->customer_mail->send_password_reset($customer, $resetLink);
     }
 
     /**
@@ -1246,7 +1299,10 @@ class Api extends CI_Controller
      */
     protected function _notify_admin_reservation(array $booking, $eventLabel)
     {
-        $to = $this->config->item('admin_notification_email');
+        // Each company's reservations go to its own notification inbox
+        // (falling back to the global one).
+        $company = $this->Company_model->get($booking['company_id'] ?? 1);
+        $to = !empty($company['notification_email']) ? $company['notification_email'] : $this->config->item('admin_notification_email');
         if (!$to) return;
         $name = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
         $ccName = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
@@ -1254,6 +1310,7 @@ class Api extends CI_Controller
         $subject = $eventLabel . ' — Booking ' . ($booking['booking_id'] ?? '');
         $body =
             "{$eventLabel}\n\n" .
+            "Company:    " . ($company['name'] ?? '—') . (!empty($booking['origin_host']) ? " ({$booking['origin_host']})" : '') . "\n" .
             "Booking ID: " . ($booking['booking_id'] ?? '—') . "\n" .
             ($ccName !== ''
                 ? "Card holder: {$ccName}\n" .

@@ -40,6 +40,8 @@ class Booking_model extends CI_Model
 
         $fields = $this->_shared_booking_fields($data, $childSeats, $childSeatsBreakdown, $addonsJson, $addonsTotal);
         $fields['booking_id']        = $booking_id;
+        $fields['company_id']        = (int)($data['_company_id'] ?? 1);
+        $fields['origin_host']       = !empty($data['_origin_host']) ? $data['_origin_host'] : NULL;
         $fields['return_booking_id'] = $return_booking_id;
         $fields['status']            = 'pending';
         $fields['created_at']        = date('Y-m-d H:i:s');
@@ -297,6 +299,8 @@ class Booking_model extends CI_Model
 
         $fields = $this->_return_leg_fields($data, $primary_booking_id, $childSeats, $childSeatsBreakdown);
         $fields['booking_id'] = $return_booking_id;
+        $fields['company_id'] = (int)($data['_company_id'] ?? 1);
+        $fields['origin_host'] = !empty($data['_origin_host']) ? $data['_origin_host'] : NULL;
         $fields['status']     = 'pending';
         $fields['created_at'] = date('Y-m-d H:i:s');
         $fields['ip_address'] = $this->input->ip_address();
@@ -411,6 +415,7 @@ class Booking_model extends CI_Model
     {
         $row = $this->db->get_where('kfb_bookings', ['booking_id' => $booking_id])->row_array();
         if (!$row) return NULL;
+        $row['company_name'] = $this->_company_names()[(int)$row['company_id']] ?? NULL;
         $row['stops'] = $this->db
             ->order_by('sequence', 'ASC')
             ->get_where('kfb_stops', ['booking_id' => $booking_id])
@@ -542,10 +547,26 @@ class Booking_model extends CI_Model
     {
         $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
         if (!empty($filters['status'])) $this->db->where('status', $filters['status']);
+        if (!empty($filters['company_id'])) $this->db->where('company_id', (int)$filters['company_id']);
         $this->_apply_search_filter($filters);
         $this->db->order_by('created_at', 'DESC');
         if ($limit !== NULL) $this->db->limit((int)$limit, (int)$offset);
-        return $this->db->get('kfb_bookings')->result_array();
+        $rows = $this->db->get('kfb_bookings')->result_array();
+        $names = $this->_company_names();
+        foreach ($rows as &$r) $r['company_name'] = $names[(int)($r['company_id'] ?? 0)] ?? NULL;
+        unset($r);
+        return $rows;
+    }
+
+    /** company id => name, for showing which company a reservation came from. */
+    protected function _company_names()
+    {
+        static $names = NULL;
+        if ($names === NULL) {
+            $names = [];
+            foreach ($this->db->select('id, name')->get('kfb_companies')->result_array() as $c) $names[(int)$c['id']] = $c['name'];
+        }
+        return $names;
     }
 
     /** Row count for the same filters list_all() accepts — pairs with it for pagination. */
@@ -553,6 +574,7 @@ class Booking_model extends CI_Model
     {
         $this->db->where('NOT (is_return_trip = 1 AND amount = 0)', NULL, FALSE);
         if (!empty($filters['status'])) $this->db->where('status', $filters['status']);
+        if (!empty($filters['company_id'])) $this->db->where('company_id', (int)$filters['company_id']);
         $this->_apply_search_filter($filters);
         return (int)$this->db->count_all_results('kfb_bookings');
     }
