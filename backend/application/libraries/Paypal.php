@@ -30,6 +30,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * library used, so callers (Admin_api, Booking_model) don't need to
  * change.
  */
+#[\AllowDynamicProperties]
 class Paypal
 {
     protected $CI;

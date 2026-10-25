@@ -19,6 +19,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   $config['aviationstack_base_url']  = 'http://api.aviationstack.com/v1/';
  *   $config['aviationstack_timeout']   = 8;  // seconds
  */
+#[\AllowDynamicProperties]
 class Flights
 {
     protected $CI;

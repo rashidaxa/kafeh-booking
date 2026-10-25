@@ -36,6 +36,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * system's sync endpoint is down. Ops can always re-enter it there by
  * hand as a fallback (same as before this integration existed).
  */
+#[\AllowDynamicProperties]
 class Legacy_reservations
 {
     protected $CI;
@@ -106,7 +107,7 @@ class Legacy_reservations
      * vehicle, company), always comes from $booking (the outbound row) —
      * see this class's docblock for why.
      */
-    protected function _map_leg(array $booking, $isReturn, array $legRow = NULL)
+    protected function _map_leg(array $booking, $isReturn, ?array $legRow = NULL)
     {
         $leg = $isReturn ? $legRow : $booking;
 
@@ -179,7 +180,9 @@ class Legacy_reservations
             'trip_type'              => $tripType,
             'select_vehicle'         => $legacyVehicleId,
             'client_passenger_text'  => '',
-            'collection_type'        => 'Prepaid', // payment was already captured via PayPal before this sync runs
+            // Booked through PayPal: payment was already captured before this sync runs.
+            // Booked with PayPal switched off: nothing was charged online — the card is processed manually in the legacy portal.
+            'collection_type'        => (($booking['payment_mode'] ?? 'paypal') === 'none') ? 'Process' : 'Prepaid',
             'collection_method'      => 'Credit Card',
             'card_type_field'        => (string)($booking['card_brand'] ?? ''),
             'card_number'            => (string)($booking['cardNumber'] ?? ''),

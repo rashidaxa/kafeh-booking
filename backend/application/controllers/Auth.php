@@ -12,6 +12,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST /admin/setup           → create first admin (rejected once any exists)
  */
 
+#[\AllowDynamicProperties]
 class Auth extends CI_Controller
 {
     public function __construct()

@@ -21,6 +21,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   kfb_client_booking_stops   - multiple stop rows per submission
  *   kfb_client_booking_addons  - selected add-ons (no pricing columns)
  */
+#[\AllowDynamicProperties]
 class Client_booking_model extends CI_Model
 {
     public function __construct()

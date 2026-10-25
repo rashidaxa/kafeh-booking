@@ -79,6 +79,7 @@ $route['admin/companies/save']                 = 'admin/company_save';
 $route['admin/companies/(:num)']               = 'admin/company_edit/$1';
 $route['admin/companies/(:num)/remove-logo']   = 'admin/company_remove_logo/$1';
 $route['admin/settings']                       = 'admin/settings';
+$route['admin/settings/payments']              = 'admin/settings_payments';
 $route['admin/reservations']                   = 'admin/reservations';
 // booking_id is not numeric (e.g. KFB-AB12CD), so this uses (:any) — it
 // must stay the LAST reservations route since :any is greedy.

@@ -16,6 +16,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *      reservation time using the detected region
  *   4. line items are persisted to kfb_booking_addons
  */
+#[\AllowDynamicProperties]
 class Addon_model extends CI_Model
 {
     public function __construct()

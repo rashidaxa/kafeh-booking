@@ -14,6 +14,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *     style on block elements. Event handlers, classes, ids and inline
  *     styles are all stripped.
  */
+#[\AllowDynamicProperties]
 class Html_sanitizer
 {
     protected $allowed = [

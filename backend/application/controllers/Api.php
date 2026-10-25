@@ -44,6 +44,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * CORS: open by default (set $allowed_origins in __construct to lock down).
  */
 
+#[\AllowDynamicProperties]
 class Api extends CI_Controller
 {
     /** Comma-separated list of allowed origins, or ['*'] for any. */
@@ -123,6 +124,9 @@ class Api extends CI_Controller
                 'garageLat'               => $fmt($pricing['pricing_garage_lat']),
                 'garageLng'               => $fmt($pricing['pricing_garage_lng']),
                 'localServiceRadiusMiles' => $fmt($pricing['pricing_local_service_radius_miles']),
+                // Admin > Settings > Payments. When false the widget skips PayPal entirely —
+                // informational only: reservation_create() reads the setting itself.
+                'paypalEnabled'           => $this->Settings_model->paypal_enabled(),
             ]
         ));
     }
@@ -224,6 +228,13 @@ class Api extends CI_Controller
         $this->_sync_card_holder_name($raw);
         $this->_tag_company($raw);
 
+        // PayPal switch (Admin > Settings > Payments), read here on the server —
+        // never trusted from the widget. ON: pending until the PayPal hold
+        // succeeds. OFF: no PayPal at all, straight to awaiting approval.
+        $paypalOn = $this->Settings_model->paypal_enabled();
+        $raw['_payment_mode'] = $paypalOn ? 'paypal' : 'none';
+        $raw['_status']       = $paypalOn ? 'pending' : 'awaiting_approval';
+
         // dropoff can be missing if "return at same location" — fall back to pickup
         if (empty($raw['dropoff'])) $raw['dropoff'] = $raw['pickup'];
 
@@ -265,15 +276,24 @@ class Api extends CI_Controller
             }
         }
 
-        // Admin is NOT notified here: this row is still just `pending` —
-        // the customer hasn't been to PayPal yet and may never complete
-        // it. paypal_return() sends the "New Reservation" email once the
-        // authorization hold actually succeeds (the only state an admin
-        // can accept from).
+        if ($paypalOn) {
+            // Admin is NOT notified here: this row is still just `pending` —
+            // the customer hasn't been to PayPal yet and may never complete
+            // it. paypal_return() sends the "New Reservation" email once the
+            // authorization hold actually succeeds (the only state an admin
+            // can accept from).
+        } else {
+            // No PayPal step: the reservation is already acceptable, so this
+            // is the moment the admin needs to hear about it.
+            $fresh = $this->Booking_model->get_booking($booking_id);
+            if ($fresh) $this->_notify_admin_reservation($fresh, 'New Reservation');
+        }
+
         $this->_json([
-            'success'    => TRUE,
-            'booking_id' => $booking_id,
-            'status'     => 'pending',
+            'success'      => TRUE,
+            'booking_id'   => $booking_id,
+            'status'       => $raw['_status'],
+            'payment_mode' => $raw['_payment_mode'],   // the widget goes to PayPal only when this is 'paypal'
         ], 201);
     }
 
@@ -403,7 +423,10 @@ class Api extends CI_Controller
         // empty($oldAuthId) means there's nothing to compare the new
         // amount against, so a fresh authorization is required regardless
         // of whether the price happens to match.
-        $requiresPayment = (abs($newAmount - $oldAmount) >= 0.01) || empty($oldAuthId);
+        // Reservations booked with PayPal switched off have no authorization to
+        // redo — an edit (even a price change) is just saved.
+        $noPayPal = ($booking['payment_mode'] ?? 'paypal') === 'none';
+        $requiresPayment = !$noPayPal && ((abs($newAmount - $oldAmount) >= 0.01) || empty($oldAuthId));
 
         if (!$requiresPayment) {
             $this->_json(['success' => TRUE, 'booking_id' => $id, 'price_changed' => FALSE, 'status' => $booking['status']]);
@@ -473,6 +496,9 @@ class Api extends CI_Controller
 
         $booking = $this->db->get_where('kfb_bookings', ['booking_id' => $bookingId])->row_array();
         if (!$booking) return $this->_error('Booking not found', 404);
+        if (($booking['payment_mode'] ?? 'paypal') === 'none') {
+            return $this->_error('This reservation does not use online payment.', 409);
+        }
 
         try {
             $order = $this->paypal->createOrder($amount, $bookingId, $returnUrl, $cancelUrl);

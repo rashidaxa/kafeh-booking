@@ -8,6 +8,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * real account (password_hash set via password_hash()). Either way
  * the email/phone lets us look up their past bookings.
  */
+#[\AllowDynamicProperties]
 class Customer_model extends CI_Model
 {
     /**

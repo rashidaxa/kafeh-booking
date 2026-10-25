@@ -15,6 +15,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * application/config/kafeh.php's smtp_* values, copied from bookingOld's
  * application/config/constants.php) via the same vendored PHPMailer.
  */
+#[\AllowDynamicProperties]
 class Mailer
 {
     protected $CI;

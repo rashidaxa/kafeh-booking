@@ -9,6 +9,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   kfb_payments   - payment events (create / capture / refund)
  */
 
+#[\AllowDynamicProperties]
 class Booking_model extends CI_Model
 {
     public function __construct()
@@ -43,7 +44,10 @@ class Booking_model extends CI_Model
         $fields['company_id']        = (int)($data['_company_id'] ?? 1);
         $fields['origin_host']       = !empty($data['_origin_host']) ? $data['_origin_host'] : NULL;
         $fields['return_booking_id'] = $return_booking_id;
-        $fields['status']            = 'pending';
+        // PayPal ON: starts pending until the customer authorizes on PayPal.
+        // PayPal OFF (payment_mode 'none'): starts directly awaiting approval.
+        $fields['status']            = $data['_status'] ?? 'pending';
+        $fields['payment_mode']      = $data['_payment_mode'] ?? 'paypal';
         $fields['created_at']        = date('Y-m-d H:i:s');
         $fields['ip_address']        = $this->input->ip_address();
 
@@ -301,7 +305,8 @@ class Booking_model extends CI_Model
         $fields['booking_id'] = $return_booking_id;
         $fields['company_id'] = (int)($data['_company_id'] ?? 1);
         $fields['origin_host'] = !empty($data['_origin_host']) ? $data['_origin_host'] : NULL;
-        $fields['status']     = 'pending';
+        $fields['status']     = $data['_status'] ?? 'pending';
+        $fields['payment_mode'] = $data['_payment_mode'] ?? 'paypal';
         $fields['created_at'] = date('Y-m-d H:i:s');
         $fields['ip_address'] = $this->input->ip_address();
 

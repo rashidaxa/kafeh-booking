@@ -22,6 +22,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST   /admin/api/reservations/:id/charge  → bill the saved card again { amount, description? }
  */
 
+#[\AllowDynamicProperties]
 class Admin_api extends CI_Controller
 {
     /** Comma-separated list of allowed origins, or ['*'] for any. */
@@ -477,27 +478,33 @@ class Admin_api extends CI_Controller
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
-        if (empty($booking['paypal_auth_transaction_id'])) {
+        // Booked while PayPal was switched off: nothing was authorized, so
+        // there is nothing to capture — accepting just confirms it.
+        $noPayPal = ($booking['payment_mode'] ?? 'paypal') === 'none';
+        if (!$noPayPal && empty($booking['paypal_auth_transaction_id'])) {
             return $this->_error('This reservation has no authorized payment to capture.', 422);
         }
         if ($booking['status'] !== 'awaiting_approval') {
             return $this->_error('Only reservations awaiting approval can be accepted (current status: ' . $booking['status'] . ').', 422);
         }
 
-        try {
-            $result = $this->paypal->capture($booking['paypal_auth_transaction_id'], $booking['amount']);
-        } catch (Exception $e) {
-            log_message('error', '[Admin_api] reservations_accept capture: ' . $e->getMessage());
-            return $this->_error('PayPal capture failed', 502, ['detail' => $e->getMessage()]);
-        }
+        if (!$noPayPal) {
+            try {
+                $result = $this->paypal->capture($booking['paypal_auth_transaction_id'], $booking['amount']);
+            } catch (Exception $e) {
+                log_message('error', '[Admin_api] reservations_accept capture: ' . $e->getMessage());
+                return $this->_error('PayPal capture failed', 502, ['detail' => $e->getMessage()]);
+            }
 
-        $captureId = $result['TRANSACTIONID'] ?? NULL;
-        $this->Booking_model->record_payment($id, $captureId, 'capture', $result['PAYMENTSTATUS'] ?? ($result['ACK'] ?? 'Success'), [
-            'amount'   => $booking['amount'],
-            'currency' => 'USD',
-            'result'   => $result,
-        ]);
-        if ($captureId) $this->Booking_model->save_paypal_capture($id, $captureId);
+            $captureId = $result['TRANSACTIONID'] ?? NULL;
+            $this->Booking_model->record_payment($id, $captureId, 'capture', $result['PAYMENTSTATUS'] ?? ($result['ACK'] ?? 'Success'), [
+                'amount'   => $booking['amount'],
+                'currency' => 'USD',
+                'result'   => $result,
+            ]);
+            if ($captureId) $this->Booking_model->save_paypal_capture($id, $captureId);
+        }
+        // Status 'paid' either way; payment_mode 'none' is shown as "Confirmed" (nothing was paid online).
         $this->Booking_model->set_approval($id, 'paid', $this->session->userdata('admin_username'));
 
         if (!empty($booking['promo_code'])) {
@@ -537,27 +544,30 @@ class Admin_api extends CI_Controller
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Booking_model->get_booking($id);
         if (!$booking) return $this->_error('Reservation not found', 404);
-        if (empty($booking['paypal_auth_transaction_id'])) {
+        $noPayPal = ($booking['payment_mode'] ?? 'paypal') === 'none'; // no hold exists to release
+        if (!$noPayPal && empty($booking['paypal_auth_transaction_id'])) {
             return $this->_error('This reservation has no authorized payment to cancel.', 422);
         }
         if ($booking['status'] !== 'awaiting_approval') {
             return $this->_error('Only reservations awaiting approval can be rejected (current status: ' . $booking['status'] . ').', 422);
         }
 
-        try {
-            $result = $this->paypal->voidTransaction($booking['paypal_auth_transaction_id']);
-        } catch (Exception $e) {
-            log_message('error', '[Admin_api] reservations_reject void: ' . $e->getMessage());
-            return $this->_error('PayPal void failed', 502, ['detail' => $e->getMessage()]);
-        }
+        if (!$noPayPal) {
+            try {
+                $result = $this->paypal->voidTransaction($booking['paypal_auth_transaction_id']);
+            } catch (Exception $e) {
+                log_message('error', '[Admin_api] reservations_reject void: ' . $e->getMessage());
+                return $this->_error('PayPal void failed', 502, ['detail' => $e->getMessage()]);
+            }
 
-        // DoVoid doesn't mint a new transaction id — log against the
-        // authorization id it just released.
-        $this->Booking_model->record_payment($id, $booking['paypal_auth_transaction_id'], 'cancel', $result['ACK'] ?? 'Success', [
-            'amount'   => $booking['amount'],
-            'currency' => 'USD',
-            'result'   => $result,
-        ]);
+            // DoVoid doesn't mint a new transaction id — log against the
+            // authorization id it just released.
+            $this->Booking_model->record_payment($id, $booking['paypal_auth_transaction_id'], 'cancel', $result['ACK'] ?? 'Success', [
+                'amount'   => $booking['amount'],
+                'currency' => 'USD',
+                'result'   => $result,
+            ]);
+        }
         $this->Booking_model->set_approval($id, 'cancelled', $this->session->userdata('admin_username'));
 
         $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);

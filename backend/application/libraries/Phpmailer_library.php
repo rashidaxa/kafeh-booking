@@ -5,6 +5,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 /** Loads PHPMailer — vendored the same way bookingOld's own phpmailer_library does, no Composer dependency. */
+#[\AllowDynamicProperties]
 class Phpmailer_library
 {
     public function load()

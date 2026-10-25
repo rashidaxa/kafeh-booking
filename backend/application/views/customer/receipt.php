@@ -47,9 +47,9 @@ if (!function_exists('kfb_r_time')) {
     }
 }
 if (!function_exists('kfb_r_status_label')) {
-    function kfb_r_status_label($status) {
+    function kfb_r_status_label($status, $payment_mode = 'paypal') {
         $labels = [
-            'paid' => 'Paid', 'awaiting_approval' => 'Awaiting approval', 'awaiting_payment' => 'Awaiting payment',
+            'paid' => $payment_mode === 'none' ? 'Confirmed' : 'Paid', 'awaiting_approval' => 'Awaiting approval', 'awaiting_payment' => 'Awaiting payment',
             'pending' => 'Pending', 'cancelled' => 'Cancelled', 'payment_failed' => 'Payment failed', 'refunded' => 'Refunded',
         ];
         return $labels[$status] ?? ucfirst(str_replace('_', ' ', (string)$status));
@@ -154,7 +154,7 @@ $hasAddons = (float)($b['addons_total'] ?? 0) > 0;
                       : (in_array($status, ['awaiting_approval', 'awaiting_payment', 'pending'], TRUE) ? 'warn'
                       : (in_array($status, ['cancelled', 'payment_failed'], TRUE) ? 'danger' : 'off'));
         ?>
-        <span class="kfbr-badge kfbr-badge--<?= $badgeClass ?>"><?= htmlspecialchars(kfb_r_status_label($status)) ?></span>
+        <span class="kfbr-badge kfbr-badge--<?= $badgeClass ?>"><?= htmlspecialchars(kfb_r_status_label($status, $b['payment_mode'] ?? 'paypal')) ?></span>
       </div>
     </div>
 
@@ -215,9 +215,9 @@ $hasAddons = (float)($b['addons_total'] ?? 0) > 0;
       <div class="kfbr-grid">
         <div class="kfbr-field">
           <span>Method</span>
-          <p><?= !empty($b['card_brand']) ? htmlspecialchars(ucfirst($b['card_brand'])) . ' •••• ' . htmlspecialchars($b['card_last4'] ?? '') : 'PayPal' ?></p>
+          <p><?= !empty($b['card_brand']) ? htmlspecialchars(ucfirst($b['card_brand'])) . ' •••• ' . htmlspecialchars($b['card_last4'] ?? '') : (($b['payment_mode'] ?? 'paypal') === 'none' ? 'No online payment' : 'PayPal') ?></p>
         </div>
-        <div class="kfbr-field"><span>Status</span><p><?= htmlspecialchars(kfb_r_status_label($status)) ?></p></div>
+        <div class="kfbr-field"><span>Status</span><p><?= htmlspecialchars(kfb_r_status_label($status, $b['payment_mode'] ?? 'paypal')) ?></p></div>
       </div>
     </div>
 

@@ -22,6 +22,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   - status: 1 enabled, 0 disabled
  */
 
+#[\AllowDynamicProperties]
 class Promo_model extends CI_Model
 {
     public function __construct()

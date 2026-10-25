@@ -28,6 +28,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * global multipliers — see Pricing_engine — not stored per vehicle.
  */
 
+#[\AllowDynamicProperties]
 class Vehicle_model extends CI_Model
 {
     /**
@@ -388,7 +389,7 @@ class Vehicle_model extends CI_Model
         }
 
         // Validate real image content (defence-in-depth)
-        $info = @getimagesize($file['tmp_name']);
+        $info = (is_file($file['tmp_name']) && is_readable($file['tmp_name'])) ? getimagesize($file['tmp_name']) : FALSE;
         if (!$info || empty($info['mime'])) {
             $error = 'Uploaded file is not a valid image.';
             return NULL;
@@ -404,7 +405,7 @@ class Vehicle_model extends CI_Model
         // Make sure the destination directory exists & is writable
         $abs_dir = rtrim(str_replace('\\', '/', FCPATH . self::UPLOAD_DIR), '/') . '/';
         if (!is_dir($abs_dir)) {
-            if (!@mkdir($abs_dir, 0755, TRUE) && !is_dir($abs_dir)) {
+            if ((!is_writable(dirname($abs_dir)) || !mkdir($abs_dir, 0755, TRUE)) && !is_dir($abs_dir)) {
                 $error = 'Upload directory does not exist and could not be created: ' . $abs_dir;
                 return NULL;
             }
@@ -418,7 +419,7 @@ class Vehicle_model extends CI_Model
         $safe_name = bin2hex(random_bytes(8)) . '_' . time() . '.' . $ext;
         $abs_path  = $abs_dir . $safe_name;
 
-        if (!@move_uploaded_file($file['tmp_name'], $abs_path)) {
+        if (!is_uploaded_file($file['tmp_name']) || !move_uploaded_file($file['tmp_name'], $abs_path)) {
             $error = 'Could not save uploaded file. Check directory permissions on ' . $abs_dir;
             return NULL;
         }
@@ -447,7 +448,7 @@ class Vehicle_model extends CI_Model
         if (!$filename) return;
         $abs_dir = rtrim(str_replace('\\', '/', FCPATH . self::UPLOAD_DIR), '/') . '/';
         $abs = $abs_dir . basename($filename);
-        if (is_file($abs)) @unlink($abs);
+        if (is_file($abs) && !unlink($abs)) log_message('error', 'Could not delete file ' . $abs);
     }
 
     // ---------------------- Internals ----------------------

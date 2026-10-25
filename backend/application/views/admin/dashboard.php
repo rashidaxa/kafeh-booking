@@ -1,9 +1,10 @@
 <?php
 if (!function_exists('kfb_reservation_badge')) {
-    function kfb_reservation_badge($status)
+    function kfb_reservation_badge($status, $payment_mode = 'paypal')
     {
         switch ($status) {
-            case 'paid':               return ['ok', 'Paid'];
+            // Booked while PayPal was off: accepted, but nothing was paid online.
+            case 'paid':               return ['ok', $payment_mode === 'none' ? 'Confirmed' : 'Paid'];
             case 'awaiting_approval':  return ['warn', 'Awaiting approval'];
             case 'cancelled':          return ['danger', 'Cancelled'];
             case 'payment_failed':     return ['danger', 'Payment failed'];
@@ -63,7 +64,7 @@ $recent_reservations = isset($recent_reservations) ? $recent_reservations : [];
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($recent_reservations as $r): [$badge, $label] = kfb_reservation_badge($r['status']); ?>
+          <?php foreach ($recent_reservations as $r): [$badge, $label] = kfb_reservation_badge($r['status'], $r['payment_mode'] ?? 'paypal'); ?>
             <tr>
               <td><code class="kfb-mono"><?= htmlspecialchars($r['booking_id']) ?></code></td>
               <td>

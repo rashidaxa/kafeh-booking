@@ -16,6 +16,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * whenever an admin saves a company) so the widget doesn't hit the
  * database for it on every call.
  */
+#[\AllowDynamicProperties]
 class Company_model extends CI_Model
 {
     const DEFAULT_COMPANY_ID = 1;
@@ -58,7 +59,7 @@ class Company_model extends CI_Model
             if (!preg_match('#^\[([0-9a-f:.]+)\]$#', $value, $m)) return '';   // exactly one pair of brackets
             $inner = $m[1];
             if (!filter_var($inner, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) return '';
-            $packed = @inet_pton($inner);
+            $packed = inet_pton($inner);   // already validated by filter_var above
             return $packed === FALSE ? '' : '[' . inet_ntop($packed) . ']';
         }
 
@@ -240,11 +241,18 @@ class Company_model extends CI_Model
         return (int)$id;
     }
 
+    /** Delete a stored logo file by name; logs (instead of warning) if it can't be removed. */
+    public function delete_logo_file($filename)
+    {
+        $path = FCPATH . self::LOGO_DIR . basename((string)$filename);
+        if (is_file($path) && !unlink($path)) log_message('error', 'Could not delete logo file ' . $path);
+    }
+
     public function remove_logo($company_id)
     {
         $c = $this->get($company_id);
         if (!$c || empty($c['logo'])) return;
-        @unlink(FCPATH . self::LOGO_DIR . $c['logo']);
+        $this->delete_logo_file($c['logo']);
         $this->db->where('id', (int)$company_id)->update('kfb_companies', ['logo' => NULL, 'updated_at' => date('Y-m-d H:i:s')]);
         $this->_cache_bump();
     }
@@ -266,14 +274,14 @@ class Company_model extends CI_Model
         $ext = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
         if (!in_array($ext, self::ALLOWED_LOGO_TYPES, TRUE)) { $error = 'Logo must be a JPG, PNG or WEBP image.'; return NULL; }
         if ((int)$file['size'] > self::MAX_LOGO_KB * 1024) { $error = 'Logo is larger than ' . self::MAX_LOGO_KB . ' KB.'; return NULL; }
-        $info = @getimagesize($file['tmp_name']);
+        $info = (is_file($file['tmp_name']) && is_readable($file['tmp_name'])) ? getimagesize($file['tmp_name']) : FALSE;
         if (!$info || !in_array($info['mime'] ?? '', ['image/jpeg', 'image/png', 'image/webp'], TRUE)) { $error = 'The file is not a valid image.'; return NULL; }
 
         $dir = FCPATH . self::LOGO_DIR;
-        if (!is_dir($dir) && !@mkdir($dir, 0755, TRUE)) { $error = 'Could not create the logo folder on the server.'; return NULL; }
+        if (!is_dir($dir) && (!is_writable(dirname($dir)) || !mkdir($dir, 0755, TRUE)) && !is_dir($dir)) { $error = 'Could not create the logo folder on the server.'; return NULL; }
 
         $name = bin2hex(random_bytes(8)) . '_' . time() . '.' . ($ext === 'jpeg' ? 'jpg' : $ext);
-        if (!@move_uploaded_file($file['tmp_name'], $dir . $name)) { $error = 'Could not save the uploaded logo.'; return NULL; }
+        if (!is_uploaded_file($file['tmp_name']) || !move_uploaded_file($file['tmp_name'], $dir . $name)) { $error = 'Could not save the uploaded logo.'; return NULL; }
         return $name;
     }
 

@@ -13,6 +13,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * two per-vehicle garage deadhead fees (see Vehicle_model), since
  * different vehicles have different fuel costs.
  */
+#[\AllowDynamicProperties]
 class Settings_model extends CI_Model
 {
     protected $defaults = [
@@ -30,12 +31,22 @@ class Settings_model extends CI_Model
         'pricing_garage_lng'                     => '-87.9099405503354',
         'pricing_worldwide_quote_threshold_miles'=> '5000.00',
         'pricing_child_seat_fee'                 => '15.00',
+
+        // Global PayPal switch (v26). '1' = today's flow (authorize on PayPal, admin captures);
+        // '0' = reservations are created straight as awaiting-approval with no payment step.
+        'paypal_enabled'                         => '1',
     ];
 
     public function __construct()
     {
         parent::__construct();
         $this->load->database();
+    }
+
+    /** Whether new reservations go through PayPal (default ON). */
+    public function paypal_enabled()
+    {
+        return (string)$this->get('paypal_enabled', '1') !== '0';
     }
 
     public function get_all()

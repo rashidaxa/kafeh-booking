@@ -38,7 +38,7 @@
     if (thisScript && thisScript.src && /\/booking4\.js(\?|#|$)/.test(thisScript.src)) {
       cssBase = thisScript.src.replace(/booking4\.js(\?.*)?(#.*)?$/, "");
     }
-    var href = cssBase + "booking4.css?v=20261022";
+    var href = cssBase + "booking4.css?v=20261023";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
@@ -190,6 +190,7 @@
       // -------- Customer accounts (v6) --------
       view: "booking",        // "booking" | "login" | "register" | "forgot" | "reset" | "profile"
       authToken: null,        // bearer token, mirrored in localStorage
+      paypalEnabled: true,    // from GET /settings (Admin > Settings > Payments); the server still decides per reservation — see submitBooking()
       customer: null,         // { id, email, first_name, last_name, ... } once logged in
       editingBookingId: null, // set by startEditReservation() — routes submitBooking() to the update endpoint
       savedCards: [],         // display-only: [{id, nickname, card_brand, card_last4, expiry_month, expiry_year, is_default}] — never the full number/CVV
@@ -438,7 +439,7 @@
         // step 3 (submits, same as the real Book Now button). See the
         // click handler below for the matching step-dependent behavior.
         $("#kfbBookNowBtnMobile").prop("hidden", false)
-          .text(n === 2 ? "Continue →" : (state.editingBookingId ? "Save Changes" : "Book Now"));
+          .text(n === 2 ? "Continue →" : (state.editingBookingId ? "Save Changes" : bookNowLabel()));
       }
       // On mobile, scroll to top of stepper
       if (window.matchMedia("(max-width: 880px)").matches) {
@@ -1693,6 +1694,25 @@
       return payload;
     }
 
+    // "Book Now" becomes "Submit Reservation" when PayPal is switched off.
+    function bookNowLabel() { return state.paypalEnabled ? "Book Now" : "Submit Reservation"; }
+
+    /**
+     * Reads the PayPal on/off switch (GET /settings -> paypalEnabled) so the
+     * button says "Submit Reservation" instead of "Book Now" when there is no
+     * payment step. Cosmetic only: the server decides how each reservation is
+     * actually booked, and a failed/missing answer keeps today's PayPal wording.
+     */
+    function loadPaymentMode() {
+      $.ajax({ url: API_BASE + "/settings", method: "GET", dataType: "json", timeout: 8000 })
+        .done(function (res) {
+          if (!res || res.paypalEnabled !== false) return;
+          state.paypalEnabled = false;
+          if (!state.editingBookingId) $("#kfbBookNowBtn").text(bookNowLabel());
+          if (state.currentStep === 3 && !state.editingBookingId) $("#kfbBookNowBtnMobile").text(bookNowLabel());
+        });
+    }
+
     function createReservation() {
       var payload = buildReservationPayload();
       if (!payload) { toast("No Vehicle Selected.", "error"); return $.Deferred().reject().promise(); }
@@ -1837,7 +1857,7 @@
       var $btn = $("#kfbBookNowBtn, #kfbBookNowBtnMobile");
       $btn.prop("disabled", true);
       var isEditing = !!state.editingBookingId;
-      $("#kfbPaymentStatus").show().find("p").text(isEditing ? "Saving your changes…" : "Creating your reservation…");
+      $("#kfbPaymentStatus").show().find("p").text(isEditing ? "Saving your changes…" : (state.paypalEnabled ? "Creating your reservation…" : "Submitting your reservation…"));
 
       // Captured across the .then() chain — updateReservation()'s
       // price_changed flag decides whether we still need a PayPal
@@ -1861,6 +1881,17 @@
             toast("Reservation Updated ✓");
             state.editingBookingId = null;
             setView("profile");
+            return;
+          }
+          // PayPal switched off (Admin > Settings > Payments): the server already
+          // saved this reservation as "awaiting approval" and says so in its
+          // response — there is no PayPal step at all. The server's answer, not
+          // the widget's cached setting, decides.
+          if (!isEditing && editResult && editResult.payment_mode === "none") {
+            $("#kfbPaymentStatus").hide();
+            $btn.prop("disabled", false);
+            showSuccess(state.bookingId, "none");
+            if (!state.authToken) promptAccountCreation(state.bookingId);
             return;
           }
           $("#kfbPaymentStatus").find("p").text("Redirecting you to PayPal…");
@@ -1926,7 +1957,16 @@
       }
     }
 
-    function showSuccess(bookingId) {
+    // The thank-you paragraph differs by how the reservation was booked. The
+    // original (PayPal) markup is kept so "Make Another Booking" can restore it.
+    var successMsgPaypalHtml = null;
+    function showSuccess(bookingId, mode) {
+      var $msg = $("#kfbSuccessMsg");
+      if (successMsgPaypalHtml === null) successMsgPaypalHtml = $msg.html();
+      $msg.html(mode === "none"
+        ? 'Thank you, <b id="kfbSuccessName">rider</b>. Your reservation has been received and is awaiting approval. ' +
+          'We\'ll email <b id="kfbSuccessEmail">—</b> once it\'s reviewed. You have <strong>not</strong> been charged.'
+        : successMsgPaypalHtml);
       $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").hide();
       var $ok = $("#kfbSuccess").show();
       $("#kfbSuccessId").text(bookingId || state.bookingId || "—");
@@ -3042,7 +3082,7 @@
       state.selectedVehicle = null;
       state.bookingId = null;
       state.editingBookingId = null;
-      $("#kfbBookNowBtn").text("Book Now");
+      $("#kfbBookNowBtn").text(bookNowLabel());
       state.promo = null;
       state.childSeats = {};
       state.addons = [];
@@ -3090,6 +3130,7 @@
       $(".kfb-panel").css("display", "");
       $(".kfb-stepper, .kfb-actions, .kfb-side-col").show();
       $("#kfbSuccess").hide();
+      if (successMsgPaypalHtml !== null) $("#kfbSuccessMsg").html(successMsgPaypalHtml);
       // Re-seed addons catalog
       loadAddons();
       // Native form.reset() above clears the email field too — re-apply
@@ -3294,6 +3335,7 @@
         markFieldValid($el, FIELD_VALIDATORS[name](val));
       });
 
+      loadPaymentMode();
       loadFleet();
       loadAddons();
       renderVehicles();

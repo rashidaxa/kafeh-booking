@@ -8,6 +8,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * the text (no version history). HTML is sanitized on the way in
  * (Html_sanitizer) because it is displayed on client websites.
  */
+#[\AllowDynamicProperties]
 class Terms_model extends CI_Model
 {
     public function __construct()

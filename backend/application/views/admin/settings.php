@@ -5,6 +5,29 @@ $g = function ($key, $default) use ($settings) {
 };
 ?>
 
+<?php $paypal_enabled = isset($paypal_enabled) ? $paypal_enabled : TRUE; ?>
+<section class="kfb-card" style="max-width: 720px;">
+  <header class="kfb-card-head">
+    <h2>Payments</h2>
+    <span class="kfb-badge <?= $paypal_enabled ? 'kfb-badge--ok' : 'kfb-badge--off' ?>"><?= $paypal_enabled ? 'PayPal ON' : 'PayPal OFF' ?></span>
+  </header>
+  <form method="post" action="<?= site_url('admin/settings/payments') ?>" class="kfb-form">
+    <input type="hidden" name="paypal_enabled" value="0">
+    <label class="kfb-field kfb-field--inline">
+      <input type="checkbox" name="paypal_enabled" value="1" <?= $paypal_enabled ? 'checked' : '' ?>>
+      <span><strong>Accept PayPal payments</strong></span>
+    </label>
+    <p class="kfb-hint" style="margin: 4px 0 12px;">
+      <strong>On:</strong> the customer authorizes the payment on PayPal and the reservation moves to &ldquo;Awaiting approval&rdquo;;
+      you then accept (captures the payment) or reject (releases the hold).<br>
+      <strong>Off:</strong> no PayPal at all &mdash; a new reservation is created straight as &ldquo;Awaiting approval&rdquo;, and accepting or rejecting it
+      involves no payment step (shown as &ldquo;Confirmed&rdquo;; the card is processed manually in the legacy portal).
+      Reservations already booked keep working the way they were booked.
+    </p>
+    <div class="kfb-form-actions"><button type="submit" class="kfb-btn kfb-btn--primary kfb-btn--sm">Save payment setting</button></div>
+  </form>
+</section>
+
 <section class="kfb-card" style="max-width: 720px;">
   <header class="kfb-card-head">
     <h2>Pricing Settings</h2>

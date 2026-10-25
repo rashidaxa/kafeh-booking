@@ -51,6 +51,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * separately — see garage_pickup_fee_amount/garage_dropoff_fee_amount
  * below.
  */
+#[\AllowDynamicProperties]
 class Pricing_engine
 {
     /** The garage's fixed country — not admin-editable (it's a physical address, not a rate). */

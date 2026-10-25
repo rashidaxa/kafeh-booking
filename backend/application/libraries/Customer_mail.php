@@ -7,6 +7,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * place: verification code, password-reset link, "your email was changed".
  * All best-effort via the Mailer library (SMTP) — callers ignore failures.
  */
+#[\AllowDynamicProperties]
 class Customer_mail
 {
     protected $CI;
@@ -52,7 +53,7 @@ class Customer_mail
      * Sent to BOTH the old and the new address, branded with the company
      * name and its contact email as Reply-To.
      */
-    public function send_email_changed(array $customer, $oldEmail, $newEmail, array $company = NULL)
+    public function send_email_changed(array $customer, $oldEmail, $newEmail, ?array $company = NULL)
     {
         $companyName = !empty($company['name']) ? $company['name'] : 'A1 Limousine';
         $subject = 'The email on your ' . $companyName . ' account was changed';

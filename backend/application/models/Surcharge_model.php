@@ -15,6 +15,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * Consumed by Pricing_engine::_apply_surcharges() via resolve_amount().
  */
+#[\AllowDynamicProperties]
 class Surcharge_model extends CI_Model
 {
     /**

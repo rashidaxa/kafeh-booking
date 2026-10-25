@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `CardBillingAddress`   VARCHAR(255) NULL COMMENT 'Billing address for the card',
   `status`          ENUM('pending','awaiting_payment','awaiting_approval','paid','payment_failed','cancelled','refunded')
                     NOT NULL DEFAULT 'pending',
+  `payment_mode`    ENUM('paypal','none') NOT NULL DEFAULT 'paypal' COMMENT 'paypal = booked through PayPal authorize/capture; none = booked while PayPal was switched off (admin accepts with no payment step)',
   `paypal_order_id` VARCHAR(64)  NULL COMMENT 'Orders v2 order id created before redirecting to PayPal — used to verify the return-URL callback',
   `ip_address`      VARCHAR(45)  NULL,
   `created_at`      DATETIME     NOT NULL,
@@ -715,3 +716,6 @@ INSERT IGNORE INTO `kfb_terms` (`id`, `html`, `updated_at`, `updated_by`) VALUES
 <p>By accessing the A1 Limousines website, requesting a quote, making a reservation, providing payment information, accepting a quotation, purchasing transportation services, or using A1 transportation services, the customer acknowledges that they have had an opportunity to review these Terms and agrees to be bound by them to the maximum extent permitted by applicable law.</p>
 <p>Where A1 presents these Terms during an online reservation or checkout process, the customer''s affirmative acceptance, electronic acknowledgment, reservation, payment, or use of services constitutes acceptance of the applicable Terms.</p>
 <p><strong>A1 Limousine Service</strong><br><strong>Website:</strong> <a href="https://www.a1limousines.com/" target="_blank" rel="noopener noreferrer">A1Limousines.com</a><br><strong>Reservation &amp; Dispatch:</strong> 1-800-781-4700</p>', NOW(), 'initial import');
+
+-- ----------------- PayPal on/off (v26) -----------------
+INSERT IGNORE INTO `kfb_settings` (`setting_key`, `setting_value`, `updated_at`) VALUES ('paypal_enabled', '1', NOW());

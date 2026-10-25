@@ -1,10 +1,11 @@
 <?php
 $booking = isset($booking) ? $booking : [];
 if (!function_exists('kfb_reservation_badge')) {
-    function kfb_reservation_badge($status)
+    function kfb_reservation_badge($status, $payment_mode = 'paypal')
     {
         switch ($status) {
-            case 'paid':               return ['ok', 'Paid'];
+            // Booked while PayPal was off: accepted, but nothing was paid online.
+            case 'paid':               return ['ok', $payment_mode === 'none' ? 'Confirmed' : 'Paid'];
             case 'awaiting_approval':  return ['warn', 'Awaiting approval'];
             case 'cancelled':          return ['danger', 'Cancelled'];
             case 'payment_failed':     return ['danger', 'Payment failed'];
@@ -88,7 +89,8 @@ $kfbChildSeatLabels = [
     'booster'        => 'Booster Seat',
 ];
 
-[$badge, $badgeLabel] = kfb_reservation_badge($booking['status'] ?? '');
+$noPayPal = ($booking['payment_mode'] ?? 'paypal') === 'none';
+[$badge, $badgeLabel] = kfb_reservation_badge($booking['status'] ?? '', $booking['payment_mode'] ?? 'paypal');
 $hasCard        = !empty($booking['card_brand']) && !empty($booking['card_last4']);
 $awaitingReview = ($booking['status'] ?? '') === 'awaiting_approval';
 $isPaid         = ($booking['status'] ?? '') === 'paid';
@@ -126,11 +128,11 @@ if (!empty($booking['legacy_sync_log'])) {
       <?php if ($awaitingReview): ?>
         <button type="button" class="kfb-btn kfb-btn--primary kfb-btn--sm" id="kfbAcceptBtn"
                 data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/accept') ?>">
-          Accept — capture $<?= number_format((float)$booking['amount'], 2) ?>
+          <?= $noPayPal ? 'Accept reservation' : 'Accept — capture $' . number_format((float)$booking['amount'], 2) ?>
         </button>
         <button type="button" class="kfb-btn kfb-btn--danger kfb-btn--sm" id="kfbRejectBtn"
                 data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/reject') ?>">
-          Reject — release hold
+          <?= $noPayPal ? 'Reject reservation' : 'Reject — release hold' ?>
         </button>
       <?php endif; ?>
       <?php if (!empty($legacySyncLog)): ?>
@@ -141,7 +143,7 @@ if (!empty($booking['legacy_sync_log'])) {
       <button type="button" class="kfb-btn kfb-btn--danger kfb-btn--sm" id="kfbDeleteReservationBtn"
               data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/delete') ?>"
               data-redirect="<?= site_url('admin/reservations') ?>"
-              <?php if ($awaitingReview): ?>data-has-hold="1"<?php endif; ?>>
+              <?php if ($awaitingReview && !$noPayPal): ?>data-has-hold="1"<?php endif; ?>>
         Delete Reservation
       </button>
     </div>
@@ -195,7 +197,7 @@ if (!empty($booking['legacy_sync_log'])) {
         <?php if ($hasCard): ?>
           <?= htmlspecialchars(ucfirst($booking['card_brand'])) ?> •••• <?= htmlspecialchars($booking['card_last4']) ?>
         <?php else: ?>
-          <span class="kfb-hint">Paid via PayPal — no card details collected</span>
+          <span class="kfb-hint"><?= $noPayPal ? 'No online payment (PayPal was off) — charge the card in the legacy portal' : 'Paid via PayPal — no card details collected' ?></span>
         <?php endif; ?>
       </p>
     </div>
@@ -375,7 +377,7 @@ if (!empty($booking['legacy_sync_log'])) {
   </section>
 <?php endif; ?>
 
-<?php if ($isPaid): ?>
+<?php if ($isPaid && !$noPayPal): ?>
   <section class="kfb-card">
     <header class="kfb-card-head">
       <h2>Additional charges</h2>

@@ -15,6 +15,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   GET /admin/vehicles/:id   → dedicated edit form
  */
 
+#[\AllowDynamicProperties]
 class Admin extends CI_Controller
 {
     public function __construct()
@@ -99,6 +100,17 @@ class Admin extends CI_Controller
         $this->load->view('admin/_layout_header', $data);
         $this->load->view('admin/vehicles', $data);
         $this->load->view('admin/_layout_footer', $data);
+    }
+
+    /** POST /admin/settings/payments — the global PayPal on/off switch */
+    public function settings_payments()
+    {
+        $on = $this->input->post('paypal_enabled') === '1';
+        $this->Settings_model->set('paypal_enabled', $on ? '1' : '0');
+        $this->session->set_flashdata('flash', ['type' => 'success', 'message' => $on
+            ? 'PayPal is ON. New reservations go through PayPal authorization, as before.'
+            : 'PayPal is OFF. New reservations skip PayPal and are created as awaiting approval; you accept or reject them with no payment step.']);
+        return redirect('admin/settings');
     }
 
     // ----------------- Terms & Conditions -----------------
@@ -309,13 +321,13 @@ class Admin extends CI_Controller
 
         if ($savedId) {
             // Replacing the logo: drop the old file only after the new one is saved.
-            if ($logo && $existing && !empty($existing['logo'])) @unlink(FCPATH . Company_model::LOGO_DIR . $existing['logo']);
+            if ($logo && $existing && !empty($existing['logo'])) $this->Company_model->delete_logo_file($existing['logo']);
             $this->session->set_flashdata('flash', ['type' => 'success', 'message' => 'Company saved.']);
             return redirect('admin/companies/' . $savedId);
         }
 
         // Validation failed — clean up a just-uploaded logo and redisplay with the posted values.
-        if ($logo) @unlink(FCPATH . Company_model::LOGO_DIR . $logo);
+        if ($logo) $this->Company_model->delete_logo_file($logo);
         $company = array_merge($existing ?: [], $post, ['id' => $id ?: NULL, 'domains' => $domains, 'logo' => $existing['logo'] ?? NULL]);
         $this->_render_companies($company, $errors);
     }
@@ -442,6 +454,7 @@ class Admin extends CI_Controller
             'page_title' => 'Pricing Settings',
             'admin'      => $this->_current_admin(),
             'settings'   => $this->Settings_model->pricing_settings(),
+            'paypal_enabled' => $this->Settings_model->paypal_enabled(),
             'flash'      => $this->session->flashdata('flash'),
         ];
         $this->load->view('admin/_layout_header', $data);
