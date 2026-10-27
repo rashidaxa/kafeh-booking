@@ -81,6 +81,11 @@ class Legacy_reservations
             return [['leg' => 'outbound', 'skipped' => TRUE, 'reason' => 'legacy_sync_enabled is FALSE', 'at' => date('Y-m-d H:i:s')]];
         }
 
+        // json_encode() would otherwise write 48.14 as 48.1400000000000005 on
+        // hosts whose serialize_precision is 17 — those digits end up in the
+        // legacy price fields.
+        ini_set('serialize_precision', '-1');
+
         $logs = [];
         // Belt-and-suspenders on top of _post()'s own network-error
         // handling — this runs inside the payment-capture/approve path,
@@ -137,19 +142,10 @@ class Legacy_reservations
         $clientPhone = (string)(!empty($booking['cc_phone']) ? $booking['cc_phone'] : ($booking['phone'] ?? ''));
         $clientEmail = (string)(!empty($booking['cc_email']) ? $booking['cc_email'] : ($booking['email'] ?? ''));
 
-        // Pricing always comes from the outbound row (see docblock) —
-        // these are the one-way, per-leg figures already, nothing here
-        // needs dividing.
-        $baseAmount    = (float)($booking['transportation_amount'] ?? 0);
-        $surchargesAmt = (float)($booking['surcharges_total_amount'] ?? 0);
-        $gratuityAmt   = (float)($booking['gratuity_amount'] ?? 0);
-        $discountAmt   = (float)($booking['discount_amount'] ?? 0);
-
-        // `amount` is the only figure that's ever doubled for a round
-        // trip (see docblock) — each leg's legacy entry gets half of it.
-        $isRoundTrip = !empty($booking['is_return_trip']);
-        $fullAmount  = (float)($booking['amount'] ?? 0);
-        $grandTotal  = round($isRoundTrip ? $fullAmount / 2 : $fullAmount, 2);
+        // Pricing always comes from the outbound row (see docblock) — one-way,
+        // per-leg figures, laid out the way the legacy Client Pricing form
+        // does its own math (see leg_pricing()).
+        $pricing = $this->leg_pricing($booking);
 
         $pickupAddress = (string)($leg['pickup'] ?? '');
         if (!$isReturn && !empty($booking['stops'])) {
@@ -195,7 +191,7 @@ class Legacy_reservations
             'driver_payout'          => 0,
             'paid_status'            => 0, // legacy convention: tracks driver payout status, not customer payment — matches existing rows
             'pickup_time'            => $leg['pickup_time'],
-            'dropoff_time'           => '00:00:00', // not tracked as a distinct value here (existing legacy rows default the same way)
+            'dropoff_time'           => $this->dropoff_time($booking, $leg), // pickup + booked hours / route duration
             'pickup_address'         => $pickupAddress,
             'drop_off_address'       => (string)($leg['dropoff'] ?? ''),
             'trip_notice_details'    => $this->_trip_notes($booking, $leg, $clientPhone, $clientEmail),
@@ -221,13 +217,13 @@ class Legacy_reservations
             // that reliably reproduces p_total, so rather than send a
             // number that sometimes doesn't multiply out right, we just
             // don't populate these three at all.
-            'p_charges'              => $surchargesAmt,         // "Charges"
-            'graduity'               => $gratuityAmt,
-            'discount'               => $discountAmt,
-            'p_total'                => $baseAmount,            // base rate only (excludes travel fee/surcharges/gratuity/add-ons/discount)
+            'p_charges'              => $pricing['base'],       // "Charges" — the base our gratuity % applies to (transportation + travel fee)
+            'graduity'               => $pricing['gratuity'],   // legacy shows this / Charges as the gratuity %
+            'discount'               => $pricing['discount'],
+            'p_total'                => $pricing['p_total'],    // Charges + gratuity + every price line below (what the legacy form's "Total" is)
             'deposit'                => 0,
-            'grand_total'            => $grandTotal,            // full total — surcharges, add-ons, discount, gratuity all included
-            'prices'                 => json_encode($this->_prices_breakdown($booking)),
+            'grand_total'            => $pricing['grand'],      // p_total - discount
+            'prices'                 => json_encode($pricing['prices'], JSON_FORCE_OBJECT), // {"Surcharges": 48.14, ...} — name => amount, as the legacy form iterates it
             'created_at'             => date('Y-m-d H:i:s'),
         ];
     }
@@ -279,34 +275,72 @@ class Legacy_reservations
     }
 
     /**
-     * Itemized add-ons + surcharges for the legacy `prices` JSON column.
-     * Add-ons are itemized (addons_json has real per-item name/amount);
-     * surcharges are only stored as an aggregate total on this side (no
-     * itemized per-surcharge table on a booking), so that comes through
-     * as a single labeled line rather than a guessed breakdown.
+     * One leg's price lines in the legacy portal's shape. The legacy Client
+     * Pricing form computes  Total = Charges + Gratuity + sum(extra lines)
+     * and shows Gratuity % as Gratuity / Charges, with the extra lines as a
+     * {name: amount} map. So:
+     *   base     "Charges": whatever remains after every other line, which is
+     *            transportation + travel fee — exactly what our gratuity %
+     *            is applied to (Pricing_engine), so the % shown there matches.
+     *   prices   Surcharges (aggregate — no per-surcharge rows are stored),
+     *            Child Seats, and each add-on by name.
+     * `amount` is the only figure doubled for a round trip, so each leg gets
+     * half of it; everything else is already per leg. Shared with the
+     * customer confirmation email so the two always agree.
      */
-    protected function _prices_breakdown(array $booking)
+    public function leg_pricing(array $booking)
     {
-        $items = [];
+        $n = function ($k) use ($booking) { return (float)($booking[$k] ?? 0); };
+        $grand    = round(!empty($booking['is_return_trip']) ? $n('amount') / 2 : $n('amount'), 2);
+        $gratuity = $n('gratuity_amount');
+        $discount = $n('discount_amount');
 
-        if (!empty($booking['addons_json'])) {
-            $addons = json_decode($booking['addons_json'], TRUE);
-            if (is_array($addons)) {
-                foreach ($addons as $a) {
-                    $items[] = [
-                        'name'   => $a['name'] ?? ($a['code'] ?? 'Add-on'),
-                        'amount' => (float)($a['line_total'] ?? 0),
-                    ];
-                }
+        $prices = [];
+        $add = function ($name, $amt) use (&$prices) {
+            if ((float)$amt <= 0) return;
+            $key = $name; $i = 2;
+            while (isset($prices[$key])) $key = $name . ' ' . $i++; // keep duplicate add-on names distinct
+            $prices[$key] = round((float)$amt, 2);
+        };
+        $add('Surcharges', $n('surcharges_total_amount'));
+        $add('Child Seats', $n('child_seats_fee_amount'));
+        $items = !empty($booking['addons_json']) ? json_decode($booking['addons_json'], TRUE) : NULL;
+        $itemised = 0.0;
+        if (is_array($items)) {
+            foreach ($items as $a) {
+                $line = (float)($a['line_total'] ?? 0);
+                if ($line > 0) { $add($a['name'] ?? ($a['code'] ?? 'Add-on'), $line); $itemised += $line; }
             }
         }
+        if ($itemised <= 0) $add('Add-ons', $n('addons_total'));
 
-        $surcharges = (float)($booking['surcharges_total_amount'] ?? 0);
-        if ($surcharges > 0) {
-            $items[] = ['name' => 'Surcharges', 'amount' => $surcharges];
-        }
+        $base    = round(max(0, $grand + $discount - $gratuity - array_sum($prices)), 2);
+        $p_total = round($base + $gratuity + array_sum($prices), 2);
+        return [
+            'base'     => $base,
+            'gratuity' => $gratuity,
+            'prices'   => $prices,
+            'discount' => $discount,
+            'p_total'  => $p_total,
+            'grand'    => round($p_total - $discount, 2),
+        ];
+    }
 
-        return $items;
+    /**
+     * Drop-off time (H:i:s) for one leg: pickup + the booked hours for Hourly
+     * service, otherwise pickup + the route's driving duration. Falls back to
+     * the pickup time when neither is known. Time of day only — the legacy
+     * column and the email both show a clock time.
+     */
+    public function dropoff_time(array $booking, array $leg)
+    {
+        $pickup = $leg['pickup_time'] ?? '00:00:00';
+        $hours  = (float)($booking['hours_requested'] ?? 0);
+        $mins   = (($booking['service_type'] ?? '') === 'Hourly' && $hours > 0)
+            ? (int)round($hours * 60)
+            : (int)($leg['duration_mins'] ?? $booking['duration_mins'] ?? 0);
+        if ($mins <= 0) return date('H:i:s', strtotime($pickup));
+        return date('H:i:s', strtotime(($leg['pickup_date'] ?? 'today') . ' ' . $pickup . ' +' . $mins . ' minutes'));
     }
 
     /** "12/29" -> "12/2029". Leaves already-4-digit or unrecognized values as-is. */

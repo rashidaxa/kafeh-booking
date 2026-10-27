@@ -32,7 +32,7 @@ class Admin_api extends CI_Controller
     {
         parent::__construct();
         $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model', 'Company_model']);
-        $this->load->library(['session', 'paypal', 'legacy_reservations', 'mailer']);
+        $this->load->library(['session', 'paypal', 'legacy_reservations', 'mailer', 'booking_presenter']);
         $this->load->helper('url');
         $this->_set_cors_headers();
 
@@ -691,134 +691,6 @@ class Admin_api extends CI_Controller
         return $payload;
     }
 
-    /**
-     * View vars for emails/booking_confirmation — one entry in `legs` per
-     * reservation (outbound + return for a round trip). Pricing is the
-     * outbound row's one-way breakdown with `amount` halved for a round
-     * trip, i.e. exactly what Legacy_reservations::sync() pushes, so the
-     * customer's email and the dispatch portal never disagree. The
-     * "Regular Hrly/Flat Chrgs" line is derived (total minus every other
-     * line) the same way customer/receipt.php derives "Transportation",
-     * so the lines always add up to the Estimated Charges shown.
-     */
-    protected function _confirmation_vars($booking, $company)
-    {
-        $money = function ($k) use ($booking) { return (float)($booking[$k] ?? 0); };
-
-        $passengerName = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
-        $clientName    = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
-        if ($clientName === '') $clientName = $passengerName;
-        $clientPhone = (string)(!empty($booking['cc_phone']) ? $booking['cc_phone'] : ($booking['phone'] ?? ''));
-        $clientEmail = (string)(!empty($booking['cc_email']) ? $booking['cc_email'] : ($booking['email'] ?? ''));
-
-        $isRound = !empty($booking['is_return_trip']) && !empty($booking['return_leg']);
-        $grand   = round($isRound ? $money('amount') / 2 : $money('amount'), 2);
-
-        $extra = [];
-        $travel = $money('travel_fee_amount');
-        $surch  = $money('surcharges_total_amount');
-        $child  = $money('child_seats_fee_amount');
-        $addons = $money('addons_total');
-        if ($travel > 0) $extra[] = ['name' => 'Travel Fee', 'amount' => $travel];
-        if ($surch  > 0) $extra[] = ['name' => 'Surcharges', 'amount' => $surch];
-        if ($child  > 0) $extra[] = ['name' => 'Child Seats', 'amount' => $child];
-        $addonItems = [];
-        $decoded = !empty($booking['addons_json']) ? json_decode($booking['addons_json'], TRUE) : NULL;
-        if (is_array($decoded)) {
-            foreach ($decoded as $a) {
-                if ((float)($a['line_total'] ?? 0) > 0) $addonItems[] = ['name' => $a['name'] ?? ($a['code'] ?? 'Add-on'), 'amount' => (float)$a['line_total']];
-            }
-        }
-        if ($addonItems) $extra = array_merge($extra, $addonItems);
-        elseif ($addons > 0) $extra[] = ['name' => 'Add-ons', 'amount' => $addons];
-
-        $gratuity = $money('gratuity_amount');
-        $discount = $money('discount_amount');
-        $transport = max(0, round($grand - $travel - $surch - $child - $addons - $gratuity + $discount, 2));
-
-        $payment = '';
-        if (!empty($booking['card_last4'])) {
-            $payment = (!empty($booking['card_brand']) ? ucfirst($booking['card_brand']) : 'Credit Card') . ' XXXX ' . $booking['card_last4'];
-        }
-
-        $build = function (array $row, $isReturn) use ($booking, $clientName, $passengerName, $clientPhone, $clientEmail, $grand, $transport, $gratuity, $extra, $discount, $payment) {
-            $pickupLines = array_map('trim', explode("\n", (string)($row['pickup'] ?? '')));
-            if (!$isReturn) {
-                foreach (($booking['stops'] ?? []) as $i => $stop) $pickupLines[] = 'Stop ' . ($i + 1) . ': ' . $stop['address'];
-            }
-            if (!empty($row['airline'])) {
-                $pickupLines[] = $row['airline'];
-                if (!empty($row['flight_number'])) $pickupLines[] = 'Flight Number ' . $row['flight_number'];
-            }
-            $dropoffLines = array_map('trim', explode("\n", (string)($row['dropoff'] ?? '')));
-            if (!empty($row['dropoff_airline'])) {
-                $dropoffLines[] = $row['dropoff_airline'];
-                if (!empty($row['dropoff_flight_number'])) $dropoffLines[] = 'Flight Number ' . $row['dropoff_flight_number'];
-            }
-
-            // Hourly bookings end after the booked hours; everything else has no
-            // separate end time, so it repeats the pick-up time (as the legacy view does).
-            $hours = (float)($booking['hours_requested'] ?? 0);
-            $dropoffTime = $row['pickup_time'];
-            if (($booking['service_type'] ?? '') === 'Hourly' && $hours > 0) {
-                $dropoffTime = date('H:i:s', strtotime(($row['pickup_date'] ?? 'today') . ' ' . $row['pickup_time'] . ' +' . (int)round($hours * 60) . ' minutes'));
-            }
-
-            return [
-                'reference'       => $row['booking_id'] ?? $booking['booking_id'],
-                'client_name'     => $clientName,
-                'pickup_date'     => $row['pickup_date'],
-                'pickup_time'     => $row['pickup_time'],
-                'dropoff_time'    => $dropoffTime,
-                'trip_type'       => $this->legacy_reservations->trip_type($booking['service_type'] ?? '', $row),
-                'passenger_name'  => $passengerName,
-                'client_ref'      => '',
-                'client_phone'    => $clientPhone,
-                'ordered_by'      => $clientName,
-                'passenger_count' => $booking['passengers'] ?? '',
-                'vehicle_name'    => $booking['vehicle_name'] ?? '',
-                'pickup_lines'    => $pickupLines,
-                'dropoff_lines'   => $dropoffLines,
-                'notes'           => $this->legacy_reservations->trip_notes($booking, $row, $clientPhone, $clientEmail),
-                'transport'       => $transport,
-                'gratuity'        => $gratuity,
-                'extra_charges'   => $extra,
-                'payment_method'  => $payment,
-                'discount'        => $discount,
-                'grand_total'     => $grand,
-            ];
-        };
-
-        $legs = [$build($booking, FALSE)];
-        if ($isRound) $legs[] = $build($booking['return_leg'], TRUE);
-
-        // Company contact details; falls back to A1's published numbers when the company has none set.
-        $withLabel = function ($label, $v) { return stripos($v, rtrim($label, ': ')) === FALSE ? $label . $v : $v; };
-        $phone1 = trim((string)($company['phone_1'] ?? ''));
-        $phone2 = trim((string)($company['phone_2'] ?? ''));
-        $csLine = $phone1 !== '' ? $withLabel('Toll: ', $phone1) : 'Toll: +1 (800) 781-4700';
-        $footer = array_values(array_filter([
-            trim((string)($company['address_line_1'] ?? '')),
-            trim((string)($company['address_line_2'] ?? '')),
-            $phone1 !== '' ? $withLabel('Toll: ', $phone1) : '',
-            $phone2 !== '' ? $withLabel('Local: ', $phone2) : '',
-            !empty($company['contact_email']) ? 'Email: ' . $company['contact_email'] : '',
-        ], 'strlen'));
-        if (!$footer) {
-            $footer = ['Worldwide Chauffeured Services', 'Toll: +1 (800) 781-4700', 'Local: +1 (224) 781-4700', 'Email: info@a1limousines.com', 'www.A1Limousines.com'];
-        }
-
-        $companyLogo = $company ? $this->Company_model->logo_url($company) : NULL;
-        $a1Header    = 'https://grounddispatch.com/a1-limousine-logo.png';
-        return [
-            'legs'            => $legs,
-            'cs_line'         => $csLine,
-            'footer_lines'    => $footer,
-            'logo_header_url' => (!$companyLogo || (int)($booking['company_id'] ?? 1) === 1) ? $a1Header : $companyLogo,
-            'logo_footer_url' => $companyLogo ?: 'https://grounddispatch.com/works/uploads/companies/4364051633297127logo.jpg',
-        ];
-    }
-
     /** Best-effort confirmation email, sent once a reservation is accepted — sent via SMTP (see Mailer library), not mail(). */
     protected function _send_confirmation($booking)
     {
@@ -834,7 +706,7 @@ class Admin_api extends CI_Controller
         // don't render HTML.
         $company = $this->Company_model->get($booking['company_id'] ?? 1);
         $companyName = !empty($company['name']) ? $company['name'] : 'A1 Limousine';
-        $html = $this->load->view('emails/booking_confirmation', $this->_confirmation_vars($booking, $company), TRUE);
+        $html = $this->load->view('emails/booking_confirmation', $this->booking_presenter->confirmation_vars($booking, $company), TRUE);
 
         $body    =
             "Hi {$greet},\n\n" .

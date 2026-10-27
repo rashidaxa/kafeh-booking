@@ -8,10 +8,13 @@
   <link rel="stylesheet" href="test.css">
 
   <script>
-    // Only when opened locally; on the live site the widget's production defaults apply.
-    if (/^(localhost|127\.0\.0\.1|)$/.test(location.hostname)) {
-      window.API     = "http://localhost/booking/backend/api";
-      window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
+    // Local development only: when the page is NOT served from grounddispatch.com,
+    // point the widget at the backend on the same machine (XAMPP, port 80). On the
+    // live site this block does nothing and the widget uses its production defaults.
+    if (!/(^|\.)grounddispatch\.com$/.test(location.hostname) && /^https?:$/.test(location.protocol)) {
+      var kfbDevBase = location.protocol + "//" + location.hostname;
+      window.API     = kfbDevBase + "/booking/backend/api";
+      window.UPLOADS = kfbDevBase + "/booking/backend/uploads/vehicles/";
     }
   </script>
 </head>
@@ -460,6 +463,7 @@
                 </div>
 
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Passenger Info</h3>
+                <label class="kfb-check kfb-same-passenger"><input type="checkbox" id="kfbSamePassenger"> Passenger is the same as the credit card holder</label>
                 <div class="kfb-field-row-2">
                   <label class="kfb-field"><span>First Name *</span><input type="text" name="firstName" required></label>
                   <label class="kfb-field"><span>Last Name *</span><input type="text" name="lastName" required></label>
@@ -809,7 +813,7 @@
     <!--
       <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
       <script src="https://grounddispatch.com/booking/embed/airports.js"></script>
-      <script src="https://grounddispatch.com/booking/embed/booking5.js?v=20261027"></script>
+      <script src="https://grounddispatch.com/booking/embed/booking6.js?v=20261028"></script>
       <script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
       <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
     -->
@@ -817,7 +821,7 @@
 
     <script src="vendor/jquery-3.7.1.min.js"></script>
     <script src="embed/airports.js"></script>
-    <script src="embed/booking5.js?v=20261027"></script>
+    <script src="embed/booking6.js?v=20261028"></script>
     <script src="embed/booking-map.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
 

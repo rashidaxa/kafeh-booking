@@ -559,6 +559,15 @@ class Admin extends CI_Controller
             $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Reservation not found.']);
             return redirect('admin/reservations');
         }
+        // Estimated drop-off clock time for each leg — same calculation as the
+        // customer confirmation email and the legacy portal entry.
+        $this->load->library('legacy_reservations');
+        $booking['dropoff_time_calc'] = $this->legacy_reservations->dropoff_time($booking, $booking);
+        if (!empty($booking['return_leg'])) {
+            $booking['return_leg']['service_type']    = $booking['service_type'] ?? NULL;
+            $booking['return_leg']['hours_requested'] = $booking['hours_requested'] ?? NULL;
+            $booking['return_leg']['dropoff_time_calc'] = $this->legacy_reservations->dropoff_time($booking, $booking['return_leg']);
+        }
         $data = [
             'page_title' => 'Reservation ' . $booking['booking_id'],
             'admin'      => $this->_current_admin(),

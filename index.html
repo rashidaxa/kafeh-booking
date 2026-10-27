@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A1 Limousine</title>
+
+  <link rel="stylesheet" href="test.css">
+
+  <script>
+    // Local development only: when the page is NOT served from grounddispatch.com,
+    // point the widget at the backend on the same machine (XAMPP, port 80). On the
+    // live site this block does nothing and the widget uses its production defaults.
+    if (!/(^|\.)grounddispatch\.com$/.test(location.hostname) && /^https?:$/.test(location.protocol)) {
+      var kfbDevBase = location.protocol + "//" + location.hostname;
+      window.API     = kfbDevBase + "/booking/backend/api";
+      window.UPLOADS = kfbDevBase + "/booking/backend/uploads/vehicles/";
+    }
+  </script>
+</head>
+<body>
+
+<header class="test-header">
+  <div>
+    <h1>A1 Limousine</span></h1>
+  </div>
+</header>
+
+<main class="test-main">
+  <div class="test-widget-host">
+
+    <!-- EMBED: COPY START -->
+    <div class="kfb-widget" id="kfbBookingWidget">
+
+      <style>
+        .kfb-widget:not(.kfb-ready) > .kfb-container { display: none; }
+        .kfb-widget.kfb-ready > .kfb-container { animation: kfbBootIn .35s ease both; }
+        @keyframes kfbBootIn { from { opacity: 0; } to { opacity: 1; } }
+        .kfb-boot { max-width: 1320px; margin: 0 auto; padding: 0 20px 40px; box-sizing: border-box; transition: opacity .3s ease; }
+        .kfb-boot, .kfb-boot * { box-sizing: border-box; }
+        .kfb-boot.is-leaving { opacity: 0; }
+        .kfb-boot i { display: block; background: #e5e7eb; border-radius: 6px; position: relative; overflow: hidden; }
+        .kfb-boot i::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+          animation: kfbBootShimmer 1.3s infinite; }
+        @keyframes kfbBootShimmer { to { transform: translateX(100%); } }
+        .kfb-boot-steps { display: flex; justify-content: space-between; padding: 28px 20px 18px; margin-bottom: 24px; }
+        .kfb-boot-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .kfb-boot-step i:first-child { width: 36px; height: 36px; border-radius: 50%; }
+        .kfb-boot-step i:last-child { width: 110px; height: 12px; }
+        .kfb-boot-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+        .kfb-boot-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px 28px 28px;
+          box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+        .kfb-boot-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+        .kfb-boot-title { width: 180px; height: 24px; }
+        .kfb-boot-pills { width: 170px; height: 34px; }
+        .kfb-boot-label { width: 90px; height: 11px; margin-bottom: 8px; }
+        .kfb-boot-field { width: 100%; height: 44px; margin-bottom: 20px; }
+        .kfb-boot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .kfb-boot-btn { width: 130px; height: 44px; margin: 8px 0 0 auto; }
+        .kfb-boot-side { padding: 0; overflow: hidden; }
+        .kfb-boot-side .kfb-boot-sidehead { height: 40px; border-radius: 0; }
+        .kfb-boot-side .kfb-boot-map { height: 480px; border-radius: 0; }
+        @media (max-width: 900px) {
+          .kfb-boot-body { grid-template-columns: 1fr; }
+          .kfb-boot-step i:last-child { width: 60px; }
+          .kfb-boot-card { padding: 18px; }
+          .kfb-boot-row { grid-template-columns: 1fr; gap: 0; }
+          .kfb-boot-side .kfb-boot-map { height: 300px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .kfb-boot i::after { animation: none; }
+          .kfb-widget.kfb-ready > .kfb-container { animation: none; }
+        }
+      </style>
+      <div class="kfb-boot" id="kfbBoot" aria-hidden="true">
+        <div class="kfb-boot-steps">
+          <div class="kfb-boot-step"><i></i><i></i></div>
+          <div class="kfb-boot-step"><i></i><i></i></div>
+          <div class="kfb-boot-step"><i></i><i></i></div>
+        </div>
+        <div class="kfb-boot-body">
+          <div class="kfb-boot-card">
+            <div class="kfb-boot-head"><i class="kfb-boot-title"></i><i class="kfb-boot-pills"></i></div>
+            <i class="kfb-boot-label"></i><i class="kfb-boot-field"></i>
+            <i class="kfb-boot-label"></i><i class="kfb-boot-field"></i>
+            <div class="kfb-boot-row">
+              <div><i class="kfb-boot-label"></i><i class="kfb-boot-field"></i></div>
+              <div><i class="kfb-boot-label"></i><i class="kfb-boot-field"></i></div>
+            </div>
+            <i class="kfb-boot-btn"></i>
+          </div>
+          <div class="kfb-boot-card kfb-boot-side">
+            <i class="kfb-boot-sidehead"></i><i class="kfb-boot-map"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="kfb-container">
+
+        <div class="kfb-account-bar" id="kfbAccountBar">
+          <div class="kfb-account-bar-guest" id="kfbAccountBarGuest">
+            <button type="button" class="kfb-link-btn" id="kfbShowLoginBtn">Log in</button>
+            <span class="kfb-account-bar-sep">·</span>
+            <button type="button" class="kfb-link-btn" id="kfbShowRegisterBtn">Create account</button>
+          </div>
+          <div class="kfb-account-bar-user" id="kfbAccountBarUser" hidden>
+            <span>Hi, <b id="kfbAccountBarName">—</b></span>
+            <span class="kfb-account-bar-sep">·</span>
+            <button type="button" class="kfb-link-btn" id="kfbShowProfileBtn">Profile</button>
+            <span class="kfb-account-bar-sep">·</span>
+            <button type="button" class="kfb-link-btn" id="kfbLogoutBtn">Log out</button>
+          </div>
+        </div>
+
+        <div id="kfbBookingView">
+
+        <nav class="kfb-stepper" aria-label="Booking progress">
+          <ol class="kfb-stepper-list" id="kfbStepperList">
+            <li class="kfb-step is-active" data-step="1">
+              <span class="kfb-step-number">1</span>
+              <span class="kfb-step-label">Where &amp; When</span>
+            </li>
+            <li class="kfb-step" data-step="2">
+              <span class="kfb-step-number">2</span>
+              <span class="kfb-step-label">Select Vehicle</span>
+            </li>
+            <li class="kfb-step" data-step="3">
+              <span class="kfb-step-number">3</span>
+              <span class="kfb-step-label">Payment &amp; Confirm</span>
+            </li>
+          </ol>
+        </nav>
+
+        <div class="kfb-body">
+
+          <div class="kfb-form-col">
+            <form id="kfbForm" novalidate>
+
+              <div style="position:absolute;left:-9999px" aria-hidden="true">
+                <label><input type="radio" name="service" value="Transfer" checked> Transfer</label>
+                <label><input type="radio" name="service" value="Point to Point"> Point to Point</label>
+                <label><input type="radio" name="service" value="From Airport"> From Airport</label>
+                <label><input type="radio" name="service" value="To Airport"> To Airport</label>
+                <label><input type="radio" name="service" value="Hourly"> Hourly / As Directed</label>
+                <label><input type="radio" name="service" value="Wedding"> Wedding</label>
+                <label><input type="radio" name="service" value="Tour"> Tour</label>
+              </div>
+
+              <section class="kfb-panel is-active" data-panel="1">
+
+                <div class="kfb-panel-head">
+                  <h2 class="kfb-panel-title">Where &amp; When</h2>
+                  <div class="kfb-service-pills" role="tablist" aria-label="Service type">
+                    <button type="button" class="kfb-service-pill is-active" data-service="Transfer" role="tab" aria-selected="true">📍 Transfer</button>
+                    <button type="button" class="kfb-service-pill" data-service="Hourly"   role="tab" aria-selected="false">⏱ Hourly</button>
+                  </div>
+                </div>
+
+                <div class="kfb-section" id="kfbHoursWrap" hidden>
+                  <label class="kfb-field">
+                    <span>Number of Hours <em>*</em></span>
+                    <input type="number" name="hours" id="kfbHoursInput" min="1" step="1" placeholder="Enter Hours" required>
+                  </label>
+                </div>
+
+                <div class="kfb-section">
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field">
+                      <span>Pick-Up Date</span>
+                      <div class="kfb-dt-overlay-wrap">
+                        <input type="date" name="pickupDate" required>
+                        <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                      </div>
+                    </label>
+                    <label class="kfb-field">
+                      <span>Pick-Up Time</span>
+                      <div class="kfb-dt-overlay-wrap">
+                        <input type="time" name="pickupTime" required>
+                        <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="kfb-section">
+                  <div class="kfb-loc-type" data-group="pickup" role="tablist" aria-label="Pickup location type">
+                    <button type="button" class="kfb-loc-type-btn is-active" data-value="Search All" data-group="pickup" role="tab">Search All</button>
+                    <button type="button" class="kfb-loc-type-btn" data-value="Address"     data-group="pickup" role="tab">Address</button>
+                    <button type="button" class="kfb-loc-type-btn" data-value="Airport"     data-group="pickup" role="tab">Airport</button>
+                    <button type="button" class="kfb-loc-type-btn" data-value="Landmark"    data-group="pickup" role="tab">Landmark</button>
+                  </div>
+                  <input type="hidden" name="pickupLocType" value="Search All">
+                  <label class="kfb-field" id="kfbPickupWrap">
+                    <span class="kfb-pickup-label">Pick-Up Location</span>
+                    <input type="text" name="pickup" id="kfbPickup" placeholder="Enter Location" required autocomplete="off">
+                  </label>
+                  <div class="kfb-airport-extras" data-group="pickup" hidden>
+                    <div class="kfb-field-row-3">
+                      <label class="kfb-field">
+                        <span>Airline</span>
+                        <input type="text" name="airline" list="kfbAirlinesList" placeholder="Select Or Type Airline">
+                        <datalist id="kfbAirlinesList"></datalist>
+                      </label>
+                      <label class="kfb-field">
+                        <span>Flight #</span>
+                        <input type="text" name="flightNumber" placeholder="E.g. AA1234">
+                      </label>
+                      <label class="kfb-field">
+                        <span>Arrival Time</span>
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="time" name="arrivalTime">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
+                      </label>
+                    </div>
+                    <label class="kfb-field" style="margin-top:8px">
+                      <span>Pickup Point</span>
+                      <select name="pickupTypeDetail" id="kfbPickupTypeDetail">
+                        <option value="Curbside" selected>Curbside Pickup (Outside) — Included</option>
+                        <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
+                        <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
+                      </select>
+                    </label>
+                    <label class="kfb-field" id="kfbTailNumberWrap" hidden>
+                      <span>Aircraft Tail Number <em>*</em></span>
+                      <input type="text" name="tailNumber" maxlength="10"
+                             placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                    </label>
+                  </div>
+                </div>
+
+                <div class="kfb-section">
+                  <div class="kfb-stops-head">
+                    <span class="kfb-stops-label">Stops <span class="kfb-stops-hint" id="kfbStopsHint">optional, up to 5</span></span>
+                    <button type="button" class="kfb-link-btn" id="kfbAddStopBtn">+ Add Stop</button>
+                  </div>
+                  <div id="kfbStopsContainer"></div>
+                </div>
+
+                <div class="kfb-section">
+                  <div class="kfb-loc-type" data-group="dropoff" role="tablist" aria-label="Dropoff location type">
+                    <button type="button" class="kfb-loc-type-btn is-active" data-value="Search All" data-group="dropoff" role="tab">Search All</button>
+                    <button type="button" class="kfb-loc-type-btn" data-value="Address"     data-group="dropoff" role="tab">Address</button>
+                    <button type="button" class="kfb-loc-type-btn" data-value="Airport"     data-group="dropoff" role="tab">Airport</button>
+                    <button type="button" class="kfb-loc-type-btn" data-value="Landmark"    data-group="dropoff" role="tab">Landmark</button>
+                  </div>
+                  <input type="hidden" name="dropoffLocType" value="Search All">
+                  <label class="kfb-check">
+                    <input type="checkbox" id="kfbReturnDifferent" checked>
+                    <span>Return At A Different Location</span>
+                  </label>
+                  <label class="kfb-field kfb-dropoff" id="kfbDropoffWrap">
+                    <span>Drop-Off Location</span>
+                    <input type="text" name="dropoff" id="kfbDropoff" placeholder="Enter Location" required autocomplete="off">
+                  </label>
+                  <div class="kfb-airport-extras" data-group="dropoff" hidden>
+                    <div class="kfb-field-row-3">
+                      <label class="kfb-field">
+                        <span>Airline</span>
+                        <input type="text" name="dropoffAirline" list="kfbAirlinesListDropoff" placeholder="Select Or Type Airline">
+                        <datalist id="kfbAirlinesListDropoff"></datalist>
+                      </label>
+                      <label class="kfb-field">
+                        <span>Flight #</span>
+                        <input type="text" name="dropoffFlightNumber" placeholder="E.g. AA1234">
+                      </label>
+                      <label class="kfb-field">
+                        <span>Departure Time</span>
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="time" name="dropoffArrivalTime">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
+                      </label>
+                    </div>
+                    <label class="kfb-field" style="margin-top:8px">
+                      <span>Drop-Off Point</span>
+                      <select name="dropoffTypeDetail" id="kfbDropoffTypeDetail">
+                        <option value="Curbside" selected>Curbside Drop-Off (Outside) — Included</option>
+                        <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
+                        <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
+                      </select>
+                    </label>
+                    <label class="kfb-field" id="kfbDropoffTailNumberWrap" hidden>
+                      <span>Aircraft Tail Number <em>*</em></span>
+                      <input type="text" name="dropoffTailNumber" maxlength="10"
+                             placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                    </label>
+                  </div>
+                </div>
+
+                <div class="kfb-section">
+                  <div class="kfb-field-row-2">
+                    <div>
+                      <span class="kfb-section-title">Travellers *</span>
+                      <div class="kfb-stepper" id="kfbStepperPassengers">
+                        <button type="button" class="kfb-stepper-minus" aria-label="Decrease travellers">−</button>
+                        <input type="number" class="kfb-stepper-out" name="passengers" value="1" min="1" max="1000" inputmode="numeric" readonly>
+                        <button type="button" class="kfb-stepper-plus"  aria-label="Increase travellers">+</button>
+                      </div>
+                    </div>
+                    <div>
+                      <span class="kfb-section-title">Bags</span>
+                      <div class="kfb-stepper" id="kfbStepperBags">
+                        <button type="button" class="kfb-stepper-minus" aria-label="Decrease bags">−</button>
+                        <input type="number" class="kfb-stepper-out" name="bags" value="1" min="0" max="20" inputmode="numeric" readonly>
+                        <button type="button" class="kfb-stepper-plus"  aria-label="Increase bags">+</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="margin-top:14px">
+                    <button type="button" class="kfb-link-btn" id="kfbAddChildSeatBtn">+ Add Child Seat</button>
+                    <div id="kfbChildSeatsContainer"></div>
+                  </div>
+                </div>
+
+                <div class="kfb-section">
+                  <label class="kfb-check kfb-check-block">
+                    <input type="checkbox" id="kfbReturnTripToggle">
+                    <span><strong>Return Trip</strong> — Also Book The Trip Back To The Origin</span>
+                  </label>
+                  <div id="kfbReturnTripPanel" hidden>
+                    <div class="kfb-field-row-2" style="margin-top:10px">
+                      <label class="kfb-field">
+                        <span>Return Date</span>
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="date" name="returnDate">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
+                      </label>
+                      <label class="kfb-field">
+                        <span>Return Time</span>
+                        <div class="kfb-dt-overlay-wrap">
+                          <input type="time" name="returnTime">
+                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                        </div>
+                      </label>
+                    </div>
+                    <p class="kfb-hint" style="margin:6px 0 0">On the return leg, the pickup &amp; drop-off are swapped.</p>
+
+                    <div id="kfbReturnPickupFlightBlock" hidden>
+                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return pickup</strong> — picking you up at the airport for the trip back.</p>
+                      <div class="kfb-field-row-3">
+                        <label class="kfb-field">
+                          <span>Airline</span>
+                          <input type="text" name="returnAirline" list="kfbAirlinesListReturnPickup" placeholder="Select Or Type Airline">
+                          <datalist id="kfbAirlinesListReturnPickup"></datalist>
+                        </label>
+                        <label class="kfb-field">
+                          <span>Flight #</span>
+                          <input type="text" name="returnFlightNumber" placeholder="E.g. AA1234">
+                        </label>
+                        <label class="kfb-field">
+                          <span>Arrival Time</span>
+                          <div class="kfb-dt-overlay-wrap">
+                            <input type="time" name="returnArrivalTime">
+                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                          </div>
+                        </label>
+                      </div>
+                      <label class="kfb-field" style="margin-top:8px">
+                        <span>Pickup Point</span>
+                        <select name="returnPickupTypeDetail" id="kfbReturnPickupTypeDetail">
+                          <option value="Curbside" selected>Curbside Pickup (Outside) — Included</option>
+                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
+                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
+                        </select>
+                      </label>
+                      <label class="kfb-field" id="kfbReturnTailNumberWrap" hidden>
+                        <span>Aircraft Tail Number <em>*</em></span>
+                        <input type="text" name="returnTailNumber" maxlength="10"
+                               placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                      </label>
+                    </div>
+
+                    <div id="kfbReturnDropoffFlightBlock" hidden>
+                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return drop-off</strong> — dropping you back at the airport for your flight home.</p>
+                      <div class="kfb-field-row-3">
+                        <label class="kfb-field">
+                          <span>Airline</span>
+                          <input type="text" name="returnDropoffAirline" list="kfbAirlinesListReturnDropoff" placeholder="Select Or Type Airline">
+                          <datalist id="kfbAirlinesListReturnDropoff"></datalist>
+                        </label>
+                        <label class="kfb-field">
+                          <span>Flight #</span>
+                          <input type="text" name="returnDropoffFlightNumber" placeholder="E.g. AA1234">
+                        </label>
+                        <label class="kfb-field">
+                          <span>Departure Time</span>
+                          <div class="kfb-dt-overlay-wrap">
+                            <input type="time" name="returnDropoffArrivalTime">
+                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
+                          </div>
+                        </label>
+                      </div>
+                      <label class="kfb-field" style="margin-top:8px">
+                        <span>Drop-Off Point</span>
+                        <select name="returnDropoffTypeDetail" id="kfbReturnDropoffTypeDetail">
+                          <option value="Curbside" selected>Curbside Drop-Off (Outside) — Included</option>
+                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
+                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
+                        </select>
+                      </label>
+                      <label class="kfb-field" id="kfbReturnDropoffTailNumberWrap" hidden>
+                        <span>Aircraft Tail Number <em>*</em></span>
+                        <input type="text" name="returnDropoffTailNumber" maxlength="10"
+                               placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
+                <label class="kfb-field">
+                  <textarea name="notes" rows="3" placeholder="Other Notes, Instructions, Or Special Requests."></textarea>
+                </label>
+
+                <div class="kfb-actions">
+                  <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbCancelBtn">Cancel</button>
+                  <button type="button" class="kfb-btn kfb-btn-primary" data-next="2">Continue →</button>
+                </div>
+              </section>
+
+              <section class="kfb-panel" data-panel="2" hidden>
+                <div class="kfb-panel-head">
+                  <h2 class="kfb-panel-title">Select Vehicle</h2>
+                </div>
+                <p class="kfb-panel-sub">Select a vehicle type by clicking on it.</p>
+
+                <div class="kfb-sort">
+                  <label>Sort by
+                    <select id="kfbSortVehicles">
+                      <option value="priceAsc">Price — Low to High</option>
+                      <option value="priceDesc">Price — High to Low</option>
+                      <option value="capacity">Passenger Capacity</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="kfb-vehicle-grid" id="kfbVehicleGrid"></div>
+
+                <div class="kfb-actions">
+                  <button type="button" class="kfb-btn kfb-btn-ghost" data-prev="1">← Back</button>
+                  <button type="button" class="kfb-btn kfb-btn-primary" data-next="3">Continue →</button>
+                </div>
+              </section>
+
+              <section class="kfb-panel" data-panel="3" hidden>
+                <div class="kfb-panel-head">
+                  <h2 class="kfb-panel-title">Payment &amp; Confirm</h2>
+                </div>
+
+                <h3 class="kfb-section-title" style="margin:6px 0 4px">Credit Card Holder Name</h3>
+                <p class="kfb-field-hint" style="margin:0 0 12px">Enter the name on the credit card used for this reservation.</p>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>First Name *</span><input type="text" name="ccFirstName" autocomplete="off" required></label>
+                  <label class="kfb-field"><span>Last Name *</span><input type="text" name="ccLastName" autocomplete="off" required></label>
+                </div>
+                <label class="kfb-field"><span>Company Name</span><input type="text" name="ccCompany" autocomplete="off"></label>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>Phone *</span><input type="tel" name="ccPhone" placeholder="+1 555 000 0000" autocomplete="off" required></label>
+                  <label class="kfb-field"><span>Email *</span><input type="email" name="ccEmail" autocomplete="off" required></label>
+                </div>
+
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Passenger Info</h3>
+                <label class="kfb-check kfb-same-passenger"><input type="checkbox" id="kfbSamePassenger"> Passenger is the same as the credit card holder</label>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>First Name *</span><input type="text" name="firstName" required></label>
+                  <label class="kfb-field"><span>Last Name *</span><input type="text" name="lastName" required></label>
+                </div>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>Phone *</span><input type="tel" name="phone" placeholder="+1 555 000 0000" required></label>
+                  <label class="kfb-field"><span>Email *</span><input type="email" name="email" required></label>
+                </div>
+
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Promo Code</h3>
+                <div class="kfb-promo">
+                  <label class="kfb-promo-label" for="kfbPromoInput">Have a Promo Code?</label>
+                  <div class="kfb-promo-row">
+                    <input type="text" id="kfbPromoInput" class="kfb-promo-input" maxlength="40" autocomplete="off" placeholder="Enter Promo Code">
+                    <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbPromoApply">Apply</button>
+                  </div>
+                  <div class="kfb-promo-status" id="kfbPromoStatus"></div>
+                </div>
+
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Add-On Services</h3>
+                <div class="kfb-addon-list" id="kfbAddonList">
+                  <p class="kfb-empty">Loading add-ons…</p>
+                </div>
+
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Payment Information</h3>
+                <label class="kfb-field" id="kfbSavedCardWrap" hidden>
+                  <span>Use a Saved Card</span>
+                  <select id="kfbSavedCardSelect">
+                    <option value="">+ Enter a new card</option>
+                  </select>
+                </label>
+                <p class="kfb-field-hint" id="kfbSavedCardHint" hidden>
+                  Using This Saved Card — No Need To Re-Enter The Card Details Below.
+                </p>
+                <div id="kfbNewCardFieldsWrap">
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
+                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
+                  </div>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Security Code</span><input type="text" name="cvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
+                  </div>
+                </div>
+                <label class="kfb-field">
+                  <span>Credit Card Billing Address *</span>
+                  <input type="text" name="cardBillingAddress" required placeholder="Street, City, State, ZIP">
+                </label>
+
+                <div id="kfbTermsBlock">
+                  <label class="kfb-check kfb-check-block" style="margin-top:14px">
+                    <input type="checkbox" name="terms" required>
+                    <span>I agree to the <a href="#" target="_blank" rel="noopener noreferrer" data-kfb-link>Master Terms &amp; Conditions</a>, especially the Cancellation Policy contained therein, and explicitly acknowledge that my card on file will be charged a 60% non-refundable retainer today, with the remaining 40% balance automatically processed at the Point of No Return cutoff (45 days for all buses / 30 days for all other vehicles). I further acknowledge that cancellation within the applicable Point of No Return period will result in 100% of the total contract price being permanently forfeited, and I assume full personal responsibility for any subsequent collection agency fees, court costs, and legal fees.</span>
+                  </label>
+                </div>
+
+                <div id="kfbSignatureBlock" class="kfb-section" style="margin-top:14px">
+                  <h3 class="kfb-section-title">E-Signature Required</h3>
+                  <p class="kfb-hint" style="margin:0 0 8px">Please Sign In The Box Below To Confirm Your Booking.</p>
+                  <canvas id="kfbSignatureCanvas" width="600" height="160"
+                          style="width:100%;max-width:600px;height:160px;background:#fff;border:1px solid var(--kfb-border-strong);border-radius:6px;touch-action:none;cursor:crosshair"></canvas>
+                  <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+                    <small class="kfb-hint">Sign With Your Mouse, Finger, Or Stylus</small>
+                    <button type="button" class="kfb-btn kfb-btn--ghost kfb-btn--sm" id="kfbSignatureClear">Clear</button>
+                  </div>
+                </div>
+
+                <div id="kfbPaymentStatus" class="kfb-payment-status" hidden>
+                  <div class="kfb-spinner"></div>
+                  <p>Processing your payment...</p>
+                </div>
+
+                <div class="kfb-actions">
+                  <button type="button" class="kfb-btn kfb-btn-ghost" data-prev="2">← Back</button>
+                  <button type="button" class="kfb-btn kfb-btn-primary" id="kfbBookNowBtn">Book Now</button>
+                </div>
+              </section>
+            </form>
+          </div>
+
+          <div class="kfb-side-col">
+            <div class="kfb-side-card kfb-map-card" id="kfbMapCard">
+              <div class="kfb-side-head">Map</div>
+              <div class="kfb-map" id="kfbMap"></div>
+            </div>
+
+            <div class="kfb-side-card kfb-side-summary" id="kfbSummaryCard" hidden>
+              <div class="kfb-side-head kfb-side-head--summary">Trip Summary</div>
+              <div class="kfb-side-body">
+
+                <div class="kfb-ssection">
+                  <h4 class="kfb-ssection-title">Itinerary</h4>
+                  <div class="kfb-srow"><span>Pickup Date</span><b id="kfbSumDate">—</b></div>
+                  <div class="kfb-srow"><span>Pickup Time</span><b id="kfbSumTime">—</b></div>
+                  <div class="kfb-srow"><span>Service Type</span><b id="kfbSumService">—</b></div>
+                  <div class="kfb-srow"><span>Total Distance</span><b id="kfbSumDistance">—</b></div>
+                  <div class="kfb-srow kfb-srow--addr"><span>Pickup Location</span><b id="kfbSumPickup">—</b></div>
+                  <div class="kfb-srow kfb-srow--stops" id="kfbSumStopsRow" hidden>
+                    <span>Additional Stops</span>
+                    <b id="kfbSumStops"></b>
+                  </div>
+                  <div class="kfb-srow kfb-srow--addr"><span>Drop-off Location</span><b id="kfbSumDropoff">—</b></div>
+                </div>
+
+                <div class="kfb-ssection">
+                  <h4 class="kfb-ssection-title">Vehicle</h4>
+                  <div class="kfb-srow"><span>Type</span><b id="kfbSumVehicle">—</b></div>
+                  <div class="kfb-svehicle-meta" id="kfbSumVehicleMeta"></div>
+                </div>
+
+                <div class="kfb-ssection" id="kfbSumAddonsSection" hidden>
+                  <h4 class="kfb-ssection-title">Add-ons &amp; Extras</h4>
+                  <div id="kfbSumAddons"></div>
+                  <div class="kfb-srow" id="kfbSumChildSeatsRow" hidden><span>Child Safety Seats</span><b id="kfbSumChildSeats">—</b></div>
+                </div>
+
+                <div class="kfb-ssection" id="kfbBreakdown" hidden>
+                  <h4 class="kfb-ssection-title">Rate Details</h4>
+                  <div class="kfb-srow"><span>Base Rate</span><b id="kfbSumBase">—</b></div>
+                  <div class="kfb-srow" id="kfbSumTravelFeeRow" hidden><span>Travel Fee</span><b id="kfbSumTravelFee">—</b></div>
+                  <div id="kfbSumSurcharges"></div>
+                  <div class="kfb-srow"><span>Gratuity</span><b id="kfbSumGratuity">—</b></div>
+                  <div class="kfb-srow" id="kfbSumDiscountRow" hidden><span>Promo Discount</span><b id="kfbSumDiscount">—</b></div>
+                  <div class="kfb-srow" id="kfbSumReturnTripRow" hidden><span>Round trip (× 2)</span><b id="kfbSumReturnTrip">—</b></div>
+                </div>
+
+                <div class="kfb-srow kfb-stotal"><span>Estimated Price</span><b id="kfbSumTotal">$0.00</b></div>
+
+                <p class="kfb-srate-disclaimer"><strong>Rate Disclaimer:</strong> Estimate includes applicable surcharges, gratuity, and taxes/fees shown above. Wait time, tolls, parking, and services beyond those listed may apply and are not included. Additional services or itinerary changes may affect the final rate.</p>
+
+                <button type="button" class="kfb-btn kfb-btn-primary kfb-mobile-booknow" id="kfbBookNowBtnMobile" hidden>Book Now</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <section class="kfb-success" id="kfbSuccess" hidden>
+          <div class="kfb-success-icon">✓</div>
+          <h3>Reservation Submitted</h3>
+          <p id="kfbSuccessMsg">Thank you, <b id="kfbSuccessName">rider</b>. Your PayPal payment has been authorized — you have <strong>not</strong> been charged yet.
+            We'll email <b id="kfbSuccessEmail">—</b> once your reservation is reviewed and approved.</p>
+          <p class="kfb-success-id">Booking ID: <code id="kfbSuccessId">—</code></p>
+
+          <div class="kfb-account-prompt" id="kfbAccountPrompt" hidden>
+            <p class="kfb-account-prompt-msg">Want to track this reservation and edit it later? Create an account. You won’t need to re-enter your information.</p>
+            <div class="kfb-account-prompt-fields">
+              <label class="kfb-field"><span>Choose a password</span><input type="password" name="accountPassword" autocomplete="new-password"></label>
+              <button type="button" class="kfb-btn kfb-btn-ghost kfb-account-prompt-btn">Create Account</button>
+            </div>
+          </div>
+
+          <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
+        </section>
+
+        </div>
+
+        <section class="kfb-view" id="kfbLoginView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Log In</h2>
+            <div class="kfb-view-success" id="kfbLoginNotice" role="status" hidden></div>
+            <label class="kfb-field"><span>Email</span><input type="email" name="loginEmail" autocomplete="username" required></label>
+            <label class="kfb-field"><span>Password</span><input type="password" name="loginPassword" autocomplete="current-password" required></label>
+            <div class="kfb-view-error" id="kfbLoginError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbLoginSubmitBtn">Log In</button>
+            </div>
+            <p class="kfb-view-links">
+              <button type="button" class="kfb-link-btn" id="kfbLoginToForgotBtn">Forgot password?</button>
+              &nbsp;·&nbsp; Don't have an account? <button type="button" class="kfb-link-btn" id="kfbLoginToRegisterBtn">Create one</button>
+              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbLoginBackBtn">Back to booking</button>
+            </p>
+          </div>
+        </section>
+
+        <section class="kfb-view" id="kfbRegisterView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Create Account</h2>
+            <div class="kfb-field-row-2">
+              <label class="kfb-field"><span>First Name</span><input type="text" name="registerFirstName" required></label>
+              <label class="kfb-field"><span>Last Name</span><input type="text" name="registerLastName" required></label>
+            </div>
+            <label class="kfb-field"><span>Phone</span><input type="tel" name="registerPhone"></label>
+            <label class="kfb-field"><span>Email</span><input type="email" name="registerEmail" autocomplete="username" required></label>
+            <label class="kfb-field"><span>Password</span><input type="password" name="registerPassword" autocomplete="new-password" required></label>
+            <div class="kfb-view-error" id="kfbRegisterError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbRegisterSubmitBtn">Create Account</button>
+            </div>
+            <p class="kfb-view-links">
+              Already have an account? <button type="button" class="kfb-link-btn" id="kfbRegisterToLoginBtn">Log in</button>
+              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbRegisterBackBtn">Back to booking</button>
+            </p>
+          </div>
+        </section>
+
+        <section class="kfb-view" id="kfbForgotView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Forgot Password</h2>
+            <p class="kfb-hint">Enter your email and we'll send you a link to reset your password.</p>
+            <label class="kfb-field"><span>Email</span><input type="email" name="forgotEmail" required></label>
+            <div class="kfb-view-error" id="kfbForgotError" hidden></div>
+            <div class="kfb-view-success" id="kfbForgotSuccess" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbForgotSubmitBtn">Send Reset Link</button>
+            </div>
+            <p class="kfb-view-links">
+              <button type="button" class="kfb-link-btn" id="kfbForgotToLoginBtn">Back to log in</button>
+            </p>
+          </div>
+        </section>
+
+        <section class="kfb-view" id="kfbResetView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Reset Password</h2>
+            <input type="hidden" name="resetToken">
+            <label class="kfb-field"><span>New Password</span><input type="password" name="resetPassword" autocomplete="new-password" required></label>
+            <div class="kfb-view-error" id="kfbResetError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetSubmitBtn">Set New Password</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="kfb-view" id="kfbVerifyView" hidden>
+          <div class="kfb-view-card">
+            <h2 class="kfb-view-title">Verify Your Email</h2>
+            <p class="kfb-hint" id="kfbVerifyEmailLabel">We sent a 6-digit code to your email.</p>
+            <label class="kfb-field">
+              <span>Verification Code</span>
+              <input type="text" name="verifyOtp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+            </label>
+            <div class="kfb-view-error" id="kfbVerifyError" hidden></div>
+            <div class="kfb-actions">
+              <button type="button" class="kfb-btn kfb-btn-primary" id="kfbVerifySubmitBtn">Verify</button>
+            </div>
+            <p class="kfb-view-links">
+              <button type="button" class="kfb-link-btn" id="kfbVerifyResendBtn">Resend code</button>
+              &nbsp;·&nbsp; <button type="button" class="kfb-link-btn" id="kfbVerifyBackBtn">Back to log in</button>
+            </p>
+          </div>
+        </section>
+
+        <section class="kfb-view" id="kfbProfileView" hidden>
+          <div class="kfb-profile-layout">
+            <nav class="kfb-profile-sidebar">
+              <button type="button" class="kfb-profile-tab is-active" data-profile-tab="reservations">My Reservations</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="receipts">Invoices &amp; Receipts</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="account">Account Settings</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="password">Reset Password</button>
+              <button type="button" class="kfb-profile-tab" data-profile-tab="cards">Saved Cards</button>
+            </nav>
+
+            <div class="kfb-profile-content">
+              <div class="kfb-profile-panel" id="kfbProfilePanelReservations">
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">My Reservations</h2>
+                  <div id="kfbReservationsList">
+                    <p class="kfb-empty">Loading…</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelReceipts" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Invoices &amp; Receipts</h2>
+                  <p class="kfb-panel-sub" style="margin:-10px 0 16px">
+                    Download or print a receipt for any of your bookings, and track each one's payment status.
+                  </p>
+                  <div id="kfbReceiptsList">
+                    <p class="kfb-empty">Loading…</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelAccount" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Account Settings</h2>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>First Name</span><input type="text" name="profileFirstName" required></label>
+                    <label class="kfb-field"><span>Last Name</span><input type="text" name="profileLastName" required></label>
+                  </div>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Phone</span><input type="tel" name="profilePhone"></label>
+                    <label class="kfb-field"><span>Email</span><input type="email" name="profileEmail" required></label>
+                  </div>
+                  <div class="kfb-view-error" id="kfbProfileUpdateError" hidden></div>
+                  <div class="kfb-view-success" id="kfbProfileUpdateSuccess" hidden>Profile updated ✓</div>
+                  <div class="kfb-actions">
+                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbProfileUpdateBtn">Save Changes</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelPassword" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Reset Password</h2>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Current Password</span><input type="password" name="profileCurrentPassword" autocomplete="current-password"></label>
+                    <label class="kfb-field"><span>New Password</span><input type="password" name="profileNewPassword" autocomplete="new-password"></label>
+                  </div>
+                  <div class="kfb-view-error" id="kfbPasswordChangeError" hidden></div>
+                  <div class="kfb-view-success" id="kfbPasswordChangeSuccess" hidden>Password updated ✓</div>
+                  <div class="kfb-actions">
+                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbPasswordChangeBtn">Update Password</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kfb-profile-panel" id="kfbProfilePanelCards" hidden>
+                <div class="kfb-view-card kfb-view-card--wide">
+                  <h2 class="kfb-view-title">Saved Cards</h2>
+                  <p class="kfb-panel-sub" style="margin:-10px 0 16px">
+                    We only save the card type, last 4 digits, and expiry — never the full number or CVV. Pick a default to have it pre-selected at checkout.
+                  </p>
+                  <div id="kfbSavedCardsList">
+                    <p class="kfb-empty">Loading…</p>
+                  </div>
+
+                  <hr class="kfb-divider">
+
+                  <h3 class="kfb-view-subtitle">Add a Card</h3>
+                  <div class="kfb-field-row-2">
+                    <label class="kfb-field"><span>Card Number</span><input type="text" name="newCardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
+                    <label class="kfb-field"><span>Expiration Date</span><input type="text" name="newCardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
+                    <label class="kfb-field"><span>Security Code</span><input type="text" name="newCardCvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
+                  </div>
+                  <p class="kfb-field-hint">We only save the card type, last 4 digits, and expiry — never the full number or CVV.</p>
+                  <label class="kfb-field"><span>Name on Card</span><input type="text" name="newCardNickname" placeholder="E.g. John Smith" autocomplete="cc-name"></label>
+                  <div class="kfb-view-error" id="kfbAddCardError" hidden></div>
+                  <div class="kfb-view-success" id="kfbAddCardSuccess" hidden>Card saved ✓</div>
+                  <div class="kfb-actions">
+                    <button type="button" class="kfb-btn kfb-btn-primary" id="kfbAddCardBtn">Save Card</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="kfb-view-links">
+            <button type="button" class="kfb-link-btn" id="kfbProfileBackBtn">← Back to booking</button>
+          </p>
+        </section>
+
+      </div>
+    </div>
+
+    <!--
+      <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
+      <script src="https://grounddispatch.com/booking/embed/airports.js"></script>
+      <script src="https://grounddispatch.com/booking/embed/booking6.js?v=20261028"></script>
+      <script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
+      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
+    -->
+    <!-- EMBED: COPY END -->
+
+    <script src="vendor/jquery-3.7.1.min.js"></script>
+    <script src="embed/airports.js"></script>
+    <script src="embed/booking6.js?v=20261028"></script>
+    <script src="embed/booking-map.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
+
+  </div>
+</main>
+
+<footer class="test-footer">
+  A1 Limousine</b>
+</footer>
+
+<script src="test-status.js"></script>
+
+</body>
+</html>

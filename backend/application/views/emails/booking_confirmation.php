@@ -17,13 +17,17 @@
  *   $cs_line           e.g. "Toll: +1 (800) 781-4700"
  *   $footer_lines[]    company contact lines for the footer
  *   $logo_header_url, $logo_footer_url
+ *   $mode              'confirmation' (email, default) | 'receipt' (customer receipt page: same layout
+ *                      without cancellation policy, pick-up instructions or terms, plus a Print button)
  */
 $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+$mode = isset($mode) ? $mode : 'confirmation';
+$isReceipt = ($mode === 'receipt');
 ?>
 <!DOCTYPE html>
 <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en"><head>
 
-      <title>Reservation Confirmation</title>
+      <title><?= $isReceipt ? 'Reservation Receipt' : 'Reservation Confirmation' ?></title>
 
       <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
@@ -186,11 +190,16 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
          ::scrollbar { display: none; }
          }
 
+         @media print { .no-print { display: none !important; } }
+
       </style>
 
    </head>
 
    <body style="background-color: rgb(235, 235, 235); margin: 0px; padding: 0px; -moz-text-size-adjust: none;" data-background-color="rgb(235, 235, 235)">
+<?php if ($isReceipt): ?>
+<div class="no-print" style="max-width:640px;margin:12px auto 0;text-align:right;"><button type="button" onclick="window.print()" style="font:14px Arial,Helvetica,sans-serif;padding:8px 16px;border:1px solid #0097db;background:#0097db;color:#fff;border-radius:4px;cursor:pointer;">Print / Save as PDF</button></div>
+<?php endif; ?>
 
 <table class="nl-container" role="presentation" style="background-color: rgb(235, 235, 235);" data-background-color="rgb(235, 235, 235)" width="100%" cellspacing="0" cellpadding="0" border="0">
 
@@ -228,7 +237,7 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
                                                                   <div class="" style="font-size: 14px; color: rgb(28, 28, 28); line-height: 1.2; font-family: Arial, Helvetica Neue, Helvetica, sans-serif;" data-color="rgb(28, 28, 28)">
 
-                                                                     <p style="margin: 0; font-size: 14px; mso-line-height-alt: 16.8px;">Your reservation is confirmed</p>
+                                                                     <p style="margin: 0; font-size: 14px; mso-line-height-alt: 16.8px;">Your reservation <?= $isReceipt ? 'receipt' : 'is confirmed' ?></p>
 
                                                                   </div>
 
@@ -346,7 +355,7 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
                                                                   <div class="" style="font-size: 14px; font-family: TimesNewRoman, &quot;Times New Roman&quot;, Times, Beskerville, Georgia, serif; color: rgb(255, 255, 255); line-height: 1.2;" data-color="rgb(255, 255, 255)">
 
-                                                                     <p style="margin: 0; font-size: 14px; text-align: right; mso-line-height-alt: 16.8px;"><span style="font-size:24px;">Reservation Confirmation</span></p>
+                                                                     <p style="margin: 0; font-size: 14px; text-align: right; mso-line-height-alt: 16.8px;"><span style="font-size:24px;">Reservation <?= $isReceipt ? 'Receipt' : 'Confirmation' ?></span></p>
 
                                                                   </div>
 
@@ -448,7 +457,7 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
                                                                   <div class="" style="font-size: 14px; color: rgb(28, 28, 28); line-height: 1.2; font-family: Arial, Helvetica Neue, Helvetica, sans-serif;" data-color="rgb(28, 28, 28)">
 
-                                                                     <p style="margin: 0; font-size: 14px; text-align: center; mso-line-height-alt: 16.8px;"><span style="font-size:22px;">Reservation Confirmation# <?= $e($leg["reference"]) ?></span></p>
+                                                                     <p style="margin: 0; font-size: 14px; text-align: center; mso-line-height-alt: 16.8px;"><span style="font-size:22px;">Reservation <?= $isReceipt ? 'Receipt' : 'Confirmation' ?># <?= $e($leg["reference"]) ?></span></p>
 
                                                                   </div>
 
@@ -737,6 +746,9 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
                                                                      <p style="margin: 0; mso-line-height-alt: 21px;">No. of Pass: <?= $e($leg["passenger_count"]) ?></p>
 
                                                                      <p style="margin: 0; mso-line-height-alt: 21px;">Vehicle Type: <?= $e(ucwords($leg["vehicle_name"])) ?></p>
+<?php if ($isReceipt): ?>
+<p style="margin: 0; mso-line-height-alt: 21px;">Status: <?= $e($leg["status_label"]) ?></p>
+<?php endif; ?>
 
                                                                   </div>
 
@@ -1510,7 +1522,7 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
                                                                      <p style="margin: 0; mso-line-height-alt: 21px;">Discount: -$<?= number_format((float)$leg["discount"], 2, ".", "") ?></p>
 
-                                                                     <p style="margin: 0; mso-line-height-alt: 21px;">Estimated Charges $<?= number_format((float)$leg["grand_total"], 2, ".", "") ?></p>
+                                                                     <p style="margin: 0; mso-line-height-alt: 21px;"><?= $isReceipt ? 'Total Charges' : 'Estimated Charges' ?> $<?= number_format((float)$leg["grand_total"], 2, ".", "") ?></p>
 
                                                                   </div>
 
@@ -1543,6 +1555,7 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
                            
                            <?php endforeach; ?>
 
+<?php if (!$isReceipt): ?>
 <table class="row row-19" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
 
                               <tbody>
@@ -2181,7 +2194,8 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
                            </table>
 
-                           <table class="row row-28" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
+                           <?php endif; ?>
+<table class="row row-28" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
 
                               <tbody>
 
@@ -2267,7 +2281,8 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
                            </table>
 
-                           <table class="row row-29" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
+                           <?php if (!$isReceipt): ?>
+<table class="row row-29" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
 
                               <tbody>
 
@@ -2344,6 +2359,7 @@ $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
                               </tbody>
 
                            </table>
+<?php endif; ?>
 
                         </td>
 

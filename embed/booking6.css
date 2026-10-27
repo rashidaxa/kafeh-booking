@@ -982,3 +982,6 @@ html.kfb-modal-open { overflow: hidden; }
 .kfb-pager-nav { display: flex; align-items: center; gap: 10px; }
 .kfb-pager .kfb-btn { min-width: 0; padding: 7px 14px; }
 .kfb-pager .kfb-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* "Passenger is the same as the credit card holder" tick box (step 3) */
+.kfb-same-passenger { display: flex; margin: 0 0 12px; }

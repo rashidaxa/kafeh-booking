@@ -14,10 +14,27 @@ if (!function_exists('kfb_reservation_badge')) {
     }
 }
 if (!function_exists('kfb_hm')) {
-    /** HH:MM from a TIME/DATETIME column, or '—'. */
+    /** hh:mm AM/PM from a TIME/DATETIME column, or '—'. */
     function kfb_hm($t)
     {
-        return $t ? substr((string)$t, 0, 5) : '—';
+        $ts = $t ? strtotime((string)$t) : FALSE;
+        return $ts ? date('h:i A', $ts) : '—';
+    }
+}
+if (!function_exists('kfb_date')) {
+    /** MM/DD/YYYY from a DATE/DATETIME column, or '—'. */
+    function kfb_date($d)
+    {
+        $ts = $d ? strtotime((string)$d) : FALSE;
+        return $ts ? date('m/d/Y', $ts) : '—';
+    }
+}
+if (!function_exists('kfb_datetime')) {
+    /** MM/DD/YYYY hh:mm AM/PM from a DATETIME column, or '—'. */
+    function kfb_datetime($d)
+    {
+        $ts = $d ? strtotime((string)$d) : FALSE;
+        return $ts ? date('m/d/Y h:i A', $ts) : '—';
     }
 }
 if (!function_exists('kfb_or_dash')) {
@@ -35,7 +52,16 @@ if (!function_exists('kfb_leg_trip_html')) {
     function kfb_leg_trip_html(array $leg, array $stops = [])
     {
         ob_start();
+        $isHourly = (($leg['service_type'] ?? '') === 'Hourly') && (float)($leg['hours_requested'] ?? 0) > 0;
+        $mins     = (int)($leg['duration_mins'] ?? 0);
         ?>
+        <div class="kfb-detail-grid" style="margin-bottom:14px">
+          <div><span class="kfb-hint">Pickup date</span><p><?= htmlspecialchars(kfb_date($leg['pickup_date'] ?? NULL)) ?></p></div>
+          <div><span class="kfb-hint">Pickup time</span><p><?= htmlspecialchars(kfb_hm($leg['pickup_time'] ?? NULL)) ?></p></div>
+          <div><span class="kfb-hint">Drop-off time <small>(estimated)</small></span><p><?= htmlspecialchars(kfb_hm($leg['dropoff_time_calc'] ?? NULL)) ?></p></div>
+          <div><span class="kfb-hint"><?= $isHourly ? 'Booked hours' : 'Trip duration' ?></span><p><?= $isHourly ? htmlspecialchars(rtrim(rtrim(number_format((float)$leg['hours_requested'], 2), '0'), '.')) . ' hr' : ($mins > 0 ? htmlspecialchars((string)$mins) . ' min' : '—') ?></p></div>
+        </div>
+
         <div class="kfb-detail-grid">
           <div><span class="kfb-hint">Pickup type</span><p><?= kfb_or_dash($leg['pickup_loc_type'] ?? NULL) ?></p></div>
           <div class="kfb-field--full"><span class="kfb-hint">Pickup address</span><p><?= kfb_or_dash($leg['pickup'] ?? NULL) ?></p></div>
@@ -171,7 +197,7 @@ if (!empty($booking['legacy_sync_log'])) {
       <span class="kfb-hint">Trip</span>
       <p>
         <?= htmlspecialchars($booking['service_type']) ?><br>
-        <?= htmlspecialchars($booking['pickup_date']) ?> at <?= kfb_hm($booking['pickup_time'] ?? NULL) ?><br>
+        <?= htmlspecialchars(kfb_date($booking['pickup_date'] ?? NULL)) ?> at <?= kfb_hm($booking['pickup_time'] ?? NULL) ?><br>
         <?= htmlspecialchars($booking['pickup']) ?> → <?= htmlspecialchars($booking['dropoff']) ?>
       </p>
     </div>
@@ -204,14 +230,14 @@ if (!empty($booking['legacy_sync_log'])) {
     <?php if (!empty($booking['approved_at'])): ?>
       <div>
         <span class="kfb-hint">Decision</span>
-        <p><?= htmlspecialchars($booking['approved_at']) ?> by <?= htmlspecialchars($booking['approved_by'] ?: '—') ?></p>
+        <p><?= htmlspecialchars(kfb_datetime($booking['approved_at'])) ?> by <?= htmlspecialchars($booking['approved_by'] ?: '—') ?></p>
       </div>
     <?php endif; ?>
     <?php if (!empty($booking['edit_count'])): ?>
       <div>
         <span class="kfb-hint">Edited by customer</span>
         <p>
-          <?= (int)$booking['edit_count'] ?>× — last edit <?= htmlspecialchars($booking['edited_by_customer_at'] ?: '—') ?>
+          <?= (int)$booking['edit_count'] ?>× — last edit <?= htmlspecialchars(kfb_datetime($booking['edited_by_customer_at'] ?? NULL)) ?>
           <?php if (empty($booking['paypal_auth_transaction_id']) && $booking['status'] === 'pending'): ?>
             <br><small class="kfb-hint">Price changed — awaiting the customer's re-approval on PayPal.</small>
           <?php endif; ?>
@@ -220,7 +246,7 @@ if (!empty($booking['legacy_sync_log'])) {
     <?php endif; ?>
     <div>
       <span class="kfb-hint">Submitted</span>
-      <p><?= htmlspecialchars($booking['created_at']) ?><br>
+      <p><?= htmlspecialchars(kfb_datetime($booking['created_at'])) ?><br>
         <small class="kfb-hint">IP <?= kfb_or_dash($booking['ip_address'] ?? NULL) ?></small></p>
     </div>
   </div>
@@ -351,7 +377,7 @@ if (!empty($booking['legacy_sync_log'])) {
   <header class="kfb-card-head"><h2>E-signature</h2></header>
   <?php if (!empty($booking['signature_data'])): ?>
     <div class="kfb-detail-grid" style="margin-bottom:12px">
-      <div><span class="kfb-hint">Signed</span><p><?= kfb_or_dash($booking['signature_at'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Signed</span><p><?= htmlspecialchars(kfb_datetime($booking['signature_at'] ?? NULL)) ?></p></div>
       <div><span class="kfb-hint">IP address</span><p><?= kfb_or_dash($booking['signature_ip'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Terms version</span><p><?= kfb_or_dash($booking['terms_version'] ?? NULL) ?></p></div>
     </div>
@@ -368,8 +394,6 @@ if (!empty($booking['legacy_sync_log'])) {
       <h2>Pickup &amp; drop-off — return leg <span class="kfb-badge kfb-badge--<?= $rlBadge ?>"><?= htmlspecialchars($rlLabel) ?></span></h2>
     </header>
     <div class="kfb-detail-grid" style="margin-bottom:14px">
-      <div><span class="kfb-hint">Date</span><p><?= kfb_or_dash($rl['pickup_date'] ?? NULL) ?></p></div>
-      <div><span class="kfb-hint">Time</span><p><?= kfb_hm($rl['pickup_time'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Passengers</span><p><?= (int)($rl['passengers'] ?? 0) ?> · <?= (int)($rl['luggage'] ?? 0) ?> bags</p></div>
     </div>
     <?= kfb_leg_trip_html($rl) ?>
@@ -413,7 +437,7 @@ if (!empty($booking['legacy_sync_log'])) {
         <tbody>
           <?php foreach ($booking['payments'] as $p): ?>
             <tr>
-              <td><small class="kfb-hint"><?= htmlspecialchars($p['created_at']) ?></small></td>
+              <td><small class="kfb-hint"><?= htmlspecialchars(kfb_datetime($p['created_at'])) ?></small></td>
               <td><?= htmlspecialchars(ucfirst(str_replace('_', ' ', $p['event']))) ?></td>
               <td><code class="kfb-mono"><?= htmlspecialchars($p['status']) ?></code></td>
               <td>$<?= number_format((float)$p['amount'], 2) ?></td>

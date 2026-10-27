@@ -28,21 +28,21 @@
   // page (or a manually-added <link> left over from testing) don't
   // double up.
   (function injectStylesheet() {
-    // Load booking5.css from the same place booking5.js itself came from, so a
+    // Load booking6.css from the same place booking6.js itself came from, so a
     // local page gets its own stylesheet and a client site that pastes the
     // absolute grounddispatch.com script URL gets production — no URL to swap
     // by hand when moving to production. Falls back to production if the
     // script's own URL can't be read.
     var cssBase = PROD_BASE + "/embed/";
     var thisScript = document.currentScript;
-    if (thisScript && thisScript.src && /\/booking5\.js(\?|#|$)/.test(thisScript.src)) {
-      cssBase = thisScript.src.replace(/booking5\.js(\?.*)?(#.*)?$/, "");
+    if (thisScript && thisScript.src && /\/booking6\.js(\?|#|$)/.test(thisScript.src)) {
+      cssBase = thisScript.src.replace(/booking6\.js(\?.*)?(#.*)?$/, "");
     }
-    var href = cssBase + "booking5.css?v=20261027";
+    var href = cssBase + "booking6.css?v=20261028";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
-      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking5.css") !== -1) { link = links[i]; break; }
+      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking6.css") !== -1) { link = links[i]; break; }
     }
     if (!link) {
       link = document.createElement("link");
@@ -2178,6 +2178,39 @@
 
     function lockEmailToAccount(email) {
       $('input[name="ccEmail"]').val(email || "").prop("readonly", true).addClass("kfb-field-locked");
+      syncPassengerFromCardholder(); // account email may have just changed the card holder email
+    }
+
+    // -------- "Passenger is the same as the card holder" (step 3) --------
+    // card holder field -> passenger field. While the box is ticked the
+    // passenger fields mirror the card holder and are locked; unticking
+    // unlocks them and keeps whatever was copied.
+    var PASSENGER_FIELD_PAIRS = [["ccFirstName", "firstName"], ["ccLastName", "lastName"], ["ccPhone", "phone"], ["ccEmail", "email"]];
+
+    /** Adds the checkbox above the Passenger Info fields. Done here (not in the page markup) so sites that pasted an older snippet get it too. */
+    function ensureSamePassengerCheckbox() {
+      if ($("#kfbSamePassenger").length) return;
+      var $row = $('input[name="firstName"]').first().closest(".kfb-field-row-2");
+      if (!$row.length) return;
+      $row.before('<label class="kfb-check kfb-same-passenger"><input type="checkbox" id="kfbSamePassenger"> Passenger is the same as the credit card holder</label>');
+    }
+
+    function syncPassengerFromCardholder() {
+      if (!$("#kfbSamePassenger").is(":checked")) return;
+      PASSENGER_FIELD_PAIRS.forEach(function (pair) {
+        var value = $('input[name="' + pair[0] + '"]').val() || "";
+        var $target = $('input[name="' + pair[1] + '"]');
+        if ($target.val() !== value) $target.val(value).trigger("input"); // input event refreshes the summary + clears stale "invalid" flags
+      });
+    }
+
+    /** Applies the checkbox's current state: lock + copy when ticked, unlock when not. */
+    function applySamePassenger() {
+      var on = $("#kfbSamePassenger").is(":checked");
+      PASSENGER_FIELD_PAIRS.forEach(function (pair) {
+        $('input[name="' + pair[1] + '"]').prop("readonly", on).toggleClass("kfb-field-locked", on);
+      });
+      if (on) syncPassengerFromCardholder();
     }
 
     function unlockEmailField() {
@@ -2980,6 +3013,7 @@
 
       $('textarea[name="notes"]').val(booking.notes || "");
 
+      $("#kfbSamePassenger").prop("checked", false); applySamePassenger(); // fill both sets from the booking, then re-detect below
       $('input[name="firstName"]').val(booking.first_name || "");
       $('input[name="lastName"]').val(booking.last_name || "");
       $('input[name="phone"]').val(booking.phone || "");
@@ -2994,6 +3028,12 @@
       // in, and the backend forces it server-side too (see
       // Api::reservation_update()), so this just keeps the form honest.
       if (state.customer) lockEmailToAccount(state.customer.email);
+      var sameAsHolder = PASSENGER_FIELD_PAIRS.every(function (pair) {
+        var a = ($('input[name="' + pair[0] + '"]').val() || "").trim().toLowerCase();
+        var b = ($('input[name="' + pair[1] + '"]').val() || "").trim().toLowerCase();
+        return a !== "" && a === b;
+      });
+      $("#kfbSamePassenger").prop("checked", sameAsHolder); applySamePassenger();
       $('input[name="cardNumber"]').val(booking.cardNumber || "");
       $('input[name="cardExpiry"]').val(booking.cardExpiry || "");
       $('input[name="cvv"]').val(booking.cvv || "");
@@ -3173,6 +3213,7 @@
       state.quotesByVehicleId = {};
       state.pricingZone = null;
       $("#kfbForm")[0].reset();
+      applySamePassenger(); // form reset unticked the box — release the locked passenger fields
       $("#kfbStopsContainer").empty();
       $("#kfbChildSeatsContainer").empty();
       $("#kfbAddonList").empty();
@@ -3381,6 +3422,10 @@
       $("#kfbResetBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
       $("#kfbCancelBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
       $("#kfbSortVehicles").on("change", renderVehicles);
+
+      ensureSamePassengerCheckbox();
+      $(document).on("change", "#kfbSamePassenger", applySamePassenger);
+      $(document).on("input change", 'input[name="ccFirstName"], input[name="ccLastName"], input[name="ccPhone"], input[name="ccEmail"]', syncPassengerFromCardholder);
 
       // Live recompute summary on contact-info edits
       $(document).on("input", 'input[name="firstName"], input[name="lastName"], input[name="email"], input[name="phone"]', renderSideSummary);

@@ -900,12 +900,12 @@ class Api extends CI_Controller
         $booking = $this->Booking_model->get_booking_for_customer($id, $customer['id']);
         if (!$booking) return $this->_error('Reservation not found', 404);
 
+        // Same layout as the confirmation email (emails/booking_confirmation) in
+        // 'receipt' mode: no cancellation policy / pick-up instructions / terms.
+        // Only the masked payment label is used — never the raw card number/CVV.
         $company = $this->Company_model->get($booking['company_id'] ?? 1);
-        $html = $this->load->view('customer/receipt', [
-            'booking'  => $booking,
-            'company'  => $company,
-            'logo_url' => $company ? $this->Company_model->logo_url($company) : NULL,
-        ], TRUE);
+        $this->load->library('booking_presenter');
+        $html = $this->load->view('emails/booking_confirmation', $this->booking_presenter->confirmation_vars($booking, $company, 'receipt'), TRUE);
         $this->output->set_content_type('text/html', 'utf-8')->set_output($html);
     }
 
