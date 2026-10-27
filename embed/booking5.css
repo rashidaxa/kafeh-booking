@@ -576,6 +576,12 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
   animation: kfb-spin .8s linear infinite;
 }
 @keyframes kfb-spin { to { transform: rotate(360deg); } }
+.kfb-btn:disabled, .kfb-btn.is-loading { opacity: .8; cursor: progress; }
+.kfb-btn-spinner {
+  width: 14px; height: 14px; border-radius: 50%; flex: none;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: kfb-spin .7s linear infinite;
+}
 
 /* ===================== PROMO ===================== */
 .kfb-promo {
@@ -967,3 +973,12 @@ html.kfb-modal-open { overflow: hidden; }
   .kfb-reservation-side { align-items: flex-start; width: 100%; }
   .kfb-saved-card-row { flex-direction: column; align-items: flex-start; }
 }
+/* ===================== PROFILE LIST PAGER ===================== */
+.kfb-pager {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 10px; margin-top: 14px;
+}
+.kfb-pager-summary, .kfb-pager-page { font-size: 12px; color: var(--kfb-text-muted); }
+.kfb-pager-nav { display: flex; align-items: center; gap: 10px; }
+.kfb-pager .kfb-btn { min-width: 0; padding: 7px 14px; }
+.kfb-pager .kfb-btn:disabled { opacity: .45; cursor: not-allowed; }

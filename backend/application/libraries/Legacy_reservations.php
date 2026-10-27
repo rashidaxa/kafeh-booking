@@ -232,6 +232,10 @@ class Legacy_reservations
         ];
     }
 
+    /** Public wrappers so the customer confirmation email (Admin_api) shows the exact trip type / notes the legacy portal receives. */
+    public function trip_type($service, array $leg) { return $this->_trip_type($service, $leg); }
+    public function trip_notes(array $booking, array $leg, $clientPhone, $clientEmail) { return $this->_trip_notes($booking, $leg, $clientPhone, $clientEmail); }
+
     /**
      * Legacy trip_type for one leg. Pickup at an airport -> ARRIVAL (FROM
      * AIRPORT); otherwise dropoff at an airport -> DEPARTURE (TO

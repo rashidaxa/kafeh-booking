@@ -28,21 +28,21 @@
   // page (or a manually-added <link> left over from testing) don't
   // double up.
   (function injectStylesheet() {
-    // Load booking4.css from the same place booking4.js itself came from, so a
+    // Load booking5.css from the same place booking5.js itself came from, so a
     // local page gets its own stylesheet and a client site that pastes the
     // absolute grounddispatch.com script URL gets production — no URL to swap
     // by hand when moving to production. Falls back to production if the
     // script's own URL can't be read.
     var cssBase = PROD_BASE + "/embed/";
     var thisScript = document.currentScript;
-    if (thisScript && thisScript.src && /\/booking4\.js(\?|#|$)/.test(thisScript.src)) {
-      cssBase = thisScript.src.replace(/booking4\.js(\?.*)?(#.*)?$/, "");
+    if (thisScript && thisScript.src && /\/booking5\.js(\?|#|$)/.test(thisScript.src)) {
+      cssBase = thisScript.src.replace(/booking5\.js(\?.*)?(#.*)?$/, "");
     }
-    var href = cssBase + "booking4.css?v=20261023";
+    var href = cssBase + "booking5.css?v=20261027";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
-      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking4.css") !== -1) { link = links[i]; break; }
+      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking5.css") !== -1) { link = links[i]; break; }
     }
     if (!link) {
       link = document.createElement("link");
@@ -2234,7 +2234,23 @@
         .fail(function () { clearAuth(); });
     }
 
+    /**
+     * Puts a button into a loading state (spinner + disabled) and returns a
+     * function that restores it. Returns null if it is already loading, so
+     * callers can ignore double clicks / Enter-key repeats.
+     */
+    function setBtnLoading($btn, label) {
+      if (!$btn.length || $btn.hasClass("is-loading")) return null;
+      var original = $btn.html();
+      $btn.addClass("is-loading").prop("disabled", true)
+        .html('<span class="kfb-btn-spinner"></span>' + (label || "Please Wait…"));
+      return function () { $btn.removeClass("is-loading").prop("disabled", false).html(original); };
+    }
+
     function doLogin(email, password) {
+      var done = setBtnLoading($("#kfbLoginSubmitBtn"), "Logging In…");
+      if (!done) return;
+      $("#kfbLoginError").attr("hidden", true);
       $.ajax({
         url: API_BASE + "/customers/login", method: "POST", contentType: "application/json",
         data: JSON.stringify({ email: email, password: password }), dataType: "json", timeout: 10000,
@@ -2262,7 +2278,8 @@
           return;
         }
         showViewError($("#kfbLoginError"), (body && body.error) || "Invalid Email Or Password.");
-      });
+      })
+      .always(done);
     }
 
     /** Switches to the OTP-entry view for the given (pending-verification) email. */
@@ -2280,6 +2297,8 @@
       if (!email) { setView("login"); return; }
       if (!/^\d{6}$/.test(otp)) return showViewError($("#kfbVerifyError"), "Enter The 6-Digit Code From Your Email.");
 
+      var done = setBtnLoading($("#kfbVerifySubmitBtn"), "Verifying…");
+      if (!done) return;
       $.ajax({
         url: API_BASE + "/customers/verify-email", method: "POST", contentType: "application/json",
         data: JSON.stringify({ email: email, otp: otp }), dataType: "json", timeout: 10000,
@@ -2301,7 +2320,8 @@
       })
       .fail(function (xhr) {
         showViewError($("#kfbVerifyError"), (xhr.responseJSON && xhr.responseJSON.error) || "Invalid Or Expired Code.");
-      });
+      })
+      .always(done);
     }
 
     function doResendOtp() {
@@ -2358,6 +2378,9 @@
       if (!isValidEmail(email)) return showViewError($("#kfbRegisterError"), "Enter A Valid Email Address.");
       if (!password || password.length < 6) return showViewError($("#kfbRegisterError"), "Password Must Be At Least 6 Characters.");
 
+      var done = setBtnLoading($("#kfbRegisterSubmitBtn"), "Creating Account…");
+      if (!done) return;
+      $("#kfbRegisterError").attr("hidden", true);
       $.ajax({
         url: API_BASE + "/customers/register", method: "POST", contentType: "application/json",
         data: JSON.stringify({ email: email, password: password, first_name: firstName, last_name: lastName, phone: phone }),
@@ -2376,7 +2399,8 @@
       })
       .fail(function (xhr) {
         showViewError($("#kfbRegisterError"), (xhr.responseJSON && xhr.responseJSON.error) || "Could Not Create Account.");
-      });
+      })
+      .always(done);
     }
 
     function doForgotPassword() {
@@ -2470,14 +2494,53 @@
         });
     }
 
-    function renderReservationsList(rows) {
+    // -------- Profile: list pagination --------
+    var PROFILE_PAGE_SIZE = 10;
+
+    /**
+     * Slices the customer's cached reservations for one page and builds a
+     * Prev/Next bar that re-renders via $renderFn(rows, newPage). The full
+     * list is already in memory (loadMyReservations()), so paging is local.
+     */
+    function paginateProfileList(rows, page, renderFn) {
+      var totalPages = Math.max(1, Math.ceil(rows.length / PROFILE_PAGE_SIZE));
+      page = Math.max(1, Math.min(totalPages, page || 1));
+      var start = (page - 1) * PROFILE_PAGE_SIZE;
+      var $pager = $();
+      if (totalPages > 1) {
+        var end = Math.min(rows.length, start + PROFILE_PAGE_SIZE);
+        var go = function (n) {
+          return function () {
+            renderFn(rows, n);
+            var el = document.getElementById("kfbProfileTop") || document.querySelector(".kfb-profile-tab.is-active");
+            if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" });
+          };
+        };
+        $pager = $(
+          '<nav class="kfb-pager">' +
+            '<span class="kfb-pager-summary">Showing ' + (start + 1) + '–' + end + ' of ' + rows.length + '</span>' +
+            '<div class="kfb-pager-nav">' +
+              '<button type="button" class="kfb-btn kfb-btn-ghost kfb-btn--sm" data-pager="prev"' + (page <= 1 ? ' disabled' : '') + '>← Prev</button>' +
+              '<span class="kfb-pager-page">Page ' + page + ' of ' + totalPages + '</span>' +
+              '<button type="button" class="kfb-btn kfb-btn-ghost kfb-btn--sm" data-pager="next"' + (page >= totalPages ? ' disabled' : '') + '>Next →</button>' +
+            '</div>' +
+          '</nav>'
+        );
+        $pager.find('[data-pager="prev"]').on("click", go(page - 1));
+        $pager.find('[data-pager="next"]').on("click", go(page + 1));
+      }
+      return { rows: rows.slice(start, start + PROFILE_PAGE_SIZE), $pager: $pager };
+    }
+
+    function renderReservationsList(rows, page) {
       var $list = $("#kfbReservationsList");
       $list.empty();
       if (!rows.length) {
         $list.html('<p class="kfb-empty">No reservations yet.</p>');
         return;
       }
-      rows.forEach(function (r) {
+      var pg = paginateProfileList(rows, page, renderReservationsList);
+      pg.rows.forEach(function (r) {
         var statusLabel = (r.status || "").replace(/_/g, " ");
         var $card = $(
           '<div class="kfb-reservation-card">' +
@@ -2499,17 +2562,19 @@
         }
         $list.append($card);
       });
+      $list.append(pg.$pager);
     }
 
     // -------- Profile: invoices & receipts --------
-    function renderReceiptsList(rows) {
+    function renderReceiptsList(rows, page) {
       var $list = $("#kfbReceiptsList");
       $list.empty();
       if (!rows.length) {
         $list.html('<p class="kfb-empty">No invoices yet.</p>');
         return;
       }
-      rows.forEach(function (r) {
+      var pg = paginateProfileList(rows, page, renderReceiptsList);
+      pg.rows.forEach(function (r) {
         var statusLabel = (r.status || "").replace(/_/g, " ");
         var $card = $(
           '<div class="kfb-reservation-card">' +
@@ -2528,6 +2593,7 @@
         $card.find(".kfb-reservation-side").append($btn);
         $list.append($card);
       });
+      $list.append(pg.$pager);
     }
 
     /**
@@ -3045,6 +3111,8 @@
         }
         // The account is for the card holder (the booker), not the passenger.
         var email = $('input[name="ccEmail"]').val();
+        var done = setBtnLoading($(this), "Creating Account…");
+        if (!done) return;
         $.ajax({
           url: API_BASE + "/customers/register",
           method: "POST",
@@ -3071,7 +3139,8 @@
             toast((res && res.error) || "Could Not Create Account.", "error");
           }
         })
-        .fail(function () { toast("Network Error Creating Account.", "error"); });
+        .fail(function () { toast("Network Error Creating Account.", "error"); })
+        .always(done);
       });
     }
 

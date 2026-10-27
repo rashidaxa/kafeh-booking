@@ -25,6 +25,63 @@ class Mailer
         $this->CI =& get_instance();
         $this->CI->config->load('crmsync');
         $this->CI->load->library('phpmailer_library');
+        $this->CI->load->model('Company_model');
+    }
+
+    const A1_HEADER_LOGO = 'https://grounddispatch.com/a1-limousine-logo.png';
+
+    /**
+     * Name / logo / phone / website for the shared notification layout.
+     * Falls back to A1 Limousines' published details when the company is
+     * unknown or has none set; the website link only shows for A1 itself.
+     */
+    public function branding($company = NULL)
+    {
+        $isA1  = !$company || (int)($company['id'] ?? 1) === 1;
+        $phone = trim((string)($company['phone_1'] ?? ''));
+        if ($phone === '') $phone = '1 (800) 781-4700';
+        $logo = $company ? $this->CI->Company_model->logo_url($company) : NULL;
+        return [
+            'company_name'  => !empty($company['name']) ? $company['name'] : 'A1 Limousines',
+            'logo_url'      => (!$logo || $isA1) ? self::A1_HEADER_LOGO : $logo,
+            'phone_display' => $phone,
+            'phone_tel'     => $this->_tel($phone),
+            'website'       => $isA1 ? 'www.A1Limousines.com' : '',
+        ];
+    }
+
+    /** "1 (800) 781-4700" / "(800) 781-4700" / "+44 20 …" -> a dialable tel: value. */
+    protected function _tel($phone)
+    {
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strpos(trim($phone), '+') === 0) return '+' . $digits;
+        if (strlen($digits) === 10) return '+1' . $digits;
+        return '+' . $digits;
+    }
+
+    /**
+     * Sends a notification through the shared layout (views/emails/notification.php).
+     * $vars: heading, preview, greeting, paragraphs, highlight, details, button, closing
+     * (see that view). A plain-text twin is generated from the same content.
+     */
+    public function send_notification($to, $subject, array $vars, $company = NULL)
+    {
+        $brand = $this->branding($company);
+        $html  = $this->CI->load->view('emails/notification', array_merge($brand, $vars), TRUE);
+
+        $text = [];
+        if (isset($vars['greeting']) && $vars['greeting'] !== NULL) $text[] = 'Dear ' . $vars['greeting'] . ',';
+        foreach (($vars['paragraphs'] ?? []) as $p) $text[] = trim(html_entity_decode(strip_tags($p), ENT_QUOTES, 'UTF-8'));
+        if (!empty($vars['highlight'])) $text[] = $vars['highlight']['title'] . ': ' . trim(html_entity_decode(strip_tags($vars['highlight']['html']), ENT_QUOTES, 'UTF-8'));
+        foreach (($vars['details'] ?? []) as $k => $v) $text[] = $k . ': ' . $v;
+        if (!empty($vars['button'])) $text[] = $vars['button']['label'] . ': ' . $vars['button']['url'];
+        $text[] = $brand['company_name'] . ' | ' . $brand['phone_display'];
+
+        return $this->send($to, $subject, $html, TRUE, [
+            'from_name' => $brand['company_name'],
+            'reply_to'  => $company['contact_email'] ?? NULL,
+            'alt_body'  => implode("\n\n", $text),
+        ]);
     }
 
     /**

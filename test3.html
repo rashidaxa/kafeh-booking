@@ -8,8 +8,11 @@
   <link rel="stylesheet" href="test.css">
 
   <script>
-    window.API     = "http://localhost/booking/backend/api";
-    window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
+    // Only when opened locally; on the live site the widget's production defaults apply.
+    if (/^(localhost|127\.0\.0\.1|)$/.test(location.hostname)) {
+      window.API     = "http://localhost/booking/backend/api";
+      window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
+    }
   </script>
 </head>
 <body>
@@ -806,7 +809,7 @@
     <!--
       <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
       <script src="https://grounddispatch.com/booking/embed/airports.js"></script>
-      <script src="https://grounddispatch.com/booking/embed/booking4.js?v=20261023"></script>
+      <script src="https://grounddispatch.com/booking/embed/booking5.js?v=20261027"></script>
       <script src="https://grounddispatch.com/booking/embed/booking-map.js"></script>
       <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
     -->
@@ -814,7 +817,7 @@
 
     <script src="vendor/jquery-3.7.1.min.js"></script>
     <script src="embed/airports.js"></script>
-    <script src="embed/booking4.js?v=20261023"></script>
+    <script src="embed/booking5.js?v=20261027"></script>
     <script src="embed/booking-map.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
 

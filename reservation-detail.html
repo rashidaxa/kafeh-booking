@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="test.css">
 
   <!-- V3 Widget styles (shared, unchanged — no pricing/payment styling to fork) -->
-  <link rel="stylesheet" href="embed/booking4.css?v=20261023">
+  <link rel="stylesheet" href="embed/booking5.css?v=20261027">
 
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
@@ -21,8 +21,11 @@
        so in production neither of these is needed. Setting them here
        points this page at your local XAMPP backend while developing. -->
   <script>
-    window.API     = "http://localhost/booking/backend/api";
-    window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
+    // Only when opened locally; on the live site the widget's production defaults apply.
+    if (/^(localhost|127\.0\.0\.1|)$/.test(location.hostname)) {
+      window.API     = "http://localhost/booking/backend/api";
+      window.UPLOADS = "http://localhost/booking/backend/uploads/vehicles/";
+    }
   </script>
 </head>
 <body>

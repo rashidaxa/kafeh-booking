@@ -1334,25 +1334,36 @@ class Api extends CI_Controller
         $ccName = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
         if ($ccName !== '' && !empty($booking['cc_company'])) $ccName .= ' | ' . $booking['cc_company'];
         $subject = $eventLabel . ' — Booking ' . ($booking['booking_id'] ?? '');
-        $body =
-            "{$eventLabel}\n\n" .
-            "Company:    " . ($company['name'] ?? '—') . (!empty($booking['origin_host']) ? " ({$booking['origin_host']})" : '') . "\n" .
-            "Booking ID: " . ($booking['booking_id'] ?? '—') . "\n" .
-            ($ccName !== ''
-                ? "Card holder: {$ccName}\n" .
-                  "CH Email:   " . ($booking['cc_email'] ?? '—') . "\n" .
-                  "CH Phone:   " . ($booking['cc_phone'] ?? '—') . "\n"
-                : "") .
-            "Passenger:  " . ($name !== '' ? $name : '—') . "\n" .
-            "Email:      " . ($booking['email'] ?? '—') . "\n" .
-            "Phone:      " . ($booking['phone'] ?? '—') . "\n" .
-            "Service:    " . ($booking['service_type'] ?? '—') . "\n" .
-            "Pickup:     " . ($booking['pickup_date'] ?? '—') . ' at ' . ($booking['pickup_time'] ?? '—') . "\n" .
-            "From:       " . ($booking['pickup'] ?? '—') . "\n" .
-            "To:         " . ($booking['dropoff'] ?? '—') . "\n" .
-            "Vehicle:    " . ($booking['vehicle_name'] ?? '—') . "\n" .
-            (isset($booking['amount']) ? "Amount:     \${$booking['amount']}\n" : "");
-        $this->mailer->send($to, $subject, $body);
+        $dash = function ($v) { return ($v !== NULL && trim((string)$v) !== '') ? $v : '—'; };
+        $details = [
+            'Company'    => ($company['name'] ?? '—') . (!empty($booking['origin_host']) ? " ({$booking['origin_host']})" : ''),
+            'Booking ID' => $dash($booking['booking_id'] ?? NULL),
+        ];
+        if ($ccName !== '') {
+            $details['Card holder'] = $ccName;
+            $details['CH Email']    = $dash($booking['cc_email'] ?? NULL);
+            $details['CH Phone']    = $dash($booking['cc_phone'] ?? NULL);
+        }
+        $details += [
+            'Passenger' => $name !== '' ? $name : '—',
+            'Email'     => $dash($booking['email'] ?? NULL),
+            'Phone'     => $dash($booking['phone'] ?? NULL),
+            'Service'   => $dash($booking['service_type'] ?? NULL),
+            'Pickup'    => $dash($booking['pickup_date'] ?? NULL) . ' at ' . $dash($booking['pickup_time'] ?? NULL),
+            'From'      => $dash($booking['pickup'] ?? NULL),
+            'To'        => $dash($booking['dropoff'] ?? NULL),
+            'Vehicle'   => $dash($booking['vehicle_name'] ?? NULL),
+        ];
+        if (isset($booking['amount'])) $details['Amount'] = '$' . $booking['amount'];
+
+        $this->mailer->send_notification($to, $subject, [
+            'heading'    => $eventLabel,
+            'preview'    => $eventLabel . ' — Booking ' . ($booking['booking_id'] ?? ''),
+            'greeting'   => NULL,
+            'paragraphs' => ['A reservation needs your attention in the admin portal.'],
+            'details'    => $details,
+            'closing'    => 'This is an automated notification from the booking system.',
+        ], $company);
     }
 
     protected function _set_cors_headers()
