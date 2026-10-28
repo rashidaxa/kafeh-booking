@@ -193,7 +193,10 @@ class Legacy_reservations
             'passenger_count'        => (string)$booking['passengers'],
             'client_phone'           => $clientPhone,
             'trip_status'            => '0', // new/unassigned — matches a fresh entry made in that portal's own UI
-            'res_final_status'       => '',
+            // "Finalization" dropdown: paid through PayPal (captured before this sync runs) -> "Web Payment";
+            // PayPal off -> "Collect", which is that dropdown's empty value (a literal "Collect" would match no
+            // option, and the portal's dashboard colours any non-empty value green as "finalized").
+            'res_final_status'       => (($booking['payment_mode'] ?? 'paypal') === 'none') ? '' : 'Web Payment',
             'assigned_driver'        => 0,
             'quote_status'           => 0, // this is a confirmed, paid booking, not a quote
             'email'                  => $clientEmail,
