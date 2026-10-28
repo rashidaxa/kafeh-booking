@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS `kfb_bookings` (
   `pricing_zone`            VARCHAR(20)  NULL COMMENT 'local | regional | long_distance | worldwide — NULL on bookings priced before v16',
   `travel_fee_amount`       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `surcharges_total_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `surcharges_json`         TEXT NULL COMMENT 'Itemised surcharges [{code,name,amount}] as quoted — NULL on bookings made before v27',
   `gratuity_pct`            DECIMAL(5,2) NOT NULL DEFAULT 0.00,
   `gratuity_amount`         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `child_seats_fee_amount`  DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Child seat fee actually charged (pricing_child_seat_fee x child_seats)',

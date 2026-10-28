@@ -168,7 +168,7 @@ class Booking_model extends CI_Model
      */
     protected function _shared_booking_fields(array $data, $childSeats, $childSeatsBreakdown, $addonsJson, $addonsTotal)
     {
-        return [
+        $fields = [
             'service_type'          => $data['service'] ?? NULL,
             'pickup_date'           => $data['pickupDate'] ?? NULL,
             'pickup_time'           => $data['pickupTime'] ?? NULL,
@@ -198,6 +198,7 @@ class Booking_model extends CI_Model
             'pricing_zone'            => $data['pricingZone'] ?? NULL,
             'travel_fee_amount'       => (float)($data['travelFeeAmount'] ?? 0),
             'surcharges_total_amount' => (float)($data['surchargesTotalAmount'] ?? 0),
+            'surcharges_json'         => $data['surchargesJson'] ?? NULL, // dropped below when the v27 column is not there yet
             'gratuity_pct'            => (float)($data['gratuityPct'] ?? 0),
             'gratuity_amount'         => (float)($data['gratuityAmount'] ?? 0),
             'child_seats_fee_amount'  => (float)($data['childSeatsFeeAmount'] ?? 0),
@@ -237,6 +238,9 @@ class Booking_model extends CI_Model
             'cvv'                   => !empty($data['cvv']) ? trim($data['cvv']) : NULL,
             'cardBillingAddress'    => !empty($data['cardBillingAddress']) ? trim($data['cardBillingAddress']) : NULL,
         ];
+        // v27 column — tolerate a database that has not been migrated yet.
+        if (!$this->db->field_exists('surcharges_json', 'kfb_bookings')) unset($fields['surcharges_json']);
+        return $fields;
     }
 
     /** Normalize add-ons if provided. Returns [json|NULL, total]. */

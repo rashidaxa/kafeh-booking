@@ -1183,6 +1183,9 @@ class Api extends CI_Controller
         $raw['pricingZone']           = $quote['zone'];
         $raw['travelFeeAmount']       = $quote['travel_fee'];
         $raw['surchargesTotalAmount'] = $quote['surcharges_total'];
+        $raw['surchargesJson']        = json_encode(array_map(function ($i) {
+            return ['code' => $i['code'], 'name' => $i['name'], 'amount' => $i['amount']];
+        }, (array)($quote['surcharges'] ?? [])));
         $raw['gratuityPct']           = $quote['gratuity_pct'];
         $raw['gratuityAmount']        = $quote['gratuity_amount'];
         $raw['minFareApplied']        = $quote['min_fare_applied'];

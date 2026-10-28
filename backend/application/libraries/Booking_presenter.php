@@ -39,7 +39,11 @@ class Booking_presenter
         // Same price lines the legacy portal receives (one source of truth).
         $pricing = $this->CI->legacy_reservations->leg_pricing($booking);
         $extra = [];
-        foreach ($pricing['prices'] as $name => $amount) $extra[] = ['name' => $name, 'amount' => $amount];
+        foreach ($pricing['prices'] as $key => $amount) {
+            if ((float)$amount == 0) continue; // the legacy portal lists every line; the customer only sees the ones that apply
+            $name = ucwords(str_replace('-', ' ', $key));            // "hwy-tolls" -> "Hwy Tolls", as the legacy email prints it
+            $extra[] = ['name' => str_replace('Am / Pm Fee', 'AM / PM Fee', $name), 'amount' => $amount];
+        }
         $transport = $pricing['base'];
         $gratuity  = $pricing['gratuity'];
         $discount  = $pricing['discount'];

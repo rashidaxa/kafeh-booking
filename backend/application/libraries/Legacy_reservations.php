@@ -55,6 +55,27 @@ class Legacy_reservations
         'Tour'           => 'CHARTER',
     ];
 
+    /**
+     * The legacy portal's price lines (its prices_categories, lower-cased and
+     * hyphenated — the keys its Client Pricing form saves and reads), in the
+     * order that form lists them. Every reservation is sent with ALL of them,
+     * 0 where we have no value, so the form is complete.
+     */
+    const LEGACY_PRICE_KEYS = [
+        'meet-greet', 'surcharge', 'distance', 'cleanup-fee', 'parking', 'am-/-pm-fee', 'security-srv',
+        'wait-time', 'hwy-tolls', 'airport-fee', 'car-seat', 'stc', 'garage-to-garage', 'outside-serv',
+    ];
+
+    /** Our surcharge code -> legacy price line. Anything not listed (fuel, holiday, extra stop, custom ones...) goes to the generic 'surcharge' line. */
+    protected $surcharge_key_map = [
+        'MEET_GREET'     => 'meet-greet',
+        'AIRPORT_FEE'    => 'airport-fee',
+        'PARKING'        => 'parking',
+        'TOLL'           => 'hwy-tolls',
+        'WAITING_TIME'   => 'wait-time',
+        'LATE_NIGHT_FEE' => 'am-/-pm-fee',
+    ];
+
     /** A1 Limousine Service's company_id in the legacy companies table — this portal serves one brand. */
     const LEGACY_COMPANY_ID = 6;
 
@@ -146,6 +167,10 @@ class Legacy_reservations
         // per-leg figures, laid out the way the legacy Client Pricing form
         // does its own math (see leg_pricing()).
         $pricing = $this->leg_pricing($booking);
+        $hours = (float)($booking['hours_requested'] ?? 0);
+        $tripFields = (($booking['service_type'] ?? '') === 'Hourly' && $hours > 0)
+            ? ['min' => $hours, 'flat' => 0, 'rate' => round($pricing['base'] / $hours, 4)]
+            : ['min' => 1,      'flat' => 1, 'rate' => $pricing['base']];
 
         $pickupAddress = (string)($leg['pickup'] ?? '');
         if (!$isReturn && !empty($booking['stops'])) {
@@ -209,14 +234,13 @@ class Legacy_reservations
             'drop_off_flight_number' => (string)($leg['dropoff_flight_number'] ?? ''),
             'pickup_connecting_city' => '',
             'dropoff_connecting_city' => '',
-            // "Client Pricing" fields (addreservation.php's own labels in
-            // parens) — see this class's docblock for the half-split.
-            // p_trip_min/p_trip_flat/p_trip_rate deliberately left unset
-            // (NULL, that table's own default) — our zone multipliers and
-            // hourly-minimum floors mean there's no single hours x rate
-            // that reliably reproduces p_total, so rather than send a
-            // number that sometimes doesn't multiply out right, we just
-            // don't populate these three at all.
+            // "Client Pricing" fields — see leg_pricing() for how they add up.
+            // Trip Min / Flat / Rate behind "Charges": an Hourly booking is hours x hourly rate;
+            // everything else is entered the way staff enter a flat fare (1 x fare), so the
+            // fields multiply out to Charges if someone edits the entry over there.
+            'p_trip_min'             => $tripFields['min'],
+            'p_trip_flat'            => $tripFields['flat'],
+            'p_trip_rate'            => $tripFields['rate'],
             'p_charges'              => $pricing['base'],       // "Charges" — the base our gratuity % applies to (transportation + travel fee)
             'graduity'               => $pricing['gratuity'],   // legacy shows this / Charges as the gratuity %
             'discount'               => $pricing['discount'],
@@ -276,17 +300,20 @@ class Legacy_reservations
 
     /**
      * One leg's price lines in the legacy portal's shape. The legacy Client
-     * Pricing form computes  Total = Charges + Gratuity + sum(extra lines)
-     * and shows Gratuity % as Gratuity / Charges, with the extra lines as a
-     * {name: amount} map. So:
+     * Pricing form computes  Total = Charges + Gratuity + sum(price lines)
+     * and shows Gratuity % as Gratuity / Charges, with the price lines as a
+     * {name: amount} map (see LEGACY_PRICE_KEYS). So:
      *   base     "Charges": whatever remains after every other line, which is
      *            transportation + travel fee — exactly what our gratuity %
      *            is applied to (Pricing_engine), so the % shown there matches.
-     *   prices   Surcharges (aggregate — no per-surcharge rows are stored),
-     *            Child Seats, and each add-on by name.
+     *   prices   all LEGACY_PRICE_KEYS, 0 where unused: each stored surcharge on
+     *            its matching line (surcharge_key_map), child seats on 'car-seat',
+     *            and add-ons + any unmapped surcharge on the generic 'surcharge'.
+     *            Bookings from before v27 have no itemised surcharges, so their
+     *            surcharge total lands on 'surcharge'.
      * `amount` is the only figure doubled for a round trip, so each leg gets
      * half of it; everything else is already per leg. Shared with the
-     * customer confirmation email so the two always agree.
+     * customer confirmation email (which hides the zero lines).
      */
     public function leg_pricing(array $booking)
     {
@@ -295,24 +322,23 @@ class Legacy_reservations
         $gratuity = $n('gratuity_amount');
         $discount = $n('discount_amount');
 
-        $prices = [];
-        $add = function ($name, $amt) use (&$prices) {
-            if ((float)$amt <= 0) return;
-            $key = $name; $i = 2;
-            while (isset($prices[$key])) $key = $name . ' ' . $i++; // keep duplicate add-on names distinct
-            $prices[$key] = round((float)$amt, 2);
-        };
-        $add('Surcharges', $n('surcharges_total_amount'));
-        $add('Child Seats', $n('child_seats_fee_amount'));
-        $items = !empty($booking['addons_json']) ? json_decode($booking['addons_json'], TRUE) : NULL;
-        $itemised = 0.0;
-        if (is_array($items)) {
-            foreach ($items as $a) {
-                $line = (float)($a['line_total'] ?? 0);
-                if ($line > 0) { $add($a['name'] ?? ($a['code'] ?? 'Add-on'), $line); $itemised += $line; }
+        $prices = array_fill_keys(self::LEGACY_PRICE_KEYS, 0.0);
+        $add = function ($key, $amt) use (&$prices) { $prices[$key] = round($prices[$key] + (float)$amt, 2); };
+
+        $items = !empty($booking['surcharges_json']) ? json_decode($booking['surcharges_json'], TRUE) : NULL;
+        if (is_array($items) && $items) {
+            foreach ($items as $it) {
+                $code = strtoupper((string)($it['code'] ?? ''));
+                $add($this->surcharge_key_map[$code] ?? 'surcharge', $it['amount'] ?? 0);
             }
+        } else {
+            $add('surcharge', $n('surcharges_total_amount')); // pre-v27 booking: total only
         }
-        if ($itemised <= 0) $add('Add-ons', $n('addons_total'));
+        $add('car-seat', $n('child_seats_fee_amount'));
+        $addons = !empty($booking['addons_json']) ? json_decode($booking['addons_json'], TRUE) : NULL;
+        $addonSum = 0.0;
+        if (is_array($addons)) foreach ($addons as $a) $addonSum += (float)($a['line_total'] ?? 0);
+        $add('surcharge', $addonSum > 0 ? $addonSum : $n('addons_total'));
 
         $base    = round(max(0, $grand + $discount - $gratuity - array_sum($prices)), 2);
         $p_total = round($base + $gratuity + array_sum($prices), 2);
