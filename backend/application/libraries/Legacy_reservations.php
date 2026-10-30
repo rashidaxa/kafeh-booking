@@ -63,7 +63,7 @@ class Legacy_reservations
      */
     const LEGACY_PRICE_KEYS = [
         'meet-greet', 'surcharge', 'distance', 'cleanup-fee', 'parking', 'am-/-pm-fee', 'security-srv',
-        'wait-time', 'hwy-tolls', 'airport-fee', 'car-seat', 'stc', 'garage-to-garage', 'outside-serv',
+        'wait-time', 'hwy-tolls', 'airport-fee', 'car-seat', 'stc', 'garage-to-garage', 'outside-serv', 'add-ons',
     ];
 
     /** Our surcharge code -> legacy price line. Anything not listed (fuel, holiday, extra stop, custom ones...) goes to the generic 'surcharge' line. */
@@ -311,7 +311,8 @@ class Legacy_reservations
      *            is applied to (Pricing_engine), so the % shown there matches.
      *   prices   all LEGACY_PRICE_KEYS, 0 where unused: each stored surcharge on
      *            its matching line (surcharge_key_map), child seats on 'car-seat',
-     *            and add-ons + any unmapped surcharge on the generic 'surcharge'.
+     *            add-ons on their own 'add-ons' line, and any unmapped surcharge
+     *            on the generic 'surcharge'.
      *            Bookings from before v27 have no itemised surcharges, so their
      *            surcharge total lands on 'surcharge'.
      * `amount` is the only figure doubled for a round trip, so each leg gets
@@ -341,7 +342,7 @@ class Legacy_reservations
         $addons = !empty($booking['addons_json']) ? json_decode($booking['addons_json'], TRUE) : NULL;
         $addonSum = 0.0;
         if (is_array($addons)) foreach ($addons as $a) $addonSum += (float)($a['line_total'] ?? 0);
-        $add('surcharge', $addonSum > 0 ? $addonSum : $n('addons_total'));
+        $add('add-ons', $addonSum > 0 ? $addonSum : $n('addons_total'));
 
         $base    = round(max(0, $grand + $discount - $gratuity - array_sum($prices)), 2);
         $p_total = round($base + $gratuity + array_sum($prices), 2);

@@ -524,6 +524,11 @@ body.kfb-admin {
 .kfb-form input[type="email"],
 .kfb-form input[type="password"],
 .kfb-form input[type="number"],
+.kfb-form input[type="url"],
+.kfb-form input[type="tel"],
+.kfb-form input[type="date"],
+.kfb-form input[type="time"],
+.kfb-form input[type="datetime-local"],
 .kfb-form input[type="file"],
 .kfb-form textarea,
 .kfb-form select {
