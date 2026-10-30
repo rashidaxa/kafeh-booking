@@ -1,13 +1,6 @@
 <?php
 $booking = isset($booking) ? $booking : [];
 
-if (!function_exists('kfb_hm')) {
-    /** HH:MM from a TIME/DATETIME column, or '—'. */
-    function kfb_hm($t)
-    {
-        return $t ? substr((string)$t, 0, 5) : '—';
-    }
-}
 if (!function_exists('kfb_or_dash')) {
     function kfb_or_dash($v)
     {
@@ -114,7 +107,7 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
       <span class="kfb-hint">Trip</span>
       <p>
         <?= htmlspecialchars($booking['service_type']) ?><br>
-        <?= htmlspecialchars($booking['pickup_date']) ?> at <?= kfb_hm($booking['pickup_time'] ?? NULL) ?><br>
+        <?= htmlspecialchars(kfb_date($booking['pickup_date'] ?? NULL)) ?> at <?= kfb_hm($booking['pickup_time'] ?? NULL) ?><br>
         <?= htmlspecialchars($booking['pickup']) ?> → <?= htmlspecialchars($booking['dropoff']) ?>
       </p>
     </div>
@@ -135,12 +128,12 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
     <?php if (!empty($booking['is_return_trip'])): ?>
       <div>
         <span class="kfb-hint">Return trip</span>
-        <p><?= kfb_or_dash($booking['return_date'] ?? NULL) ?> at <?= kfb_hm($booking['return_time'] ?? NULL) ?></p>
+        <p><?= htmlspecialchars(kfb_date($booking['return_date'] ?? NULL)) ?> at <?= kfb_hm($booking['return_time'] ?? NULL) ?></p>
       </div>
     <?php endif; ?>
     <div>
       <span class="kfb-hint">Submitted</span>
-      <p><?= htmlspecialchars($booking['created_at']) ?><br>
+      <p><?= htmlspecialchars(kfb_datetime($booking['created_at'])) ?><br>
         <small class="kfb-hint">IP <?= kfb_or_dash($booking['ip_address'] ?? NULL) ?></small></p>
     </div>
   </div>
@@ -226,7 +219,7 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
   <header class="kfb-card-head"><h2>E-signature</h2></header>
   <?php if (!empty($booking['signature_data'])): ?>
     <div class="kfb-detail-grid" style="margin-bottom:12px">
-      <div><span class="kfb-hint">Signed</span><p><?= kfb_or_dash($booking['signature_at'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Signed</span><p><?= htmlspecialchars(kfb_datetime($booking['signature_at'] ?? NULL)) ?></p></div>
       <div><span class="kfb-hint">IP address</span><p><?= kfb_or_dash($booking['signature_ip'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Terms version</span><p><?= kfb_or_dash($booking['terms_version'] ?? NULL) ?></p></div>
     </div>

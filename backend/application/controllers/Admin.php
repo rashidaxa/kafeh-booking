@@ -23,7 +23,7 @@ class Admin extends CI_Controller
         parent::__construct();
         $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model', 'Company_model', 'Customer_model', 'Terms_model']);
         $this->load->library(['session', 'customer_mail']);
-        $this->load->helper(['url', 'form']);
+        $this->load->helper(['url', 'form', 'kfb_format']);
         $this->_require_login();
     }
 

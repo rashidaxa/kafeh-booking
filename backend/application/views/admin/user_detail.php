@@ -30,8 +30,8 @@ $deleteMsg = 'Delete ' . ($fullName !== '' ? $fullName : $u['email']) . '? Their
     <div><span class="kfb-hint">Company</span><p><?= htmlspecialchars($u['company_name'] ?? '—') ?></p></div>
     <div><span class="kfb-hint">Email</span><p><?= htmlspecialchars($u['email']) ?></p></div>
     <div><span class="kfb-hint">Phone</span><p><?= htmlspecialchars($u['phone'] ?: '—') ?></p></div>
-    <div><span class="kfb-hint">Created</span><p><?= htmlspecialchars((string)$u['created_at']) ?></p></div>
-    <div><span class="kfb-hint">Last booking</span><p><?= htmlspecialchars((string)($u['last_booking_at'] ?: '—')) ?></p></div>
+    <div><span class="kfb-hint">Created</span><p><?= htmlspecialchars(kfb_datetime($u['created_at'])) ?></p></div>
+    <div><span class="kfb-hint">Last booking</span><p><?= htmlspecialchars(kfb_datetime($u['last_booking_at'] ?? NULL)) ?></p></div>
     <div><span class="kfb-hint">Reservations</span><p><?= $resCount ?></p></div>
   </div>
 </section>
@@ -145,10 +145,10 @@ $deleteMsg = 'Delete ' . ($fullName !== '' ? $fullName : $u['email']) . '? Their
           <tr>
             <td><code class="kfb-mono"><?= htmlspecialchars($r['booking_id']) ?></code></td>
             <td><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name'])) ?: '—' ?></td>
-            <td><?= htmlspecialchars((string)$r['pickup_date']) ?> <small class="kfb-hint"><?= htmlspecialchars(substr((string)$r['pickup_time'], 0, 5)) ?></small></td>
+            <td><?= htmlspecialchars(kfb_date($r['pickup_date'])) ?> <small class="kfb-hint"><?= htmlspecialchars(kfb_hm($r['pickup_time'])) ?></small></td>
             <td>$<?= number_format((float)$r['amount'], 2) ?></td>
             <td><?= htmlspecialchars(ucfirst(str_replace('_', ' ', (string)$r['status']))) ?></td>
-            <td><small class="kfb-hint"><?= htmlspecialchars((string)$r['created_at']) ?></small></td>
+            <td><small class="kfb-hint"><?= htmlspecialchars(kfb_datetime($r['created_at'])) ?></small></td>
             <td><a href="<?= site_url('admin/reservations/' . $r['booking_id']) ?>" class="kfb-btn kfb-btn--ghost kfb-btn--sm">View →</a></td>
           </tr>
         <?php endforeach; ?>

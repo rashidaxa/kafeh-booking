@@ -41,8 +41,8 @@ $trigger_labels = Surcharge_model::KNOWN_TRIGGERS;
                 <?php endif; ?>
                 <?php if (!empty($s['starts_at']) || !empty($s['ends_at'])): ?>
                   <br>· Active
-                  <?php if (!empty($s['starts_at'])): ?>from <?= date('M j, Y g:ia', strtotime($s['starts_at'])) ?><?php endif; ?>
-                  <?php if (!empty($s['ends_at'])): ?>until <?= date('M j, Y g:ia', strtotime($s['ends_at'])) ?><?php endif; ?>
+                  <?php if (!empty($s['starts_at'])): ?>from <?= kfb_datetime($s['starts_at']) ?><?php endif; ?>
+                  <?php if (!empty($s['ends_at'])): ?>until <?= kfb_datetime($s['ends_at']) ?><?php endif; ?>
                 <?php endif; ?>
               </small>
             </div>

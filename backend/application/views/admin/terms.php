@@ -4,7 +4,7 @@
   <header class="kfb-card-head">
     <h2>Terms &amp; Conditions</h2>
     <?php if (!empty($terms['updated_at'])): ?>
-      <small class="kfb-hint">Last saved <?= htmlspecialchars($terms['updated_at']) ?><?= !empty($terms['updated_by']) ? ' by ' . htmlspecialchars($terms['updated_by']) : '' ?></small>
+      <small class="kfb-hint">Last saved <?= htmlspecialchars(kfb_datetime($terms['updated_at'])) ?><?= !empty($terms['updated_by']) ? ' by ' . htmlspecialchars($terms['updated_by']) : '' ?></small>
     <?php endif; ?>
   </header>
 

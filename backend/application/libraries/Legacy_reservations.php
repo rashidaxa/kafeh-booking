@@ -204,9 +204,9 @@ class Legacy_reservations
             'trip_type'              => $tripType,
             'select_vehicle'         => $legacyVehicleId,
             'client_passenger_text'  => '',
-            // Booked through PayPal: payment was already captured before this sync runs.
-            // Booked with PayPal switched off: nothing was charged online — the card is processed manually in the legacy portal.
-            'collection_type'        => (($booking['payment_mode'] ?? 'paypal') === 'none') ? 'Process' : 'Prepaid',
+            // Booked through PayPal: payment was already captured before this sync runs -> Prepaid.
+            // Booked with PayPal switched off: nothing was charged online -> the legacy dropdown's default "Collect" (stored as an empty value).
+            'collection_type'        => (($booking['payment_mode'] ?? 'paypal') === 'none') ? '' : 'Prepaid',
             'collection_method'      => 'Credit Card',
             'card_type_field'        => (string)($booking['card_brand'] ?? ''),
             'card_number'            => (string)($booking['cardNumber'] ?? ''),

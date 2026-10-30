@@ -13,30 +13,6 @@ if (!function_exists('kfb_reservation_badge')) {
         }
     }
 }
-if (!function_exists('kfb_hm')) {
-    /** hh:mm AM/PM from a TIME/DATETIME column, or '—'. */
-    function kfb_hm($t)
-    {
-        $ts = $t ? strtotime((string)$t) : FALSE;
-        return $ts ? date('h:i A', $ts) : '—';
-    }
-}
-if (!function_exists('kfb_date')) {
-    /** MM/DD/YYYY from a DATE/DATETIME column, or '—'. */
-    function kfb_date($d)
-    {
-        $ts = $d ? strtotime((string)$d) : FALSE;
-        return $ts ? date('m/d/Y', $ts) : '—';
-    }
-}
-if (!function_exists('kfb_datetime')) {
-    /** MM/DD/YYYY hh:mm AM/PM from a DATETIME column, or '—'. */
-    function kfb_datetime($d)
-    {
-        $ts = $d ? strtotime((string)$d) : FALSE;
-        return $ts ? date('m/d/Y h:i A', $ts) : '—';
-    }
-}
 if (!function_exists('kfb_or_dash')) {
     function kfb_or_dash($v)
     {

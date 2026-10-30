@@ -109,7 +109,7 @@ if (!function_exists('kfb_reservations_page_url')) {
                 <?php endif; ?>
               </td>
               <td><?= htmlspecialchars($r['company_name'] ?? '—') ?></td>
-              <td><?= htmlspecialchars($r['pickup_date']) ?> <small class="kfb-hint"><?= htmlspecialchars(substr((string)$r['pickup_time'], 0, 5)) ?></small></td>
+              <td><?= htmlspecialchars(kfb_date($r['pickup_date'])) ?> <small class="kfb-hint"><?= htmlspecialchars(kfb_hm($r['pickup_time'])) ?></small></td>
               <td>$<?= number_format((float)$r['amount'], 2) ?></td>
               <td>
                 <?php if ($r['card_brand']): ?>
@@ -124,7 +124,7 @@ if (!function_exists('kfb_reservations_page_url')) {
                   <span class="kfb-hint" title="Edited by the customer <?= (int)$r['edit_count'] ?>×">✎ edited</span>
                 <?php endif; ?>
               </td>
-              <td><small class="kfb-hint"><?= htmlspecialchars($r['created_at']) ?></small></td>
+              <td><small class="kfb-hint"><?= htmlspecialchars(kfb_datetime($r['created_at'])) ?></small></td>
               <td><a href="<?= site_url('admin/reservations/' . $r['booking_id']) ?>" class="kfb-btn kfb-btn--ghost kfb-btn--sm">View →</a></td>
             </tr>
           <?php endforeach; ?>

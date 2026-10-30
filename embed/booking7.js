@@ -28,21 +28,21 @@
   // page (or a manually-added <link> left over from testing) don't
   // double up.
   (function injectStylesheet() {
-    // Load booking6.css from the same place booking6.js itself came from, so a
+    // Load booking7.css from the same place booking7.js itself came from, so a
     // local page gets its own stylesheet and a client site that pastes the
     // absolute grounddispatch.com script URL gets production — no URL to swap
     // by hand when moving to production. Falls back to production if the
     // script's own URL can't be read.
     var cssBase = PROD_BASE + "/embed/";
     var thisScript = document.currentScript;
-    if (thisScript && thisScript.src && /\/booking6\.js(\?|#|$)/.test(thisScript.src)) {
-      cssBase = thisScript.src.replace(/booking6\.js(\?.*)?(#.*)?$/, "");
+    if (thisScript && thisScript.src && /\/booking7\.js(\?|#|$)/.test(thisScript.src)) {
+      cssBase = thisScript.src.replace(/booking7\.js(\?.*)?(#.*)?$/, "");
     }
-    var href = cssBase + "booking6.css?v=20261028";
+    var href = cssBase + "booking7.css?v=20261030";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
-      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking6.css") !== -1) { link = links[i]; break; }
+      if (links[i].rel === "stylesheet" && links[i].href.indexOf("/embed/booking7.css") !== -1) { link = links[i]; break; }
     }
     if (!link) {
       link = document.createElement("link");
@@ -169,6 +169,8 @@
       pickup:  { lat: null, lng: null, state: "", country: "" },
       dropoff: { lat: null, lng: null, state: "", country: "" },
       quotesByVehicleId: {}, // { vehicleId: quote } — POST /api/pricing/quote (batched), see fetchQuotes()
+      quoteState: "idle",    // "idle" | "loading" | "ok" | "error" — what the price display should say when there's no quote yet
+      quoteAttempts: 0,      // automatic retries used for the current quote request
       pricingZone: null,     // "local" | "long_distance" | "worldwide" from the latest quote
       promo: null,
       childSeats: {},
@@ -415,6 +417,20 @@
       if (state.currentStep === 1 && n > 1 && window.KafehTestMap && typeof window.KafehTestMap.updateRoute === "function") {
         window.KafehTestMap.updateRoute();
       }
+      if (n === 2) {
+        // Don't wait for the 400ms requote debounce: start pricing the moment the
+        // vehicle list is shown, and give up with a visible Retry if nothing arrives.
+        clearTimeout(quoteFetchTimer);
+        fetchQuotes();
+        clearTimeout(quoteWatchdog);
+        quoteWatchdog = setTimeout(function () {
+          if (state.currentStep === 2 && !hasAnyQuote() && state.quoteState !== "error") {
+            state.quoteState = "error";
+            renderVehicles();
+            recalcSelectedVehicle();
+          }
+        }, 15000);
+      }
       state.currentStep = n;
       $(".kfb-panel").removeClass("is-active").attr("hidden", true);
       $('.kfb-panel[data-panel="' + n + '"]').addClass("is-active").removeAttr("hidden");
@@ -451,6 +467,11 @@
       if (from === 1) return validateStep1();
       if (from === 2) {
         if (!state.selectedVehicle) { toast("Please Choose A Vehicle.", "error"); return false; }
+        if (priceBreakdown(state.selectedVehicle).unavailable) {
+          toast("Prices Are Still Loading — Please Wait A Moment.", "error");
+          fetchQuotes(); // make sure a request is actually in flight
+          return false;
+        }
         return true;
       }
       return true;
@@ -891,6 +912,10 @@
 
     function emptyQuote() {
       return {
+        // No server quote for this vehicle yet (still loading, or the request
+        // failed). Callers must show "Calculating…"/"Unavailable" for this —
+        // never the zeroed numbers below as if they were a real price.
+        unavailable: true,
         success: false, zone: state.pricingZone || "local",
         requiresQuote: false, requiresQuoteReason: null,
         route_miles: state.distanceMiles || 0,
@@ -952,6 +977,7 @@
       return mergeAddonsAndDiscount(q);
     }
     function priceFor(v) { return +priceBreakdown(v).total.toFixed(2); }
+    function unavailableText() { return state.quoteState === "error" ? "Unavailable" : "Calculating…"; }
 
     // -------- Live quote fetching --------
     var quoteFetchTimer = null;
@@ -983,22 +1009,50 @@
         selectedSurchargeCodes: [],
       };
     }
-    function fetchQuotes() {
-      // Nothing to price until both endpoints are known.
+    var quoteRetryTimer = null;
+    var quoteWatchdog = null;
+    function hasAnyQuote() { return Object.keys(state.quotesByVehicleId || {}).length > 0; }
+
+    // A failed/empty quote response is retried automatically (1s, 2s, 4s) before
+    // the customer is shown an error with a Retry button. Previously a failed
+    // request was silently ignored, leaving no quotes cached, so every vehicle
+    // rendered as $0.00 until something unrelated happened to trigger a requote.
+    function quoteFailed() {
+      if (state.quoteAttempts < 3) {
+        var wait = 1000 * Math.pow(2, state.quoteAttempts);
+        state.quoteAttempts++;
+        clearTimeout(quoteRetryTimer);
+        quoteRetryTimer = setTimeout(function () { fetchQuotes(true); }, wait);
+      } else {
+        state.quoteState = "error";
+        renderVehicles();
+        recalcSelectedVehicle();
+      }
+    }
+
+    function fetchQuotes(isRetry) {
+      // Nothing to price until both endpoints are known — the kfb:route-updated
+      // event calls requoteVehicles() again as soon as they are.
       if (!state.pickup || state.pickup.lat === null || !state.dropoff || state.dropoff.lat === null) return;
+      if (isRetry !== true) state.quoteAttempts = 0;
+      clearTimeout(quoteRetryTimer);
       if (quoteFetchXhr) quoteFetchXhr.abort();
+      state.quoteState = "loading";
       var input = pricingEngineInput();
-      quoteFetchXhr = $.ajax({
+      var xhr = quoteFetchXhr = $.ajax({
         url: API_BASE + "/pricing/quote",
         method: "POST",
         contentType: "application/json",
         data: JSON.stringify(input),
         dataType: "json",
-        timeout: 8000,
-      })
-      .done(function (res) {
-        if (!res || !res.quotes) return;
+        timeout: 10000,
+      });
+      xhr.done(function (res) {
+        if (xhr !== quoteFetchXhr) return; // superseded by a newer request
+        if (!res || !res.quotes || !Object.keys(res.quotes).length) { quoteFailed(); return; }
         state.quotesByVehicleId = res.quotes;
+        state.quoteState = "ok";
+        state.quoteAttempts = 0;
         var anyQuote = null;
         for (var k in res.quotes) { if (res.quotes[k] && res.quotes[k].success) { anyQuote = res.quotes[k]; break; } }
         state.pricingZone = anyQuote ? anyQuote.zone : state.pricingZone;
@@ -1006,8 +1060,8 @@
         recalcSelectedVehicle();
         loadAddons(); // zone may have just changed — re-fetch add-on pricing for it
       })
-      .fail(function (xhr) { if (xhr.statusText !== "abort") { /* keep last-known quotes, don't break the page */ } })
-      .always(function () { quoteFetchXhr = null; });
+      .fail(function (jq, status) { if (status !== "abort") quoteFailed(); })
+      .always(function () { if (xhr === quoteFetchXhr) quoteFetchXhr = null; });
     }
 
     // ============================================================
@@ -1289,6 +1343,13 @@
 
       var ZONE_LABELS = { local: "Local", long_distance: "Long-Distance", worldwide: "Worldwide" };
       $grid.empty();
+      $("#kfbQuoteStatus").remove();
+      if (state.quoteState === "error" && !hasAnyQuote()) {
+        $grid.before(
+          '<p id="kfbQuoteStatus" class="kfb-empty">We couldn’t load prices right now. ' +
+          '<button type="button" id="kfbQuoteRetry" class="kfb-btn kfb-btn-ghost kfb-btn--sm">Retry</button></p>'
+        );
+      }
       if (!list.length) {
         $grid.html(
           state.fleet.length
@@ -1302,7 +1363,7 @@
         // Base rate only — travel fee, surcharges, gratuity, child seats,
         // add-ons, and any promo discount are all folded into the Trip
         // Summary's "Estimated Price" instead, not repeated here.
-        var priceDisplay = bd.requiresQuote ? "Request a Quote" : fmtMoney(bd.base);
+        var priceDisplay = bd.requiresQuote ? "Request a Quote" : (bd.unavailable ? unavailableText() : fmtMoney(bd.base));
         var zoneText = ZONE_LABELS[bd.zone] || "Local";
         var selected = state.selectedVehicle && state.selectedVehicle.id === v.id;
         var imgSrc = v.image
@@ -1337,9 +1398,10 @@
           renderVehicles();
           renderSideSummary();
           refreshSignatureVisibility();
-          // TODO(REMOVE BEFORE PRODUCTION): testing-only price debug alert
-          // — see showDebugPricingAlert() above for what it shows and why.
-          showDebugPricingAlert(state.selectedVehicle, state.selectedVehicle.breakdown);
+          // Testing-only price debug alert, commented out so customers no longer
+          // see the breakdown popup when picking a vehicle. Uncomment to bring it
+          // back while spot-checking the rate engine (see showDebugPricingAlert()).
+          // showDebugPricingAlert(state.selectedVehicle, state.selectedVehicle.breakdown);
         });
         $grid.append($card);
       });
@@ -1467,11 +1529,11 @@
             $returnTripRow.hide();
           }
         }
-        $("#kfbSumTotal").text(bd.requiresQuote ? "Request a Quote" : fmtMoney(bd.total));
+        $("#kfbSumTotal").text(bd.requiresQuote ? "Request a Quote" : (bd.unavailable ? unavailableText() : fmtMoney(bd.total)));
       } else {
         $("#kfbSumVehicle").text("—");
         $("#kfbBreakdown").hide();
-        $("#kfbSumTotal").text("$0.00");
+        $("#kfbSumTotal").text("—");
       }
     }
 
@@ -1781,6 +1843,11 @@
       var v = state.selectedVehicle;
       if (!v) { toast("Choose A Vehicle First.", "error"); return; }
       var bd = priceBreakdown(v);
+      if (bd.unavailable) {
+        toast("Prices Are Still Loading — Please Wait A Moment.", "error");
+        fetchQuotes();
+        return;
+      }
       if (bd.requiresQuote) {
         toast(bd.requiresQuoteReason || "This Trip Requires A Custom Quote — Please Contact Us.", "error");
         return;
@@ -3335,6 +3402,14 @@
         syncRouteFromMap();
         renderVehicles();
         recalcSelectedVehicle();
+      });
+
+      $(document).on("click", "#kfbQuoteRetry", function () {
+        if (window.KafehTestMap && typeof window.KafehTestMap.updateRoute === "function") window.KafehTestMap.updateRoute();
+        syncRouteFromMap();
+        state.quoteState = "loading";
+        renderVehicles();
+        fetchQuotes();
       });
 
       $(document).on("click", "[data-next]", function () { gotoStep(parseInt($(this).attr("data-next"), 10)); });

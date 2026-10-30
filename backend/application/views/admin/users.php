@@ -81,7 +81,7 @@ $page_url = function ($page) use ($filters) {
               </td>
               <td><span class="kfb-badge <?= $u['status'] === 'active' ? 'kfb-badge--ok' : 'kfb-badge--off' ?>"><?= $u['status'] === 'active' ? 'Active' : 'Disabled' ?></span></td>
               <td><?= (int)$u['reservations_count'] ?></td>
-              <td><small class="kfb-hint"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 10)) ?></small></td>
+              <td><small class="kfb-hint"><?= htmlspecialchars(kfb_date($u['created_at'])) ?></small></td>
               <td><a href="<?= site_url('admin/users/' . (int)$u['id']) ?>" class="kfb-btn kfb-btn--ghost kfb-btn--sm">View →</a></td>
             </tr>
           <?php endforeach; ?>
