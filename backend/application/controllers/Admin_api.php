@@ -616,10 +616,10 @@ class Admin_api extends CI_Controller
         if (!$this->_require_login()) return;
         if (!$id) return $this->_error('ID required', 400);
         $booking = $this->Client_booking_model->get_booking($id);
-        if (!$booking) return $this->_error('Client booking not found', 404);
+        if (!$booking) return $this->_error('Email booking not found', 404);
 
         $ok = $this->Client_booking_model->delete_booking($id);
-        if (!$ok) return $this->_error('Could not delete client booking', 500);
+        if (!$ok) return $this->_error('Could not delete email booking', 500);
         $this->_json(['success' => TRUE]);
     }
 

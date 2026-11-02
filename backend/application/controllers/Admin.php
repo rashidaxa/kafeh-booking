@@ -157,7 +157,7 @@ class Admin extends CI_Controller
         $page       = max(1, min($totalPages, (int)$this->input->get('page')));
 
         $data = [
-            'page_title' => 'Users',
+            'page_title' => 'Client Login Credentials',
             'admin'      => $this->_current_admin(),
             'users'      => $this->Customer_model->admin_list($filters, $perPage, ($page - 1) * $perPage),
             'filters'    => $filters,
@@ -179,7 +179,7 @@ class Admin extends CI_Controller
             return redirect('admin/users');
         }
         $data = [
-            'page_title'   => 'User ' . trim($user['first_name'] . ' ' . $user['last_name']),
+            'page_title'   => 'Client Login Credentials — ' . trim($user['first_name'] . ' ' . $user['last_name']),
             'admin'        => $this->_current_admin(),
             'user'         => $user,
             'cards'        => $this->Customer_model->list_cards($user['id']),
@@ -581,7 +581,7 @@ class Admin extends CI_Controller
 
     /**
      * GET /admin/client-bookings — unpriced submissions from
-     * reservation-detail.html, reviewed manually (no accept/reject,
+     * email-booking.html, reviewed manually (no accept/reject,
      * no status). See Client_booking_model.
      */
     public function client_bookings()
@@ -597,7 +597,7 @@ class Admin extends CI_Controller
         $offset  = ($page - 1) * $perPage;
 
         $data = [
-            'page_title'      => 'Client Bookings',
+            'page_title'      => 'Email Bookings',
             'admin'           => $this->_current_admin(),
             'client_bookings' => $this->Client_booking_model->list_all($filters, $perPage, $offset),
             'search_query'    => $search,
@@ -620,11 +620,11 @@ class Admin extends CI_Controller
         if (!$id) return redirect('admin/client-bookings');
         $booking = $this->Client_booking_model->get_booking($id);
         if (!$booking) {
-            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Client booking not found.']);
+            $this->session->set_flashdata('flash', ['type' => 'error', 'message' => 'Email booking not found.']);
             return redirect('admin/client-bookings');
         }
         $data = [
-            'page_title' => 'Client Booking ' . $booking['booking_id'],
+            'page_title' => 'Email Booking ' . $booking['booking_id'],
             'admin'      => $this->_current_admin(),
             'booking'    => $booking,
             'flash'      => $this->session->flashdata('flash'),

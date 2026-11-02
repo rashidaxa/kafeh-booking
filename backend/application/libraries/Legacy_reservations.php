@@ -84,6 +84,7 @@ class Legacy_reservations
         $this->CI =& get_instance();
         $this->CI->config->load('crmsync');
         $this->CI->load->model(['Vehicle_model', 'Company_model']);
+        $this->CI->load->helper('kfb_format'); // kfb_phone(): xxx-xxx-xxxx
     }
 
     /**
@@ -191,7 +192,7 @@ class Legacy_reservations
             'client_name'            => $clientName,
             'passenger_name'         => $passengerName,
             'passenger_count'        => (string)$booking['passengers'],
-            'client_phone'           => $clientPhone,
+            'client_phone'           => kfb_phone($clientPhone),
             'trip_status'            => '0', // new/unassigned — matches a fresh entry made in that portal's own UI
             // "Finalization" dropdown: paid through PayPal (captured before this sync runs) -> "Web Payment";
             // PayPal off -> "Collect", which is that dropdown's empty value (a literal "Collect" would match no
@@ -200,7 +201,7 @@ class Legacy_reservations
             'assigned_driver'        => 0,
             'quote_status'           => 0, // this is a confirmed, paid booking, not a quote
             'email'                  => $clientEmail,
-            'order_by_number'        => $clientPhone,
+            'order_by_number'        => kfb_phone($clientPhone),
             'trip_type'              => $tripType,
             'select_vehicle'         => $legacyVehicleId,
             'client_passenger_text'  => '',
@@ -293,7 +294,7 @@ class Legacy_reservations
         if (!empty($leg['dropoff_tail_number']))  $parts[] = 'Drop-off Tail #: ' . $leg['dropoff_tail_number'];
 
         // Passenger contact only when it isn't already the client's.
-        if (!empty($booking['phone']) && $booking['phone'] !== $clientPhone) $parts[] = 'Passenger Phone: ' . $booking['phone'];
+        if (!empty($booking['phone']) && $booking['phone'] !== $clientPhone) $parts[] = 'Passenger Phone: ' . kfb_phone($booking['phone']);
         if (!empty($booking['email']) && strcasecmp($booking['email'], $clientEmail) !== 0) $parts[] = 'Passenger Email: ' . $booking['email'];
 
         $notes = trim((string)($booking['notes'] ?? ''));

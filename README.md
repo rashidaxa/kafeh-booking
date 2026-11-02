@@ -13,7 +13,7 @@ booking/
 ├── embed/                                 # Everything a client site's snippet points at (by absolute
 │   │                                       #   URL — see "Embedding" below), served from grounddispatch.com
 │   ├── booking.css / .js                  # widget styles + logic (booking.js injects its own <link> to booking.css)
-│   ├── booking-lite.js                    # no-payment "Client Bookings" fork (reservation-detail.html)
+│   ├── booking-lite.js                    # no-payment "Email Bookings" fork (email-booking.html)
 │   ├── airports.js                        # Airport autocomplete data/helper
 │   └── booking-map.js                     # Google Maps controller — REQUIRED, not optional
 │
@@ -99,7 +99,7 @@ No build step, no server required. Works on `file://` as long as your browser al
 `embed/booking.js` / `embed/booking-lite.js` default `window.API` / `window.UPLOADS` to the production
 backend (`https://grounddispatch.com/booking/backend/...`) — every real deployment shares that one
 backend, so there's no per-site config file to edit. For **local** testing against your own XAMPP backend
-instead, `test3.html` (and `reservation-detail.html`) each set an override in their own `<head>`, in a
+instead, `test3.html` (and `email-booking.html`) each set an override in their own `<head>`, in a
 block marked `LOCAL DEV ONLY`:
 
 ```js
@@ -132,9 +132,8 @@ The widget is **not** copied onto the client's own server — it's always served
 site on one always-current copy with nothing to redeploy per client, and keeps the paste itself trivial
 for a non-technical site owner: **one block, one place, no separate `<head>` edits.**
 
-Open `test3.html` and copy everything between `<!-- EMBED: COPY START -->` and `<!-- EMBED: COPY END -->`
-(the widget's `<div>`, plus the 5 absolute-URL script tags shown right after it as commented-out text — see
-that comment's own note for why they're not the page's own live tags). Paste it, as-is, inside whatever
+Open `index.html` (https://grounddispatch.com/booking/) and copy everything between `<!-- EMBED: COPY START -->`
+and `<!-- EMBED: COPY END -->` (the widget's `<div>`, plus the 5 live absolute-URL script tags right after it). Paste it, as-is, inside whatever
 container `<div>` the client's page wants the widget in:
 
 ```html
@@ -158,7 +157,7 @@ A few things that make this work:
   full `https://grounddispatch.com/booking/...` URL.
 - **No config file.** `embed/booking.js` / `embed/booking-lite.js` default `window.API` / `window.UPLOADS`
   to the production backend — every client site shares that one backend, so there's nothing to edit per
-  site. (Internally, `test3.html` and `reservation-detail.html` override these to localhost for local
+  site. (Internally, `test3.html` and `email-booking.html` override these to localhost for local
   testing — see their own `<head>`, marked `LOCAL DEV ONLY` — but a client site sets neither.)
 - **No manual stylesheet `<link>`.** `embed/booking.js` injects its own `<link>` for `embed/booking.css`
   into `<head>` at boot.

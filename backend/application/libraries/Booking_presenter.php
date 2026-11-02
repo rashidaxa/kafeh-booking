@@ -19,6 +19,7 @@ class Booking_presenter
         $this->CI =& get_instance();
         $this->CI->load->library('legacy_reservations');
         $this->CI->load->model('Company_model');
+        $this->CI->load->helper('kfb_format');
     }
 
     /**
@@ -32,7 +33,7 @@ class Booking_presenter
         $passengerName = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
         $clientName    = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
         if ($clientName === '') $clientName = $passengerName;
-        $clientPhone = (string)(!empty($booking['cc_phone']) ? $booking['cc_phone'] : ($booking['phone'] ?? ''));
+        $clientPhone = kfb_phone(!empty($booking['cc_phone']) ? $booking['cc_phone'] : ($booking['phone'] ?? ''));
 
         $isRound = !empty($booking['is_return_trip']) && !empty($booking['return_leg']);
 

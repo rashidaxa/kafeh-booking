@@ -158,12 +158,12 @@ if (!empty($booking['legacy_sync_log'])) {
       <?php if ($ccName !== ''): ?>
         <p><?= htmlspecialchars($ccName . (!empty($booking['cc_company']) ? ' | ' . $booking['cc_company'] : '')) ?><br>
           <?= htmlspecialchars($booking['cc_email'] ?? '') ?><br>
-          <?= htmlspecialchars($booking['cc_phone'] ?? '') ?></p>
+          <?= htmlspecialchars(kfb_phone($booking['cc_phone'] ?? '')) ?></p>
         <span class="kfb-hint">Passenger</span>
       <?php endif; ?>
       <p><?= htmlspecialchars(trim($booking['first_name'] . ' ' . $booking['last_name'])) ?><br>
         <?= htmlspecialchars($booking['email']) ?><br>
-        <?= htmlspecialchars($booking['phone']) ?></p>
+        <?= htmlspecialchars(kfb_phone($booking['phone'])) ?></p>
     </div>
     <div>
       <span class="kfb-hint">Booked via (company)</span>
@@ -270,7 +270,7 @@ if (!empty($booking['legacy_sync_log'])) {
     <div class="kfb-detail-grid">
       <div><span class="kfb-hint">Card holder name</span><p><?= kfb_or_dash(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')) ?: ($booking['cardHolderName'] ?? NULL)) ?></p></div>
       <div><span class="kfb-hint">Card holder company</span><p><?= kfb_or_dash($booking['cc_company'] ?? NULL) ?></p></div>
-      <div><span class="kfb-hint">Card holder phone</span><p><?= kfb_or_dash($booking['cc_phone'] ?? NULL) ?></p></div>
+      <div><span class="kfb-hint">Card holder phone</span><p><?= kfb_or_dash(kfb_phone($booking['cc_phone'] ?? '')) ?></p></div>
       <div><span class="kfb-hint">Card holder email</span><p><?= kfb_or_dash($booking['cc_email'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Card number</span><p><?= kfb_or_dash($booking['cardNumber'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Card expiry</span><p><?= kfb_or_dash($booking['cardExpiry'] ?? NULL) ?></p></div>

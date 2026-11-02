@@ -48,17 +48,17 @@ $admin      = isset($admin) ? $admin : NULL;
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2"></rect><line x1="3.5" y1="10" x2="20.5" y2="10"></line><line x1="8" y1="3" x2="8" y2="7"></line><line x1="16" y1="3" x2="16" y2="7"></line></svg>
       Reservations
     </a>
-    <a href="<?= site_url('admin/client-bookings') ?>" class="<?= strpos($page_title, 'Client Booking') === 0 ? 'is-active' : '' ?>">
+    <a href="<?= site_url('admin/client-bookings') ?>" class="<?= strpos($page_title, 'Email Booking') === 0 ? 'is-active' : '' ?>">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2V3a1 1 0 0 1 1-1Z"></path><line x1="8" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="16" y2="14"></line><line x1="8" y1="18" x2="12" y2="18"></line></svg>
-      Client Bookings
+      Email Bookings
     </a>
     <a href="<?= site_url('admin/terms') ?>" class="<?= $page_title === 'Terms & Conditions' ? 'is-active' : '' ?>">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"></path><path d="M14 3v5h5"></path><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg>
       Terms &amp; Conditions
     </a>
-    <a href="<?= site_url('admin/users') ?>" class="<?= strpos($page_title, 'User') === 0 ? 'is-active' : '' ?>">
+    <a href="<?= site_url('admin/users') ?>" class="<?= strpos($page_title, 'Client Login') === 0 ? 'is-active' : '' ?>">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20a6.5 6.5 0 0 1 13 0"></path><circle cx="17.5" cy="9" r="2.5"></circle><path d="M17.5 14a5 5 0 0 1 4.5 5"></path></svg>
-      Users
+      Client Login Credentials
     </a>
     <a href="<?= site_url('admin/companies') ?>" class="<?= $page_title === 'Companies' || $page_title === 'Edit Company' ? 'is-active' : '' ?>">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V7l8-4v18"></path><path d="M11 9h10v12H11"></path><line x1="6" y1="10" x2="8" y2="10"></line><line x1="6" y1="14" x2="8" y2="14"></line><line x1="14" y1="13" x2="18" y2="13"></line><line x1="14" y1="17" x2="18" y2="17"></line></svg>

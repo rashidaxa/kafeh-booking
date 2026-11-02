@@ -16,7 +16,7 @@ $page_url = function ($page) use ($filters) {
 
 <section class="kfb-card">
   <header class="kfb-card-head">
-    <h2>All users <small class="kfb-hint">(<?= number_format((int)$pagination['total']) ?>)</small></h2>
+    <h2>All client login credentials <small class="kfb-hint">(<?= number_format((int)$pagination['total']) ?>)</small></h2>
   </header>
 
   <form method="get" action="<?= site_url('admin/users') ?>" class="kfb-reservation-search">
@@ -46,7 +46,7 @@ $page_url = function ($page) use ($filters) {
   </form>
 
   <?php if (empty($users)): ?>
-    <p class="kfb-empty">No users match.</p>
+    <p class="kfb-empty">No client logins match.</p>
   <?php else: ?>
     <div class="kfb-table-scroll">
       <table class="kfb-table">
@@ -67,7 +67,7 @@ $page_url = function ($page) use ($filters) {
           <?php foreach ($users as $u): ?>
             <tr>
               <td><?= htmlspecialchars(trim($u['first_name'] . ' ' . $u['last_name'])) ?: '—' ?></td>
-              <td><?= htmlspecialchars($u['email']) ?><?php if (!empty($u['phone'])): ?><br><small class="kfb-hint"><?= htmlspecialchars($u['phone']) ?></small><?php endif; ?></td>
+              <td><?= htmlspecialchars($u['email']) ?><?php if (!empty($u['phone'])): ?><br><small class="kfb-hint"><?= htmlspecialchars(kfb_phone($u['phone'])) ?></small><?php endif; ?></td>
               <td><?= htmlspecialchars($u['company_name'] ?? '—') ?></td>
               <td><?= (int)$u['has_account'] ? 'Account' : '<span class="kfb-hint">Guest</span>' ?></td>
               <td>

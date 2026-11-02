@@ -10,7 +10,7 @@ $deleteMsg = 'Delete ' . ($fullName !== '' ? $fullName : $u['email']) . '? Their
     . ' This cannot be undone.';
 ?>
 
-<p><a href="<?= site_url('admin/users') ?>" class="kfb-btn kfb-btn--ghost kfb-btn--sm">← All users</a></p>
+<p><a href="<?= site_url('admin/users') ?>" class="kfb-btn kfb-btn--ghost kfb-btn--sm">← All client logins</a></p>
 
 <section class="kfb-card">
   <header class="kfb-card-head">
@@ -29,7 +29,7 @@ $deleteMsg = 'Delete ' . ($fullName !== '' ? $fullName : $u['email']) . '? Their
   <div class="kfb-detail-grid">
     <div><span class="kfb-hint">Company</span><p><?= htmlspecialchars($u['company_name'] ?? '—') ?></p></div>
     <div><span class="kfb-hint">Email</span><p><?= htmlspecialchars($u['email']) ?></p></div>
-    <div><span class="kfb-hint">Phone</span><p><?= htmlspecialchars($u['phone'] ?: '—') ?></p></div>
+    <div><span class="kfb-hint">Phone</span><p><?= htmlspecialchars(kfb_phone($u['phone']) ?: '—') ?></p></div>
     <div><span class="kfb-hint">Created</span><p><?= htmlspecialchars(kfb_datetime($u['created_at'])) ?></p></div>
     <div><span class="kfb-hint">Last booking</span><p><?= htmlspecialchars(kfb_datetime($u['last_booking_at'] ?? NULL)) ?></p></div>
     <div><span class="kfb-hint">Reservations</span><p><?= $resCount ?></p></div>

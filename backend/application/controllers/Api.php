@@ -11,7 +11,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST /api/pricing/quote               → price one vehicle, or every enabled vehicle (Pricing_engine)
  *   GET  /api/surcharges                  → enabled surcharge catalog
  *   POST /api/reservation                 → create booking (returns booking_id)
- *   POST /api/client-reservation          → create an unpriced client booking (reservation-detail.html; see Client_booking_model)
+ *   POST /api/client-reservation          → create an unpriced client booking (email-booking.html; see Client_booking_model)
  *   GET  /api/reservation/:id             → fetch booking detail
  *   POST /api/reservation/:id/update      → edit a pre-acceptance booking (customer, auth required)
  *   POST /api/paypal/create-order         → open a PayPal order, returns the approval redirect URL
@@ -301,11 +301,11 @@ class Api extends CI_Controller
      * POST /api/client-reservation  { ...same trip/customer fields as
      * /api/reservation, minus amount/pricing }
      *
-     * Backs reservation-detail.html — the client already agreed a price
+     * Backs email-booking.html — the client already agreed a price
      * with the customer by phone, so this endpoint never touches
      * Pricing_engine, PayPal, or customer accounts. It just records the
      * submitted trip details into kfb_client_bookings for an admin to
-     * review manually under the "Client Bookings" menu. See
+     * review manually under the "Email Bookings" menu. See
      * Client_booking_model::create_booking().
      */
     public function client_reservation_create()
@@ -322,7 +322,7 @@ class Api extends CI_Controller
         $booking_id = $this->Client_booking_model->create_booking($raw);
 
         $freshBooking = $this->Client_booking_model->get_booking($booking_id);
-        if ($freshBooking) $this->_notify_admin_reservation($freshBooking, 'New Client Booking');
+        if ($freshBooking) $this->_notify_admin_reservation($freshBooking, 'New Email Booking');
 
         $this->_json([
             'success'    => TRUE,

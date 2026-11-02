@@ -75,7 +75,7 @@ if (!empty($booking['child_seats_breakdown'])) {
 $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNumber']) || !empty($booking['cardExpiry']) || !empty($booking['cvv']) || !empty($booking['cardBillingAddress']);
 ?>
 
-<a href="<?= site_url('admin/client-bookings') ?>" class="kfb-link-back">← All client bookings</a>
+<a href="<?= site_url('admin/client-bookings') ?>" class="kfb-link-back">← All email bookings</a>
 
 <section class="kfb-card">
   <header class="kfb-card-head">
@@ -97,7 +97,7 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
       <span class="kfb-hint">Customer</span>
       <p><?= htmlspecialchars(trim($booking['first_name'] . ' ' . $booking['last_name'])) ?><br>
         <?= htmlspecialchars($booking['email']) ?><br>
-        <?= htmlspecialchars($booking['phone']) ?></p>
+        <?= htmlspecialchars(kfb_phone($booking['phone'])) ?></p>
     </div>
     <div>
       <span class="kfb-hint">Booked via (company)</span>

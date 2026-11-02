@@ -4,12 +4,12 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 /**
  * Client Booking Model
  *
- * "Client Bookings" is a separate, unpriced intake flow — the client
+ * "Email Bookings" is a separate, unpriced intake flow — the client
  * negotiates price by phone, then sends the customer a link
- * (reservation-detail.html) to fill in their own trip details. There
+ * (email-booking.html) to fill in their own trip details. There
  * is no pricing, no payment, no customer accounts, and no accept/
  * reject workflow here — submissions just sit in this table for an
- * admin to review manually under the "Client Bookings" menu.
+ * admin to review manually under the "Email Bookings" menu.
  *
  * Deliberately not a subclass/variant of Booking_model — no return-
  * trip linked-leg, no pricing fields, no PayPal — a real, much
@@ -171,7 +171,7 @@ class Client_booking_model extends CI_Model
 
     protected function _new_booking_id()
     {
-        return date('mdY-His') . '-CB';
+        return date('mdY-His') . '-EB'; // EB = Email Bookings
     }
 
     /** Same shape as Booking_model::_normalize_child_seats(). */

@@ -18,8 +18,8 @@ if (!function_exists('kfb_client_bookings_page_url')) {
 
 <section class="kfb-card">
   <header class="kfb-card-head">
-    <h2>Client bookings</h2>
-    <p class="kfb-hint">Submitted via reservation-detail.html — trip details only, no pricing/payment. Review manually.</p>
+    <h2>Email bookings</h2>
+    <p class="kfb-hint">Submitted via email-booking.html — trip details only, no pricing/payment. Review manually.</p>
   </header>
 
   <form method="get" action="<?= site_url('admin/client-bookings') ?>" class="kfb-reservation-search">
@@ -34,7 +34,7 @@ if (!function_exists('kfb_client_bookings_page_url')) {
 
   <?php if (empty($client_bookings)): ?>
     <p class="kfb-empty">
-      No client bookings
+      No email bookings
       <?php if ($search_query !== ''): ?> matching &ldquo;<?= htmlspecialchars($search_query) ?>&rdquo;<?php endif; ?>
       .
     </p>

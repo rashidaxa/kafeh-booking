@@ -1,19 +1,19 @@
 /* ============================================================
-   Booking API Widget — LITE fork (reservation-detail.html)
+   Booking API Widget — LITE fork (email-booking.html)
    ------------------------------------------------------------
-   Forked from embed/booking.js for the "Client Bookings" intake flow:
+   Forked from embed/booking.js for the "Email Bookings" intake flow:
    the client already agreed a price with the customer by phone, so
    this version collects trip details with NO pricing, NO payment
    (PayPal), and NO customer accounts/profile — see
    Client_booking_model.php / Api::client_reservation_create(). Kept
    deliberately as its own copy (not a shared file with a mode flag)
    so this flow's simplifications can never silently leak into the
-   real, priced booking.js — see the "Client Bookings" implementation
+   real, priced booking.js — see the "Email Bookings" implementation
    plan for the full rationale.
 
    - 3-step wizard: Where & When → Select Vehicle → Confirm Details
    - Right column: Map (step 1) OR Trip Summary (steps 2-3) — no Rate
-     Details/Estimated Price section (see reservation-detail.html)
+     Details/Estimated Price section (see email-booking.html)
    - Location type is a button-pill group (not radio)
    - Airport mode reveals Airline / Flight # / Arrival Time / Pickup Point
    - All Google Maps / Places / Directions logic lives in embed/booking-map.js
@@ -30,7 +30,7 @@
   // backend, so this is a fixed default, not per-site config.
   // window.API / window.UPLOADS (set before this script runs) still
   // override it for local development — see the "LOCAL DEV ONLY"
-  // block in reservation-detail.html's <head>.
+  // block in email-booking.html's <head>.
   var PROD_BASE = "https://grounddispatch.com/booking";
 
   // -------- Boot the widget as soon as jQuery is available --------

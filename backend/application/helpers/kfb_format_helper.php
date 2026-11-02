@@ -31,3 +31,21 @@ if (!function_exists('kfb_datetime')) {
         return $ts ? date(KFB_DATE_FORMAT . ' ' . KFB_TIME_FORMAT, $ts) : '—';
     }
 }
+
+if (!function_exists('kfb_phone')) {
+    /**
+     * US/Canada numbers as xxx-xxx-xxxx (a leading country code 1 is dropped).
+     * Anything else — international numbers, extensions, text — is returned as typed.
+     */
+    function kfb_phone($p)
+    {
+        $p = trim((string)$p);
+        if ($p === '') return '';
+        $d = preg_replace('/\D+/', '', $p);
+        if (strlen($d) === 11 && $d[0] === '1') $d = substr($d, 1);
+        if (strlen($d) === 10 && preg_match('/^[\d\s().+\-]+$/', $p)) {
+            return substr($d, 0, 3) . '-' . substr($d, 3, 3) . '-' . substr($d, 6);
+        }
+        return $p;
+    }
+}

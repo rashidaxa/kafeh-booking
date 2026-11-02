@@ -107,6 +107,12 @@ class Company_model extends CI_Model
             return $default;
         }
         $company = $this->get_by_domain($host);
+        if (!$company) {
+            // A website no company has registered yet is served as the default
+            // company (A1 Limousine) until an admin adds the domain to a company.
+            $company = $this->get(self::DEFAULT_COMPANY_ID);
+        }
+        // A domain that DOES belong to a company is still refused while that company is inactive.
         if (!$company || $company['status'] !== 'active') return NULL;
         $company['_origin_host'] = $host;
         return $company;

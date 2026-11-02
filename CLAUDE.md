@@ -7,15 +7,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A chauffeur/limousine booking system: a CodeIgniter 3 (PHP) REST API + admin portal in `backend/`, and a
 drop-in, dependency-light (jQuery only) embed widget in `embed/` that any HTML site can paste in. No build
 step anywhere in this repo — PHP is served as-is, and the widget JS/CSS is loaded directly by the browser.
-`test3.html` is both the local manual test harness (exercises the widget against a real backend and Google
-Maps; there is no automated test suite) AND the live reference copy of the embeddable markup — see the
-`EMBED: COPY START`/`COPY END` comment block inside it. Every client site is pasted-onto-but-not-hosted-by
+`index.html` is the live booking page AND the reference copy of the embeddable markup — see the
+`EMBED: COPY START`/`COPY END` block inside it (live, absolute-URL script tags, ready to paste). `test3.html`
+is the local manual test harness (same widget markup, relative script paths, exercises the widget against a
+real backend and Google Maps; there is no automated test suite) — it was removed from the production server,
+so edit the widget markup in `test3.html` and copy it to `index.html` (swapping in the absolute script tags). Every client site is pasted-onto-but-not-hosted-by
 — it always talks back to the **shared production backend on grounddispatch.com** — so the snippet is
 self-contained: the copied script tags are **absolute** `https://grounddispatch.com/booking/...` URLs (a
 relative path would 404 on the client's own domain), `embed/booking.js` injects its own `<link>` for
 `embed/booking.css` at boot (no manual stylesheet tag to add), and `window.API`/`window.UPLOADS` default
 to the production backend with no config file needed — they're only ever overridden locally, via the
-"LOCAL DEV ONLY" `<script>` block in `test3.html`/`reservation-detail.html`'s own `<head>`, never by a
+"LOCAL DEV ONLY" `<script>` block in `test3.html`/`email-booking.html`'s own `<head>`, never by a
 client site. `embed/booking-map.js` (the Google Maps/route controller) is a required dependency of
 `booking.js`/`booking-lite.js` despite its name not saying so.
 
