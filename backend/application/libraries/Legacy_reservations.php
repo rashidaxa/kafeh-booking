@@ -139,10 +139,21 @@ class Legacy_reservations
         $leg = $isReturn ? $legRow : $booking;
 
         $vehicleCode = $booking['vehicle_id'] ?? '';
-        $vehicle = $this->CI->Vehicle_model->get_by_code($vehicleCode);
+        // vehicle_id is the public id (code, or "v<id>" for a code-less vehicle).
+        $vehicle = $this->CI->Vehicle_model->get_by_public_id($vehicleCode);
         $legacyVehicleId = (!empty($vehicle['legacy_vehicle_type_id']))
             ? (int)$vehicle['legacy_vehicle_type_id']
-            : self::DEFAULT_LEGACY_VEHICLE_ID;
+            : 0;
+        // No admin-selected mapping: try the legacy catalog by name
+        // (e.g. a vehicle called "SUV" or "Stretch Limo") before falling
+        // back to Sedan, so unmapped vehicles don't all show up as Sedan.
+        if (!$legacyVehicleId) {
+            $vname = strtolower(trim((string)($vehicle['name'] ?? ($booking['vehicle_name'] ?? ''))));
+            foreach (Vehicle_model::LEGACY_VEHICLE_TYPES as $lid => $lname) {
+                if ($vname !== '' && strtolower($lname) === $vname) { $legacyVehicleId = (int)$lid; break; }
+            }
+        }
+        if (!$legacyVehicleId) $legacyVehicleId = self::DEFAULT_LEGACY_VEHICLE_ID;
 
         // Each company maps to its own company in the legacy portal; the
         // default (A1 Limousine) is LEGACY_COMPANY_ID, as before.
@@ -201,7 +212,7 @@ class Legacy_reservations
             'assigned_driver'        => 0,
             'quote_status'           => 0, // this is a confirmed, paid booking, not a quote
             'email'                  => $clientEmail,
-            'order_by_number'        => kfb_phone($clientPhone),
+            'order_by_number'        => '', // legacy "Ordered By" — always blank for online bookings (client phone already goes in client_phone)
             'trip_type'              => $tripType,
             'select_vehicle'         => $legacyVehicleId,
             'client_passenger_text'  => '',

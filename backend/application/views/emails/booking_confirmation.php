@@ -23,11 +23,12 @@
 $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
 $mode = isset($mode) ? $mode : 'confirmation';
 $isReceipt = ($mode === 'receipt');
+$isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "cancelled" wording, no policy/instructions/terms blocks, nothing charged
 ?>
 <!DOCTYPE html>
 <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en"><head>
 
-      <title><?= $isReceipt ? 'Reservation Receipt' : 'Reservation Confirmation' ?></title>
+      <title><?= $isReceipt ? 'Reservation Receipt' : ($isCancelled ? 'Reservation Cancelled' : 'Reservation Confirmation') ?></title>
 
       <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
@@ -237,7 +238,7 @@ $isReceipt = ($mode === 'receipt');
 
                                                                   <div class="" style="font-size: 14px; color: rgb(28, 28, 28); line-height: 1.2; font-family: Arial, Helvetica Neue, Helvetica, sans-serif;" data-color="rgb(28, 28, 28)">
 
-                                                                     <p style="margin: 0; font-size: 14px; mso-line-height-alt: 16.8px;">Your reservation <?= $isReceipt ? 'receipt' : 'is confirmed' ?></p>
+                                                                     <p style="margin: 0; font-size: 14px; mso-line-height-alt: 16.8px;">Your reservation <?= $isReceipt ? 'receipt' : ($isCancelled ? 'has been cancelled' : 'is confirmed') ?></p>
 
                                                                   </div>
 
@@ -355,7 +356,7 @@ $isReceipt = ($mode === 'receipt');
 
                                                                   <div class="" style="font-size: 14px; font-family: TimesNewRoman, &quot;Times New Roman&quot;, Times, Beskerville, Georgia, serif; color: rgb(255, 255, 255); line-height: 1.2;" data-color="rgb(255, 255, 255)">
 
-                                                                     <p style="margin: 0; font-size: 14px; text-align: right; mso-line-height-alt: 16.8px;"><span style="font-size:24px;">Reservation <?= $isReceipt ? 'Receipt' : 'Confirmation' ?></span></p>
+                                                                     <p style="margin: 0; font-size: 14px; text-align: right; mso-line-height-alt: 16.8px;"><span style="font-size:24px;">Reservation <?= $isReceipt ? 'Receipt' : ($isCancelled ? 'Cancelled' : 'Confirmation') ?></span></p>
 
                                                                   </div>
 
@@ -457,7 +458,7 @@ $isReceipt = ($mode === 'receipt');
 
                                                                   <div class="" style="font-size: 14px; color: rgb(28, 28, 28); line-height: 1.2; font-family: Arial, Helvetica Neue, Helvetica, sans-serif;" data-color="rgb(28, 28, 28)">
 
-                                                                     <p style="margin: 0; font-size: 14px; text-align: center; mso-line-height-alt: 16.8px;"><span style="font-size:22px;">Reservation <?= $isReceipt ? 'Receipt' : 'Confirmation' ?># <?= $e($leg["reference"]) ?></span></p>
+                                                                     <p style="margin: 0; font-size: 14px; text-align: center; mso-line-height-alt: 16.8px;"><span style="font-size:22px;">Reservation <?= $isReceipt ? 'Receipt' : ($isCancelled ? 'Cancelled' : 'Confirmation') ?># <?= $e($leg["reference"]) ?></span></p>
 
                                                                   </div>
 
@@ -1522,7 +1523,7 @@ $isReceipt = ($mode === 'receipt');
 
                                                                      <p style="margin: 0; mso-line-height-alt: 21px;">Discount: -$<?= number_format((float)$leg["discount"], 2, ".", "") ?></p>
 
-                                                                     <p style="margin: 0; mso-line-height-alt: 21px;"><?= $isReceipt ? 'Total Charges' : 'Estimated Charges' ?> $<?= number_format((float)$leg["grand_total"], 2, ".", "") ?></p>
+                                                                     <p style="margin: 0; mso-line-height-alt: 21px;"><?= $isCancelled ? 'Amount Charged $0.00 (payment hold released)' : (($isReceipt ? 'Total Charges' : 'Estimated Charges') . ' $' . number_format((float)$leg["grand_total"], 2, ".", "")) ?></p>
 
                                                                   </div>
 
@@ -1555,7 +1556,7 @@ $isReceipt = ($mode === 'receipt');
                            
                            <?php endforeach; ?>
 
-<?php if (!$isReceipt): ?>
+<?php if (!$isReceipt && !$isCancelled): ?>
 <table class="row row-19" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
 
                               <tbody>
@@ -2281,7 +2282,7 @@ $isReceipt = ($mode === 'receipt');
 
                            </table>
 
-                           <?php if (!$isReceipt): ?>
+                           <?php if (!$isReceipt && !$isCancelled): ?>
 <table class="row row-29" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
 
                               <tbody>

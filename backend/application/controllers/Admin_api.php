@@ -570,7 +570,16 @@ class Admin_api extends CI_Controller
         }
         $this->Booking_model->set_approval($id, 'cancelled', $this->session->userdata('admin_username'));
 
-        $this->_json(['success' => TRUE, 'reservation' => $this->Booking_model->get_booking($id)]);
+        // Tell the customer. Best-effort: a mail failure must never undo or
+        // fail a reject that has already released the hold.
+        $fresh = $this->Booking_model->get_booking($id);
+        try {
+            $this->_send_cancellation($fresh ?: $booking);
+        } catch (Exception $e) {
+            log_message('error', '[Admin_api] reservations_reject cancellation email: ' . $e->getMessage());
+        }
+
+        $this->_json(['success' => TRUE, 'reservation' => $fresh]);
     }
 
     /**
@@ -689,6 +698,41 @@ class Admin_api extends CI_Controller
             $payload['status'] = ((int)$payload['status'] || $payload['status'] === 'on' || $payload['status'] === TRUE) ? 1 : 0;
         }
         return $payload;
+    }
+
+    /**
+     * Best-effort "reservation cancelled" email, sent when an admin rejects a
+     * reservation. Same layout as the confirmation email (mode 'cancelled'
+     * of emails/booking_confirmation), same recipient rules and per-company
+     * branding as _send_confirmation().
+     */
+    protected function _send_cancellation($booking)
+    {
+        $to = !empty($booking['cc_email']) ? $booking['cc_email'] : ($booking['email'] ?? '');
+        if (!$to) return;
+        $greet   = !empty($booking['cc_first_name']) ? $booking['cc_first_name'] : ($booking['first_name'] ?? '');
+        $subject = 'Booking ' . $booking['booking_id'] . ' Cancelled';
+
+        $company = $this->Company_model->get($booking['company_id'] ?? 1);
+        $companyName = !empty($company['name']) ? $company['name'] : 'A1 Limousine';
+        $html = $this->load->view('emails/booking_confirmation', $this->booking_presenter->confirmation_vars($booking, $company, 'cancelled'), TRUE);
+
+        $contact = !empty($company['contact_email']) ? " Please contact us at {$company['contact_email']} if you have any questions." : '';
+        $body =
+            "Hi {$greet},\n\n" .
+            "Your reservation has been cancelled.\n\n" .
+            "Booking ID: {$booking['booking_id']}\n" .
+            "Pickup:     {$booking['pickup_date']} at {$booking['pickup_time']}\n" .
+            "From:       {$booking['pickup']}\n" .
+            "To:         {$booking['dropoff']}\n\n" .
+            "You have not been charged; any payment hold has been released." . $contact . "\n\n" .
+            "{$companyName}\n";
+
+        $this->mailer->send($to, $subject, $html, TRUE, [
+            'from_name' => $companyName,
+            'reply_to'  => $company['contact_email'] ?? NULL,
+            'alt_body'  => $body,
+        ]);
     }
 
     /** Best-effort confirmation email, sent once a reservation is accepted — sent via SMTP (see Mailer library), not mail(). */

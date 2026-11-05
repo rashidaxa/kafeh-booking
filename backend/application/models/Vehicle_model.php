@@ -121,6 +121,21 @@ class Vehicle_model extends CI_Model
             ->row_array();
     }
 
+    /**
+     * Resolves the vehicle id a booking stores in kfb_bookings.vehicle_id —
+     * the same value to_public() hands the widget: the vehicle's `code`, or
+     * "v<row id>" when it has no code. get_by_code() only matches the
+     * `code` column, so a code-less vehicle ("v5") was never found.
+     */
+    public function get_by_public_id($public_id)
+    {
+        if (!$public_id) return NULL;
+        $row = $this->get_by_code($public_id);
+        if ($row) return $row;
+        if (preg_match('/^v(\d+)$/', (string)$public_id, $m)) return $this->get((int)$m[1]);
+        return NULL;
+    }
+
     /** Returns the row id, or FALSE on failure (with $this->db->error()). */
     public function create(array $data, $uploaded_image_name = NULL)
     {
