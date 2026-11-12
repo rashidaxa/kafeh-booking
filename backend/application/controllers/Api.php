@@ -54,7 +54,7 @@ class Api extends CI_Controller
     protected $company = NULL;
 
     /** Endpoints that are plain browser redirects/health checks — no Origin header, company comes from the booking instead. */
-    protected $company_exempt = ['health', 'paypal_env', 'paypal_return', 'paypal_cancel'];
+    protected $company_exempt = ['health', 'paypal_return', 'paypal_cancel'];
 
     public function __construct()
     {
@@ -204,29 +204,6 @@ class Api extends CI_Controller
             'env'   => ENVIRONMENT,
             'time'  => date('c'),
             'php'   => PHP_VERSION,
-        ]);
-    }
-
-    /** GET /api/paypal/env — diagnostic: which PayPal environment is actually in use (no secrets). */
-    public function paypal_env()
-    {
-        $this->load->library('paypal');
-        $envFile  = FCPATH . '.env';
-        $fileLine = NULL;
-        if (is_file($envFile)) {
-            foreach (file($envFile, FILE_IGNORE_NEW_LINES) as $l) {
-                if (stripos(ltrim($l), 'PAYPAL_ENV') === 0) { $fileLine = $l; }
-            }
-        }
-        $this->_json([
-            'paypal'          => $this->paypal->get_environment(),
-            'config_value'    => $this->config->item('environment', 'paypal'),
-            'getenv_value'    => getenv('PAYPAL_ENV'),
-            'env_file_path'   => $envFile,
-            'env_file_exists' => is_file($envFile),
-            'env_file_line'   => $fileLine,
-            'server_override' => isset($_SERVER['PAYPAL_ENV']) || isset($_ENV['PAYPAL_ENV']),
-            'time'            => date('c'),
         ]);
     }
 

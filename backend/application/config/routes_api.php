@@ -47,7 +47,6 @@ $route['api/customers/change-password'] = 'api/customer_change_password';
 $route['api/customers/cards/(:any)/default'] = 'api/customer_cards_set_default/$1';
 $route['api/customers/cards/(:any)/delete']  = 'api/customer_cards_delete/$1';
 $route['api/customers/cards']                = 'api/customer_cards';
-$route['api/paypal/env']             = 'api/paypal_env';
 $route['api/paypal/create-order']    = 'api/paypal_create_order';
 $route['api/paypal/return']          = 'api/paypal_return';
 $route['api/paypal/cancel']          = 'api/paypal_cancel';
