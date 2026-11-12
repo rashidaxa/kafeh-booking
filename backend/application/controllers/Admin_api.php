@@ -552,7 +552,7 @@ class Admin_api extends CI_Controller
                 $result = $this->paypal->capture($booking['paypal_auth_transaction_id'], $booking['amount']);
             } catch (Exception $e) {
                 log_message('error', '[Admin_api] reservations_accept capture: ' . $e->getMessage());
-                return $this->_error('PayPal capture failed', 502, ['detail' => $e->getMessage()]);
+                return $this->_error('PayPal capture failed', 409, ['detail' => $e->getMessage()]);
             }
 
             $captureId = $result['TRANSACTIONID'] ?? NULL;
@@ -616,7 +616,7 @@ class Admin_api extends CI_Controller
                 $result = $this->paypal->voidTransaction($booking['paypal_auth_transaction_id']);
             } catch (Exception $e) {
                 log_message('error', '[Admin_api] reservations_reject void: ' . $e->getMessage());
-                return $this->_error('PayPal void failed', 502, ['detail' => $e->getMessage()]);
+                return $this->_error('PayPal void failed', 409, ['detail' => $e->getMessage()]);
             }
 
             // DoVoid doesn't mint a new transaction id — log against the
@@ -665,7 +665,16 @@ class Admin_api extends CI_Controller
                 $this->paypal->voidTransaction($booking['paypal_auth_transaction_id']);
             } catch (Exception $e) {
                 log_message('error', '[Admin_api] reservations_delete void: ' . $e->getMessage());
-                return $this->_error('Could not release the PayPal authorization hold, so this reservation was not deleted.', 502, ['detail' => $e->getMessage()]);
+                // ?force=1 = the admin chose to delete anyway (e.g. an old sandbox test booking whose
+                // hold can't be voided against the live PayPal API). Otherwise refuse, as before.
+                // 409, not 502: Cloudflare swaps an origin 502 body for its own HTML page, which the
+                // admin UI then reports as "Invalid JSON response" instead of this message.
+                if ($this->input->get('force') !== '1') {
+                    return $this->_error('Could not release the PayPal authorization hold, so this reservation was not deleted.', 409, [
+                        'code' => 'paypal_void_failed', 'detail' => $e->getMessage(),
+                    ]);
+                }
+                log_message('error', '[Admin_api] reservations_delete: deleting ' . $id . ' anyway (admin forced; hold NOT released)');
             }
         }
 
@@ -721,7 +730,7 @@ class Admin_api extends CI_Controller
             $result = $this->paypal->chargeReference($booking['paypal_capture_transaction_id'], $amount, $description);
         } catch (Exception $e) {
             log_message('error', '[Admin_api] reservations_charge: ' . $e->getMessage());
-            return $this->_error('PayPal charge failed', 502, ['detail' => $e->getMessage()]);
+            return $this->_error('PayPal charge failed', 409, ['detail' => $e->getMessage()]);
         }
 
         $this->Booking_model->record_payment($id, $result['TRANSACTIONID'] ?? NULL, 'additional_charge', $result['PAYMENTSTATUS'] ?? ($result['ACK'] ?? 'Success'), [

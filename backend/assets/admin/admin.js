@@ -592,17 +592,34 @@
         btn.disabled = true;
         var oldLabel = btn.textContent;
         btn.textContent = "Working…";
+        var done = function () {
+          var redirect = btn.getAttribute("data-redirect");
+          if (redirect) { window.location.href = redirect; } else { window.location.reload(); }
+        };
+        var restore = function () { btn.disabled = false; btn.textContent = oldLabel; };
         fetch(endpoint, { method: "POST", credentials: "same-origin" })
-          .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
+          .then(function (r) {
+            return r.json().catch(function () {
+              // Not JSON = the server (or a proxy in front of it) answered with an HTML page.
+              return { success: false, error: "The server sent an unexpected reply (HTTP " + r.status + "). Please try again, or check the server log." };
+            });
+          })
           .then(function (j) {
-            if (j && j.success) {
-              var redirect = btn.getAttribute("data-redirect");
-              if (redirect) { window.location.href = redirect; } else { window.location.reload(); }
-            } else {
-              alert((j && j.error) || failMsg);
-              btn.disabled = false;
-              btn.textContent = oldLabel;
+            if (j && j.success) { return done(); }
+            // A PayPal hold that can't be released (e.g. an old sandbox booking): offer to delete anyway.
+            if (j && j.code === "paypal_void_failed") {
+              var ask = (j.error || "") + "\n\nPayPal said: " + (j.detail || "unknown error") +
+                "\n\nDelete the reservation anyway? The hold will NOT be released — only do this for test bookings or holds that no longer exist.";
+              if (!window.confirm(ask)) { restore(); return; }
+              return fetch(endpoint + (endpoint.indexOf("?") === -1 ? "?" : "&") + "force=1", { method: "POST", credentials: "same-origin" })
+                .then(function (r) { return r.json().catch(function () { return { success: false, error: "The server sent an unexpected reply (HTTP " + r.status + ")." }; }); })
+                .then(function (j2) {
+                  if (j2 && j2.success) { return done(); }
+                  alert((j2 && j2.error) || failMsg); restore();
+                });
             }
+            alert((j && j.error) || failMsg);
+            restore();
           })
           .catch(function (err) {
             alert("Network error: " + (err && err.message ? err.message : err));
@@ -667,7 +684,7 @@
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" }, body: JSON.stringify(collect())
       })
-        .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
+        .then(function (r) { return r.json().catch(function () { return { success: false, error: "The server sent an unexpected reply (HTTP " + r.status + ")" + (r.status === 404 ? " — the pricing endpoint isn't on the server yet; upload routes_admin.php and Admin_api.php." : ".") }; }); })
         .then(function (j) {
           if (j && j.success) { window.location.reload(); }
           else { alert((j && j.error) || "Save failed."); btn.disabled = false; btn.textContent = old; }
