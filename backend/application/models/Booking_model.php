@@ -144,6 +144,30 @@ class Booking_model extends CI_Model
      * status client-side) — the same exclusion of synthetic return-trip
      * rows list_all() uses.
      */
+    /**
+     * Whether a booking counts as PAID on receipts / the customer profile.
+     * Every reservation is UNPAID by default; it only shows PAID once an admin
+     * marks it so (payment_status_override = 'paid') in the reservation editor.
+     * PayPal capture status deliberately does not decide this.
+     */
+    public function is_paid(array $booking)
+    {
+        return ($booking['payment_status_override'] ?? NULL) === 'paid';
+    }
+
+    /**
+     * Saves an admin's manual price / payment edit (v28) on the outbound booking.
+     * $cols is the already-computed column set (amount, gratuity_amount, ...,
+     * price_override_json, payment_status_override). Returns FALSE when the v28
+     * migration hasn't been applied yet.
+     */
+    public function save_price_edit($booking_id, array $cols)
+    {
+        if (!$this->db->field_exists('price_override_json', 'kfb_bookings')) return FALSE;
+        $cols['pricing_edited_at'] = date('Y-m-d H:i:s');
+        return $this->db->where('booking_id', $booking_id)->update('kfb_bookings', $cols) ? TRUE : FALSE;
+    }
+
     public function list_for_customer($customer_id)
     {
         $rows = $this->db
@@ -155,6 +179,7 @@ class Booking_model extends CI_Model
 
         foreach ($rows as &$row) {
             $row['editable'] = !in_array($row['status'], ['paid', 'cancelled', 'refunded'], TRUE);
+            $row['payment_status'] = $this->is_paid($row) ? 'paid' : 'unpaid';
         }
         unset($row);
         return $rows;

@@ -636,6 +636,46 @@
     wireReservationDecisionButton("#kfbDeleteReservationBtn", msg, "Delete failed.");
   })();
 
+  // ---- Reservation detail: manual price / payment-status edit (v28) ----
+  (function () {
+    var form = $("#kfbPricingForm");
+    if (!form) return;
+    var legs = parseInt(form.getAttribute("data-legs"), 10) || 1;
+    var num = function (el) { var v = parseFloat(el && el.value); return isFinite(v) ? v : 0; };
+    function collect() {
+      var prices = {};
+      $$("#kfbPricingForm [data-price-line]").forEach(function (el) { prices[el.getAttribute("data-price-line")] = num(el); });
+      return {
+        base: num(form.elements.base), gratuity: num(form.elements.gratuity), discount: num(form.elements.discount),
+        prices: prices, payment_status: form.elements.payment_status.value
+      };
+    }
+    function recalc() {
+      var d = collect(), sum = d.base + d.gratuity - d.discount;
+      Object.keys(d.prices).forEach(function (k) { sum += d.prices[k]; });
+      var money = function (n) { return "$" + (Math.round(n * 100) / 100).toFixed(2); };
+      $("#kfbPricingLegTotal").textContent = money(sum);
+      var g = $("#kfbPricingGrandTotal"); if (g) g.textContent = money(sum * legs);
+    }
+    form.addEventListener("input", recalc);
+    recalc();
+    var btn = $("#kfbPricingSaveBtn");
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      var old = btn.textContent; btn.textContent = "Saving…";
+      fetch(form.getAttribute("data-endpoint"), {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(collect())
+      })
+        .then(function (r) { return r.json().catch(function () { return { success: false, error: "Invalid JSON response" }; }); })
+        .then(function (j) {
+          if (j && j.success) { window.location.reload(); }
+          else { alert((j && j.error) || "Save failed."); btn.disabled = false; btn.textContent = old; }
+        })
+        .catch(function (err) { alert("Network error: " + (err && err.message ? err.message : err)); btn.disabled = false; btn.textContent = old; });
+    });
+  })();
+
   function clearErrors() {
     if (!errBox) return;
     errBox.hidden = true;

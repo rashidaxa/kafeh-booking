@@ -342,6 +342,57 @@ if (!empty($booking['legacy_sync_log'])) {
   </div>
 </section>
 
+<?php
+// ---- Manual price / payment edit (v28) ----
+// Prefilled from exactly what the customer's receipt shows (override if one was saved, else the quote).
+$kfbCI =& get_instance();
+$kfbCI->load->library('legacy_reservations');
+$editPricing  = $kfbCI->legacy_reservations->leg_pricing($booking);
+$editLegs     = !empty($booking['is_return_trip']) ? 2 : 1;
+$payOverride  = $booking['payment_status_override'] ?? '';
+$priceLabels  = [
+    'meet-greet' => 'Meet & Greet', 'surcharge' => 'Surcharge (other)', 'distance' => 'Distance', 'cleanup-fee' => 'Cleanup fee',
+    'parking' => 'Parking', 'am-/-pm-fee' => 'AM / PM fee', 'security-srv' => 'Security service', 'wait-time' => 'Wait time',
+    'hwy-tolls' => 'Hwy tolls', 'airport-fee' => 'Airport fee', 'car-seat' => 'Car seat', 'stc' => 'STC',
+    'garage-to-garage' => 'Garage to garage', 'outside-serv' => 'Outside service', 'add-ons' => 'Add-ons',
+];
+?>
+<section class="kfb-card" id="kfbPricingEditCard">
+  <header class="kfb-card-head"><h2>Edit pricing &amp; payment status</h2></header>
+  <p class="kfb-hint" style="margin:-4px 0 12px;">
+    Change any price line or the Paid / Unpaid status by hand. The customer's profile, receipt and confirmation email
+    show exactly what you save here<?php if ($editLegs === 2): ?> (round trip: the figures below are <strong>per leg</strong> and are doubled for the total)<?php endif; ?>.
+    This does <strong>not</strong> change anything already authorized or captured in PayPal.
+    <?php if (!empty($booking['pricing_edited_at'])): ?>Last manually edited <?= htmlspecialchars($booking['pricing_edited_at']) ?>.<?php endif; ?>
+  </p>
+  <form id="kfbPricingForm" class="kfb-form" data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/pricing') ?>" data-legs="<?= (int)$editLegs ?>" onsubmit="return false">
+    <div class="kfb-detail-grid">
+      <label class="kfb-field"><span class="kfb-hint">Charges (transportation + travel fee)</span>
+        <input type="number" step="0.01" min="0" name="base" value="<?= htmlspecialchars(number_format($editPricing['base'], 2, '.', '')) ?>"></label>
+      <label class="kfb-field"><span class="kfb-hint">Gratuity</span>
+        <input type="number" step="0.01" min="0" name="gratuity" value="<?= htmlspecialchars(number_format($editPricing['gratuity'], 2, '.', '')) ?>"></label>
+      <?php foreach ($priceLabels as $key => $label): ?>
+        <label class="kfb-field"><span class="kfb-hint"><?= htmlspecialchars($label) ?></span>
+          <input type="number" step="0.01" min="0" data-price-line="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars(number_format((float)($editPricing['prices'][$key] ?? 0), 2, '.', '')) ?>"></label>
+      <?php endforeach; ?>
+      <label class="kfb-field"><span class="kfb-hint">Discount (&minus;)</span>
+        <input type="number" step="0.01" min="0" name="discount" value="<?= htmlspecialchars(number_format($editPricing['discount'], 2, '.', '')) ?>"></label>
+      <label class="kfb-field"><span class="kfb-hint">Payment status</span>
+        <select name="payment_status">
+          <option value="unpaid" <?= $payOverride !== 'paid' ? 'selected' : '' ?>>Unpaid (default)</option>
+          <option value="paid"   <?= $payOverride === 'paid' ? 'selected' : '' ?>>Paid</option>
+        </select></label>
+    </div>
+    <p style="margin:14px 0 0"><span class="kfb-hint">Total per leg</span>
+      <strong id="kfbPricingLegTotal">$0.00</strong>
+      <?php if ($editLegs === 2): ?> &middot; <span class="kfb-hint">Round-trip total</span> <strong id="kfbPricingGrandTotal">$0.00</strong><?php endif; ?>
+    </p>
+    <div class="kfb-modal-actions" style="justify-content:flex-start;margin-top:12px">
+      <button type="button" class="kfb-btn kfb-btn--primary" id="kfbPricingSaveBtn">Save pricing &amp; payment</button>
+    </div>
+  </form>
+</section>
+
 <?php if (!empty($booking['notes'])): ?>
   <section class="kfb-card">
     <header class="kfb-card-head"><h2>Special instructions</h2></header>

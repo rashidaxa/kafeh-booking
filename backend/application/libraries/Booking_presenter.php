@@ -18,7 +18,7 @@ class Booking_presenter
     {
         $this->CI =& get_instance();
         $this->CI->load->library('legacy_reservations');
-        $this->CI->load->model('Company_model');
+        $this->CI->load->model(['Company_model', 'Booking_model']);
         $this->CI->load->helper('kfb_format');
     }
 
@@ -58,7 +58,8 @@ class Booking_presenter
             $payment = 'PayPal';
         }
 
-        $isPaid = (($booking['status'] ?? '') === 'paid') && (($booking['payment_mode'] ?? 'paypal') !== 'none');
+        // An admin's manual Paid/Unpaid choice (v28) wins; otherwise it's derived from the status.
+        $isPaid = $this->CI->Booking_model->is_paid($booking);
         $build = function (array $row, $isReturn) use ($isPaid, $booking, $clientName, $passengerName, $clientPhone, $grand, $transport, $gratuity, $extra, $discount, $payment) {
             $pickupLines = array_map('trim', explode("\n", (string)($row['pickup'] ?? '')));
             if (!$isReturn) {

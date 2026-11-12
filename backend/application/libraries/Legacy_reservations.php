@@ -334,6 +334,23 @@ class Legacy_reservations
     public function leg_pricing(array $booking)
     {
         $n = function ($k) use ($booking) { return (float)($booking[$k] ?? 0); };
+
+        // Admin manual edit (v28): the saved lines ARE the breakdown — they replace the quoted
+        // one for the receipt, the confirmation email and the legacy sync alike.
+        $ov = !empty($booking['price_override_json']) ? json_decode($booking['price_override_json'], TRUE) : NULL;
+        if (is_array($ov)) {
+            $prices = array_fill_keys(self::LEGACY_PRICE_KEYS, 0.0);
+            foreach (self::LEGACY_PRICE_KEYS as $k) $prices[$k] = round((float)($ov['prices'][$k] ?? 0), 2);
+            $base     = round((float)($ov['base'] ?? 0), 2);
+            $gratuity = round((float)($ov['gratuity'] ?? 0), 2);
+            $discount = round((float)($ov['discount'] ?? 0), 2);
+            $p_total  = round($base + $gratuity + array_sum($prices), 2);
+            return [
+                'base' => $base, 'gratuity' => $gratuity, 'prices' => $prices,
+                'discount' => $discount, 'p_total' => $p_total, 'grand' => round($p_total - $discount, 2),
+            ];
+        }
+
         $grand    = round(!empty($booking['is_return_trip']) ? $n('amount') / 2 : $n('amount'), 2);
         $gratuity = $n('gratuity_amount');
         $discount = $n('discount_amount');

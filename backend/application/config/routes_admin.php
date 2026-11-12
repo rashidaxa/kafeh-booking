@@ -37,6 +37,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST /admin/api/vehicles/:id/toggle      → Admin_api::vehicles_toggle/:id
  *   GET  /admin/api/reservations             → Admin_api::reservations_index
  *   GET  /admin/api/reservations/:id         → Admin_api::reservations_get/:id
+ *   POST /admin/api/reservations/:id/pricing → Admin_api::reservations_pricing/:id (manual price + paid/unpaid edit)
  *   POST /admin/api/reservations/:id/accept  → Admin_api::reservations_accept/:id
  *   POST /admin/api/reservations/:id/reject  → Admin_api::reservations_reject/:id
  *   POST /admin/api/reservations/:id/charge  → Admin_api::reservations_charge/:id
@@ -115,6 +116,7 @@ $route['admin/api/settings/save']              = 'admin_api/settings_update';
 $route['admin/api/reservations']               = 'admin_api/reservations_index';
 // Same (:any) ordering caveat as above — suffixed action routes must come
 // before the bare get-by-id route.
+$route['admin/api/reservations/(:any)/pricing'] = 'admin_api/reservations_pricing/$1';
 $route['admin/api/reservations/(:any)/accept'] = 'admin_api/reservations_accept/$1';
 $route['admin/api/reservations/(:any)/reject'] = 'admin_api/reservations_reject/$1';
 $route['admin/api/reservations/(:any)/charge'] = 'admin_api/reservations_charge/$1';

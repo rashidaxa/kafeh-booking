@@ -468,6 +468,65 @@ class Admin_api extends CI_Controller
     }
 
     /**
+     * POST /admin/api/reservations/:id/pricing
+     * Body: { base, gratuity, discount, prices: {<line>: amount, ...}, payment_status: auto|paid|unpaid }
+     * Manual edit of what the customer sees: every price line (per leg), the
+     * discount, and the paid/unpaid state. Saved as an override on the outbound
+     * booking and mirrored into the numeric columns, so the customer's profile
+     * list, the receipt, the confirmation email and the legacy sync all agree.
+     * Does NOT touch PayPal — an authorization/capture already made keeps its
+     * original amount; any difference is settled manually.
+     */
+    public function reservations_pricing($id = NULL)
+    {
+        if (!$this->_require_login()) return;
+        if (!$id) return $this->_error('ID required', 400);
+        $booking = $this->Booking_model->get_booking($id);
+        if (!$booking) return $this->_error('Reservation not found', 404);
+
+        $raw = json_decode((string)$this->input->raw_input_stream, TRUE);
+        if (!is_array($raw)) return $this->_error('Invalid JSON body', 400);
+
+        $money = function ($v) {
+            if ($v === NULL || $v === '') return 0.0;
+            if (!is_numeric($v) || (float)$v < 0 || (float)$v > 1000000) return FALSE;
+            return round((float)$v, 2);
+        };
+        $base = $money($raw['base'] ?? 0); $gratuity = $money($raw['gratuity'] ?? 0); $discount = $money($raw['discount'] ?? 0);
+        if ($base === FALSE || $gratuity === FALSE || $discount === FALSE) {
+            return $this->_error('Amounts must be numbers between 0 and 1,000,000.', 422);
+        }
+        $prices = [];
+        foreach (Legacy_reservations::LEGACY_PRICE_KEYS as $k) {
+            $v = $money($raw['prices'][$k] ?? 0);
+            if ($v === FALSE) return $this->_error('Invalid amount for "' . $k . '".', 422);
+            $prices[$k] = $v;
+        }
+        $pay = (string)($raw['payment_status'] ?? 'auto');
+        if (!in_array($pay, ['auto', 'paid', 'unpaid'], TRUE)) return $this->_error('Invalid payment status.', 422);
+
+        $perLegTotal = round($base + $gratuity + array_sum($prices) - $discount, 2);
+        if ($perLegTotal < 0) return $this->_error('The discount is larger than the total.', 422);
+        $legs = !empty($booking['is_return_trip']) ? 2 : 1; // `amount` carries the whole round trip
+
+        $cols = [
+            'price_override_json'     => json_encode(['base' => $base, 'gratuity' => $gratuity, 'discount' => $discount, 'prices' => $prices]),
+            'payment_status_override' => $pay === 'auto' ? NULL : $pay,
+            'amount'                  => round($perLegTotal * $legs, 2),
+            'transportation_amount'   => $base,
+            'gratuity_amount'         => $gratuity,
+            'discount_amount'         => $discount,
+            'child_seats_fee_amount'  => $prices['car-seat'],
+            'addons_total'            => $prices['add-ons'],
+            'surcharges_total_amount' => round(array_sum($prices) - $prices['car-seat'] - $prices['add-ons'], 2),
+        ];
+        if (!$this->Booking_model->save_price_edit($id, $cols)) {
+            return $this->_error('Could not save — has the v28 database migration (kfb_migration_v28.sql) been applied?', 500);
+        }
+        $this->_json(['success' => TRUE, 'amount' => $cols['amount'], 'per_leg_total' => $perLegTotal]);
+    }
+
+    /**
      * POST /admin/api/reservations/:id/accept
      * Captures the held funds, marks the reservation paid, bumps promo
      * usage, and sends the customer's confirmation email.

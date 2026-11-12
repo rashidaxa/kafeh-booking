@@ -1708,9 +1708,10 @@
         tailNumber:      state.tailNumber || null,
         dropoff:         dropoffValue,
         dropoffType:     $('#kfbReturnDifferent').is(":checked") ? dropoffType : pickupType,
-        dropoffAirline:        $('input[name="dropoffAirline"]').val()       || null,
-        dropoffFlightNumber:   $('input[name="dropoffFlightNumber"]').val()  || null,
-        dropoffArrivalTime:    $('input[name="dropoffArrivalTime"]').val()   || null,
+        // Only send drop-off flight details when the drop-off really is an airport (see booking7.js).
+        dropoffAirline:        (dropoffType === "Airport" && $('input[name="dropoffAirline"]').val())      || null,
+        dropoffFlightNumber:   (dropoffType === "Airport" && $('input[name="dropoffFlightNumber"]').val()) || null,
+        dropoffArrivalTime:    (dropoffType === "Airport" && $('input[name="dropoffArrivalTime"]').val())  || null,
         dropoffTypeDetail: state.dropoffTypeDetail,
         dropoffTailNumber: state.dropoffTailNumber || null,
         stops:           stops,
@@ -2721,7 +2722,9 @@
         // Payment status: Paid only once the payment has actually been captured
         // (admin accepted a PayPal booking). Held/awaiting approval, pay-later
         // (PayPal off), cancelled and refunded are all Unpaid.
-        var isPaid = r.status === "paid" && r.payment_mode !== "none";
+        // The server decides (it honours an admin's manual Paid/Unpaid choice); the
+        // status/payment_mode rule is only the fallback for an older API response.
+        var isPaid = r.payment_status ? r.payment_status === "paid" : (r.status === "paid" && r.payment_mode !== "none");
         var $card = $(
           '<div class="kfb-reservation-card">' +
             '<div class="kfb-reservation-main">' +
@@ -3257,10 +3260,33 @@
       var $block = $("#kfbAccountPrompt");
       if (!$block.length) return;
       $block.removeAttr("hidden");
-      $block.find(".kfb-account-prompt-btn").on("click", function () {
+      // Inline error area (created once) — a toast alone is easy to miss on the
+      // success screen, so every failure below is also written here.
+      var $err = $block.find(".kfb-account-prompt-error");
+      if (!$err.length) {
+        $err = $('<div class="kfb-view-error kfb-account-prompt-error" role="alert" hidden></div>');
+        $block.find(".kfb-account-prompt-fields").after($err);
+      }
+      function showPromptError(msg, offerLogin, email) {
+        $err.empty().text(msg);
+        if (offerLogin) {
+          $err.append(" ").append(
+            $('<a href="#" class="kfb-account-prompt-login">Log in instead</a>').on("click", function (e) {
+              e.preventDefault();
+              $('input[name="loginEmail"]').val(email);
+              $("#kfbLoginError").attr("hidden", true);
+              setView("login");
+            })
+          );
+        }
+        $err.removeAttr("hidden");
+        toast(msg, "error");
+      }
+      $block.find(".kfb-account-prompt-btn").off("click").on("click", function () {
+        $err.attr("hidden", true);
         var pw = $block.find('input[name="accountPassword"]').val();
         if (!pw || pw.length < 6) {
-          toast("Password Must Be At Least 6 Characters.", "error");
+          showPromptError("Password Must Be At Least 6 Characters.");
           return;
         }
         // The account is for the card holder (the booker), not the passenger.
@@ -3290,10 +3316,22 @@
             // itself is already confirmed either way.
             showVerifyView(res.email || email);
           } else {
-            toast((res && res.error) || "Could Not Create Account.", "error");
+            showPromptError((res && res.error) || "Could Not Create Account.");
           }
         })
-        .fail(function () { toast("Network Error Creating Account.", "error"); })
+        .fail(function (xhr) {
+          // The API answers real problems (409 "Account already exists…", 422
+          // validation) with a JSON {error}; only a missing body means network.
+          var body = xhr && xhr.responseJSON;
+          var msg  = body && body.error;
+          if (xhr && xhr.status === 409) {
+            showPromptError("An account with this email already exists.", true, email);
+          } else if (msg) {
+            showPromptError(msg);
+          } else {
+            showPromptError("Network Error Creating Account. Please Try Again.");
+          }
+        })
         .always(done);
       });
     }

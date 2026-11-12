@@ -22,15 +22,16 @@
  */
 $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
 $mode = isset($mode) ? $mode : 'confirmation';
-// Footer "Email: user@domain.tld" is shown as plain, non-clickable text ("info @ a1limousines . com").
-// Written out in full, mail apps auto-link it (blue underline) and Cloudflare's email
-// obfuscation replaces it with "[email protected]" on the receipt page — spacing the
-// "@" and "." keeps it from being detected by either.
-$plainEmailLine = function ($line) {
+// Footer "Email: user@domain.tld" is shown as plain, non-clickable text. Written out as one
+// string, mail apps auto-link it (blue underline) and Cloudflare's email obfuscation replaces
+// it with "[email protected]" on the receipt page. Wrapping the "@" and "." in empty-styled
+// <span>s breaks the pattern for both while the address still reads normally, with no spaces.
+// Returns ready-to-print HTML (already escaped).
+$plainEmailLine = function ($line) use ($e) {
     if (preg_match('/^(Email:\s*)(\S+@\S+)$/i', trim((string)$line), $m)) {
-        return $m[1] . str_replace(['@', '.'], [' @ ', ' . '], $m[2]);
+        return $e($m[1]) . str_replace(['@', '.'], ['<span>@</span>', '<span>.</span>'], $e($m[2]));
     }
-    return $line;
+    return $e($line);
 };
 $isReceipt = ($mode === 'receipt');
 $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "cancelled" wording, no policy/instructions/terms blocks, nothing charged
@@ -189,8 +190,17 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
               margin-top: 15px;
               margin-bottom: 15px;
             }
+            /* Browsers drop backgrounds when printing unless told otherwise, and the
+               page-wide grey comes from the <html> canvas — so "exact" must be set on
+               html (and everything under it), not just body, or the bottom of the
+               sheet prints white unless the user ticks "Background graphics". */
+            html, body, * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
             html {
                margin: 0mm;
+               background-color: rgb(235, 235, 235);
             }
             body  {
               padding-top: 72px;
@@ -2345,7 +2355,7 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
 
                                                                      
                                                                      <?php foreach ($footer_lines as $line): ?>
-<p style="margin: 0; font-size: 12px; text-align: center; mso-line-height-alt: 14.399999999999999px; letter-spacing: normal;"><span style="font-size:12px;"><strong><?= $e($plainEmailLine($line)) ?></strong></span></p>
+<p style="margin: 0; font-size: 12px; text-align: center; mso-line-height-alt: 14.399999999999999px; letter-spacing: normal;"><span style="font-size:12px;"><strong><?= $plainEmailLine($line) ?></strong></span></p>
 <?php endforeach; ?>
 
                                                                   
