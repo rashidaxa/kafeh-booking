@@ -58,7 +58,8 @@ class Booking_presenter
             $payment = 'PayPal';
         }
 
-        $build = function (array $row, $isReturn) use ($booking, $clientName, $passengerName, $clientPhone, $grand, $transport, $gratuity, $extra, $discount, $payment) {
+        $isPaid = (($booking['status'] ?? '') === 'paid') && (($booking['payment_mode'] ?? 'paypal') !== 'none');
+        $build = function (array $row, $isReturn) use ($isPaid, $booking, $clientName, $passengerName, $clientPhone, $grand, $transport, $gratuity, $extra, $discount, $payment) {
             $pickupLines = array_map('trim', explode("\n", (string)($row['pickup'] ?? '')));
             if (!$isReturn) {
                 foreach (($booking['stops'] ?? []) as $i => $stop) $pickupLines[] = 'Stop ' . ($i + 1) . ': ' . $stop['address'];
@@ -98,6 +99,10 @@ class Booking_presenter
                 'payment_method'  => $payment,
                 'discount'        => $discount,
                 'grand_total'     => $grand,
+                // Receipt "Payment Status" section: PAID only once the payment was actually
+                // captured (admin accepted a PayPal booking); held / pay-later / cancelled = UNPAID.
+                'payment_status'  => $isPaid ? 'PAID' : 'UNPAID',
+                'paid_amount'     => $isPaid ? $grand : 0,
             ];
         };
 

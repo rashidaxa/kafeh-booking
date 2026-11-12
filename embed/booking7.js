@@ -38,7 +38,7 @@
     if (thisScript && thisScript.src && /\/booking7\.js(\?|#|$)/.test(thisScript.src)) {
       cssBase = thisScript.src.replace(/booking7\.js(\?.*)?(#.*)?$/, "");
     }
-    var href = cssBase + "booking7.css?v=20261030";
+    var href = cssBase + "booking7.css?v=20261109";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
@@ -133,6 +133,37 @@
   // ============================================================
   function boot($) {
     "use strict";
+
+    // -------- Host-CSS-proof show/hide --------
+    // The widget marks many elements with the HTML `hidden` attribute and
+    // reveals them with jQuery .show()/.toggle(). .show() only sets an inline
+    // `display`, which loses to any host stylesheet carrying
+    // `[hidden]{display:none!important}` (Bootstrap's reboot has exactly that
+    // rule) — so airport fields, the booking confirmation, etc. stayed
+    // invisible on Bootstrap sites. Fix: for elements inside the widget, keep
+    // the `hidden` attribute in step with show/hide. Scoped to .kfb-widget so
+    // the host page's own jQuery usage is untouched. (.toggle(bool) in jQuery
+    // 3 delegates to .show()/.hide(), so it is covered too.)
+    if (!$.fn.__kfbHiddenAttrPatched) {
+      $.fn.__kfbHiddenAttrPatched = true;
+      var origShow = $.fn.show, origHide = $.fn.hide;
+      $.fn.show = function () {
+        this.each(function () {
+          if (this.hasAttribute && this.hasAttribute("hidden") && $(this).closest(".kfb-widget").length) {
+            this.removeAttribute("hidden");
+          }
+        });
+        return origShow.apply(this, arguments);
+      };
+      $.fn.hide = function () {
+        this.each(function () {
+          if (this.setAttribute && this.hasAttribute && !this.hasAttribute("hidden") && $(this).closest(".kfb-widget").length) {
+            this.setAttribute("hidden", "");
+          }
+        });
+        return origHide.apply(this, arguments);
+      };
+    }
 
     // -------- Config --------
     var API_BASE      = (window.API || (PROD_BASE + "/backend/api")).replace(/\/$/, "");
@@ -541,12 +572,19 @@
           if (!$('input[name="returnDropoffArrivalTime"]').val()) missing.push("Return Drop-off Departure Time");
         }
       }
+      // Child seats live on this step: every added row must have a seat type
+      // picked (or be removed) before the customer can move on.
+      var $unsetSeat = $("#kfbChildSeatsContainer .kfb-cs-row").filter(function () {
+        return !$(this).find(".kfb-cs-type").val();
+      }).first();
+      if ($unsetSeat.length) missing.push("Child Seat Type");
       if (missing.length) {
         toast("Please Fill: " + missing.join(", "), "error");
         var first = null;
         if (!$('input[name="pickupDate"]').val()) first = $('input[name="pickupDate"]');
         else if (!$('input[name="pickupTime"]').val()) first = $('input[name="pickupTime"]');
         else if (!$('input[name="pickup"]').val().trim()) first = $('input[name="pickup"]');
+        else if ($unsetSeat.length && missing.length === 1) first = $unsetSeat.find(".kfb-cs-type");
         if (first) first.focus();
         return false;
       }
@@ -2034,7 +2072,11 @@
         ? 'Thank you, <b id="kfbSuccessName">rider</b>. Your reservation has been received and is awaiting approval. ' +
           'We\'ll email <b id="kfbSuccessEmail">—</b> once it\'s reviewed. You have <strong>not</strong> been charged.'
         : successMsgPaypalHtml);
-      $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").hide();
+      // Scoped to the booking wizard (#kfbBookingView): the login / register /
+      // verify-email / forgot / reset / profile views each have their own
+      // .kfb-actions button row, which a widget-wide hide left permanently
+      // hidden after a reservation (no Verify / Log in / Create account button).
+      $("#kfbBookingView .kfb-panel, #kfbBookingView > .kfb-stepper, #kfbBookingView .kfb-actions, #kfbBookingView .kfb-side-col").hide();
       var $ok = $("#kfbSuccess").show();
       $("#kfbSuccessId").text(bookingId || state.bookingId || "—");
       $("#kfbSuccessName").text($('input[name="ccFirstName"]').val() || $('input[name="firstName"]').val() || "rider");
@@ -2676,12 +2718,17 @@
       var pg = paginateProfileList(rows, page, renderReceiptsList);
       pg.rows.forEach(function (r) {
         var statusLabel = (r.status || "").replace(/_/g, " ");
+        // Payment status: Paid only once the payment has actually been captured
+        // (admin accepted a PayPal booking). Held/awaiting approval, pay-later
+        // (PayPal off), cancelled and refunded are all Unpaid.
+        var isPaid = r.status === "paid" && r.payment_mode !== "none";
         var $card = $(
           '<div class="kfb-reservation-card">' +
             '<div class="kfb-reservation-main">' +
               '<div class="kfb-reservation-route">' + escapeHtml(r.booking_id) + '</div>' +
               '<div class="kfb-reservation-meta">' + escapeHtml(fmtDateMDY(r.pickup_date)) + ' · ' + escapeHtml(r.vehicle_name || "—") + '</div>' +
               '<div class="kfb-reservation-amount">' + fmtMoney(r.amount) + '</div>' +
+              '<div class="kfb-reservation-meta">Payment Status: <b class="kfb-pay-status kfb-pay-status--' + (isPaid ? 'paid' : 'unpaid') + '">' + (isPaid ? 'Paid' : 'Unpaid') + '</b></div>' +
             '</div>' +
             '<div class="kfb-reservation-side">' +
               '<span class="kfb-status-badge kfb-status-badge--' + escapeHtml(r.status) + '">' + (statusLabel === 'paid' ? 'Confirmed' : escapeHtml(statusLabel)) + '</span>' +
@@ -3305,7 +3352,7 @@
       // ALL THREE panels and permanently outrank gotoStep()'s `hidden`
       // attribute toggling, leaving every step stacked on screen at once).
       $(".kfb-panel").css("display", "");
-      $(".kfb-stepper, .kfb-actions, .kfb-side-col").show();
+      $("#kfbBookingView > .kfb-stepper, #kfbBookingView .kfb-actions, #kfbBookingView .kfb-side-col").show();
       $("#kfbSuccess").hide();
       if (successMsgPaypalHtml !== null) $("#kfbSuccessMsg").html(successMsgPaypalHtml);
       // Re-seed addons catalog
@@ -3543,6 +3590,13 @@
       $("#kfbShowLoginBtn").on("click", function () { setView("login"); });
       $("#kfbShowRegisterBtn").on("click", function () { setView("register"); });
       $("#kfbShowProfileBtn").on("click", function () { setView("profile"); });
+      // "Book a Ride" at the top of the profile sidebar: back to the booking
+      // wizard. Starts a fresh booking if the customer just finished one
+      // (success screen showing) or was editing an existing reservation.
+      $("#kfbProfileBookBtn").on("click", function () {
+        if (!$("#kfbSuccess").attr("hidden") || state.editingBookingId) resetAll();
+        setView("booking");
+      });
       $(document).on("click", ".kfb-profile-tab", function () { setProfileTab($(this).data("profile-tab")); });
       $("#kfbLogoutBtn").on("click", doLogout);
       $("#kfbLoginBackBtn, #kfbRegisterBackBtn, #kfbProfileBackBtn").on("click", function () { setView("booking"); });

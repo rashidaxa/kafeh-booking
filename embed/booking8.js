@@ -38,7 +38,7 @@
     if (thisScript && thisScript.src && /\/booking8\.js(\?|#|$)/.test(thisScript.src)) {
       cssBase = thisScript.src.replace(/booking8\.js(\?.*)?(#.*)?$/, "");
     }
-    var href = cssBase + "booking8.css?v=20261107";
+    var href = cssBase + "booking8.css?v=20261109";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
@@ -3590,6 +3590,13 @@
       $("#kfbShowLoginBtn").on("click", function () { setView("login"); });
       $("#kfbShowRegisterBtn").on("click", function () { setView("register"); });
       $("#kfbShowProfileBtn").on("click", function () { setView("profile"); });
+      // "Book a Ride" at the top of the profile sidebar: back to the booking
+      // wizard. Starts a fresh booking if the customer just finished one
+      // (success screen showing) or was editing an existing reservation.
+      $("#kfbProfileBookBtn").on("click", function () {
+        if (!$("#kfbSuccess").attr("hidden") || state.editingBookingId) resetAll();
+        setView("booking");
+      });
       $(document).on("click", ".kfb-profile-tab", function () { setProfileTab($(this).data("profile-tab")); });
       $("#kfbLogoutBtn").on("click", doLogout);
       $("#kfbLoginBackBtn, #kfbRegisterBackBtn, #kfbProfileBackBtn").on("click", function () { setView("booking"); });

@@ -888,8 +888,33 @@ html.kfb-modal-open { overflow: hidden; }
   font-size: 14px; font-weight: 700; color: var(--kfb-text-muted);
   cursor: pointer; transition: background .12s, color .12s;
 }
+/* "Book a Ride" call-to-action: outlined black-on-white button (white fill,
+   black border + text, "+" icon); fills black on hover. Distinct from the
+   grey-highlighted active tab below it. */
+.kfb-profile-book-btn {
+  width: 100%; justify-content: center; gap: 10px;
+  margin-bottom: 14px; padding: 12px 18px; font-size: 15px; letter-spacing: .2px;
+  background: #fff; color: var(--kfb-accent);
+  border: 2px solid var(--kfb-accent); border-radius: var(--kfb-radius-lg);
+  transition: background .15s, color .15s, transform .1s;
+}
+.kfb-profile-book-btn::before {
+  content: "+"; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--kfb-accent); color: #fff; font-size: 16px; line-height: 1; font-weight: 800;
+  transition: background .15s, color .15s;
+}
+.kfb-profile-book-btn:hover { background: var(--kfb-accent); color: #fff; }
+.kfb-profile-book-btn:hover::before { background: #fff; color: var(--kfb-accent); }
+.kfb-profile-book-btn:active { transform: translateY(1px); }
+.kfb-profile-book-btn:focus-visible { outline: 3px solid rgba(17, 24, 39, .3); outline-offset: 2px; }
 .kfb-profile-tab:hover { background: var(--kfb-card); color: var(--kfb-text); }
-.kfb-profile-tab.is-active { background: var(--kfb-accent); color: #fff; }
+/* Active tab: soft highlight + accent bar (not a solid block), so it can't be
+   mistaken for the Book a Ride button above it. */
+.kfb-profile-tab.is-active {
+  background: var(--kfb-card); color: var(--kfb-text);
+  box-shadow: inset 3px 0 0 var(--kfb-accent);
+}
 .kfb-profile-content { flex: 1 1 auto; min-width: 0; }
 .kfb-profile-panel[hidden] { display: none; }
 
@@ -900,6 +925,8 @@ html.kfb-modal-open { overflow: hidden; }
     overflow-x: auto; position: static;
   }
   .kfb-profile-tab { flex: 1 1 auto; text-align: center; white-space: nowrap; }
+  .kfb-profile-book-btn { width: auto; flex: 0 0 auto; margin-bottom: 0; padding: 10px 16px; }
+  .kfb-profile-tab.is-active { box-shadow: inset 0 -3px 0 var(--kfb-accent); }
 }
 .kfb-view-title {
   margin: 0 0 18px; font-size: 20px; font-weight: 800;
@@ -985,3 +1012,7 @@ html.kfb-modal-open { overflow: hidden; }
 
 /* "Passenger is the same as the credit card holder" tick box (step 3) */
 .kfb-same-passenger { display: flex; margin: 0 0 12px; }
+
+/* Invoices & Receipts — payment status */
+.kfb-pay-status--paid   { color: #15803d; }
+.kfb-pay-status--unpaid { color: #b91c1c; }

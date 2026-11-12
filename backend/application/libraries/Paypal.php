@@ -54,6 +54,17 @@ class Paypal
             : 'https://api-m.sandbox.paypal.com';
     }
 
+    /** Diagnostic: which PayPal host this instance will really call (no secrets). */
+    public function get_environment()
+    {
+        return [
+            'base_url'      => $this->base_url,
+            'is_live'       => $this->base_url === 'https://api-m.paypal.com',
+            'client_id_set' => $this->client_id !== '' && strpos((string)$this->client_id, 'YOUR_') !== 0,
+            'secret_set'    => $this->client_secret !== '' && strpos((string)$this->client_secret, 'YOUR_') !== 0,
+        ];
+    }
+
     /**
      * Create an order to authorize (hold, don't capture) the trip amount.
      * $returnUrl / $cancelUrl are where PayPal sends the browser back to

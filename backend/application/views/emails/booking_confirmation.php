@@ -22,13 +22,23 @@
  */
 $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
 $mode = isset($mode) ? $mode : 'confirmation';
+// Footer "Email: user@domain.tld" is shown as plain, non-clickable text ("info @ a1limousines . com").
+// Written out in full, mail apps auto-link it (blue underline) and Cloudflare's email
+// obfuscation replaces it with "[email protected]" on the receipt page — spacing the
+// "@" and "." keeps it from being detected by either.
+$plainEmailLine = function ($line) {
+    if (preg_match('/^(Email:\s*)(\S+@\S+)$/i', trim((string)$line), $m)) {
+        return $m[1] . str_replace(['@', '.'], [' @ ', ' . '], $m[2]);
+    }
+    return $line;
+};
 $isReceipt = ($mode === 'receipt');
 $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "cancelled" wording, no policy/instructions/terms blocks, nothing charged
 ?>
 <!DOCTYPE html>
 <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en"><head>
 
-      <title><?= $isReceipt ? 'Reservation Receipt' : ($isCancelled ? 'Reservation Cancelled' : 'Reservation Confirmation') ?></title>
+      <title><?= $isReceipt ? 'Itemized Trip Receipt' : ($isCancelled ? 'Reservation Cancelled' : 'Reservation Confirmation') ?></title>
 
       <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
@@ -238,7 +248,7 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
 
                                                                   <div class="" style="font-size: 14px; color: rgb(28, 28, 28); line-height: 1.2; font-family: Arial, Helvetica Neue, Helvetica, sans-serif;" data-color="rgb(28, 28, 28)">
 
-                                                                     <p style="margin: 0; font-size: 14px; mso-line-height-alt: 16.8px;">Your reservation <?= $isReceipt ? 'receipt' : ($isCancelled ? 'has been cancelled' : 'is confirmed') ?></p>
+                                                                     <p style="margin: 0; font-size: 14px; mso-line-height-alt: 16.8px;"><?= $isReceipt ? 'Trip Receipt' : ('Your reservation ' . ($isCancelled ? 'has been cancelled' : 'is confirmed')) ?></p>
 
                                                                   </div>
 
@@ -356,7 +366,7 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
 
                                                                   <div class="" style="font-size: 14px; font-family: TimesNewRoman, &quot;Times New Roman&quot;, Times, Beskerville, Georgia, serif; color: rgb(255, 255, 255); line-height: 1.2;" data-color="rgb(255, 255, 255)">
 
-                                                                     <p style="margin: 0; font-size: 14px; text-align: right; mso-line-height-alt: 16.8px;"><span style="font-size:24px;">Reservation <?= $isReceipt ? 'Receipt' : ($isCancelled ? 'Cancelled' : 'Confirmation') ?></span></p>
+                                                                     <p style="margin: 0; font-size: 14px; text-align: right; mso-line-height-alt: 16.8px;"><span style="font-size:24px;"><?= $isReceipt ? 'Itemized Trip Receipt' : ('Reservation ' . ($isCancelled ? 'Cancelled' : 'Confirmation')) ?></span></p>
 
                                                                   </div>
 
@@ -1553,6 +1563,93 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
 
                            </table>
 
+<?php if ($isReceipt): ?>
+<?php $paid = ($leg["payment_status"] === "PAID"); ?>
+<div style="height:20px;line-height:20px;font-size:1px;">&nbsp;</div>
+                           <table class="row row-pay-h" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
+
+                              <tbody>
+
+                                 <tr>
+
+                                    <td>
+
+                                       <table class="row-content stack" role="presentation" style="background-color: rgb(0, 151, 219); color: rgb(0, 0, 0); width: 640px;" data-background-color="rgb(0, 151, 219)" width="640" cellspacing="0" cellpadding="0" border="0" align="center">
+
+                                          <tbody>
+
+                                             <tr>
+
+                                                <td class="column column-1" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; font-weight: 400; text-align: left; padding-left: 20px; padding-right: 20px; vertical-align: top; padding-top: 5px; padding-bottom: 5px; border-top: 0px; border-right: 0px; border-bottom: 0px; border-left: 0px;" data-border-top-color="currentcolor" data-border-right-color="currentcolor" data-border-bottom-color="currentcolor" data-border-left-color="currentcolor" width="100%">
+
+                                                   <table class="text_block block-1" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; word-break: break-word;" width="100%" cellspacing="0" cellpadding="10" border="0">
+
+                                                      <tbody>
+
+                                                         <tr>
+
+                                                            <td class="pad">
+
+                                                               <div style="font-family: 'Times New Roman', Georgia, serif">
+
+                                                                  <div class="" style="font-size: 14px; font-family: TimesNewRoman, &quot;Times New Roman&quot;, Times, Beskerville, Georgia, serif; color: rgb(255, 255, 255); line-height: 1.2;" data-color="rgb(255, 255, 255)">
+
+                                                                     <p style="margin: 0; font-size: 14px; text-align: center; mso-line-height-alt: 16.8px;"><span style="font-size:24px;"><strong>Payment Status</strong><br></span></p>
+
+                                                                  </div>
+
+                                                               </div>
+
+                                                            </td>
+
+                                                         </tr>
+
+                                                      </tbody>
+
+                                                   </table>
+
+                                                </td>
+
+                                             </tr>
+
+                                          </tbody>
+
+                                       </table>
+
+                                    </td>
+
+                                 </tr>
+
+                              </tbody>
+
+                           </table>
+
+
+                           <table class="row row-pay-b" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;" width="100%" cellspacing="0" cellpadding="0" border="0" align="center">
+                              <tbody>
+                                 <tr>
+                                    <td>
+                                       <table class="row-content" role="presentation" style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0); width: 640px;" data-background-color="rgb(255, 255, 255)" width="640" cellspacing="0" cellpadding="0" border="0" align="center">
+                                          <tbody>
+                                             <tr>
+                                                <td style="padding: 12px 20px; font-family: Arial, Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: rgb(28, 28, 28); vertical-align: top;" width="33%">
+                                                   Total Pymts: $<?= number_format((float)$leg["paid_amount"], 2, ".", "") ?><br>
+                                                   Credits-Disc: -$<?= number_format((float)$leg["discount"], 2, ".", "") ?>
+                                                </td>
+                                                <td style="padding: 12px 20px; font-family: Arial, Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: rgb(28, 28, 28); vertical-align: top;" width="33%">
+                                                   Balance Due: $<?= number_format(max(0, (float)$leg["grand_total"] - (float)$leg["paid_amount"]), 2, ".", "") ?>
+                                                </td>
+                                                <td style="padding: 12px 20px; font-family: Arial, Helvetica Neue, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: <?= $paid ? 'rgb(21, 128, 61)' : 'rgb(185, 28, 28)' ?>; vertical-align: top; font-weight: bold;" width="34%">
+                                                   <?= $paid ? 'PAID' : 'UNPAID' ?>
+                                                </td>
+                                             </tr>
+                                          </tbody>
+                                       </table>
+                                    </td>
+                                 </tr>
+                              </tbody>
+                           </table>
+<?php endif; ?>
                            
                            <?php endforeach; ?>
 
@@ -2248,7 +2345,7 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
 
                                                                      
                                                                      <?php foreach ($footer_lines as $line): ?>
-<p style="margin: 0; font-size: 12px; text-align: center; mso-line-height-alt: 14.399999999999999px; letter-spacing: normal;"><span style="font-size:12px;"><strong><?= $e($line) ?></strong></span></p>
+<p style="margin: 0; font-size: 12px; text-align: center; mso-line-height-alt: 14.399999999999999px; letter-spacing: normal;"><span style="font-size:12px;"><strong><?= $e($plainEmailLine($line)) ?></strong></span></p>
 <?php endforeach; ?>
 
                                                                   
