@@ -367,6 +367,11 @@ $priceLabels  = [
   </p>
   <form id="kfbPricingForm" class="kfb-form" data-endpoint="<?= site_url('admin/api/reservations/' . $booking['booking_id'] . '/pricing') ?>" data-legs="<?= (int)$editLegs ?>" onsubmit="return false">
     <div class="kfb-detail-grid">
+      <?php if (($booking['service_type'] ?? '') === 'Hourly'): ?>
+        <label class="kfb-field"><span class="kfb-hint">Total hours (booked <?= htmlspecialchars(rtrim(rtrim(number_format((float)($booking['hours_requested'] ?? 0), 2, '.', ''), '0'), '.')) ?>)</span>
+          <input type="number" step="1" min="1" max="240" name="hours" value="<?= htmlspecialchars(rtrim(rtrim(number_format((float)($booking['hours_requested'] ?? 0), 2, '.', ''), '0'), '.')) ?>">
+          <small class="kfb-hint">Updates the booked hours and the drop-off time shown to the customer. It does not recalculate the price: set Charges below yourself.</small></label>
+      <?php endif; ?>
       <label class="kfb-field"><span class="kfb-hint">Charges (transportation + travel fee)</span>
         <input type="number" step="0.01" min="0" name="base" value="<?= htmlspecialchars(number_format($editPricing['base'], 2, '.', '')) ?>"></label>
       <label class="kfb-field"><span class="kfb-hint">Gratuity</span>

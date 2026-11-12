@@ -662,10 +662,12 @@
     function collect() {
       var prices = {};
       $$("#kfbPricingForm [data-price-line]").forEach(function (el) { prices[el.getAttribute("data-price-line")] = num(el); });
-      return {
+      var out = {
         base: num(form.elements.base), gratuity: num(form.elements.gratuity), discount: num(form.elements.discount),
         prices: prices, payment_status: form.elements.payment_status.value
       };
+      if (form.elements.hours) out.hours = num(form.elements.hours); // Hourly reservations only
+      return out;
     }
     function recalc() {
       var d = collect(), sum = d.base + d.gratuity - d.discount;

@@ -505,6 +505,17 @@ class Admin_api extends CI_Controller
         $pay = (string)($raw['payment_status'] ?? 'auto');
         if (!in_array($pay, ['auto', 'paid', 'unpaid'], TRUE)) return $this->_error('Invalid payment status.', 422);
 
+        // Hourly reservations: total booked hours (e.g. booked 2h, ran 3h). Drives the drop-off time on the
+        // receipt/email and the hours sent to the legacy portal; the price itself stays whatever is entered above.
+        $hours = NULL;
+        if (array_key_exists('hours', $raw) && ($booking['service_type'] ?? '') === 'Hourly') {
+            // Whole hours only (1, 2, 3 …) — never 1.5.
+            if (!is_numeric($raw['hours']) || (float)$raw['hours'] != floor((float)$raw['hours']) || (float)$raw['hours'] < 1 || (float)$raw['hours'] > 240) {
+                return $this->_error('Total hours must be a whole number between 1 and 240.', 422);
+            }
+            $hours = (int)$raw['hours'];
+        }
+
         $perLegTotal = round($base + $gratuity + array_sum($prices) - $discount, 2);
         if ($perLegTotal < 0) return $this->_error('The discount is larger than the total.', 422);
         $legs = !empty($booking['is_return_trip']) ? 2 : 1; // `amount` carries the whole round trip
@@ -520,6 +531,7 @@ class Admin_api extends CI_Controller
             'addons_total'            => $prices['add-ons'],
             'surcharges_total_amount' => round(array_sum($prices) - $prices['car-seat'] - $prices['add-ons'], 2),
         ];
+        if ($hours !== NULL) $cols['hours_requested'] = $hours;
         if (!$this->Booking_model->save_price_edit($id, $cols)) {
             return $this->_error('Could not save — has the v28 database migration (kfb_migration_v28.sql) been applied?', 500);
         }
