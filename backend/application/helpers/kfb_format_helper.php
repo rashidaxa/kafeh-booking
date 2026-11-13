@@ -32,6 +32,25 @@ if (!function_exists('kfb_datetime')) {
     }
 }
 
+if (!function_exists('kfb_title_case')) {
+    /**
+     * "rashid shahzad" / "RASHID SHAHZAD" -> "Rashid Shahzad"; also O'brien -> O'Brien, anne-marie -> Anne-Marie.
+     * Only words that are entirely lower- or upper-case are changed: a word typed with deliberate
+     * capitals ("McDonald", "DeShawn", "van der Berg" stays as typed where already mixed) is left alone.
+     */
+    function kfb_title_case($name)
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
+        if ($name === '') return '';
+        return preg_replace_callback('/[^\s\-\'’]+/u', function ($m) {
+            $w = $m[0];
+            if ($w !== mb_strtolower($w, 'UTF-8') && $w !== mb_strtoupper($w, 'UTF-8')) return $w; // already mixed case
+            if (!preg_match('/\p{L}/u', $w)) return $w;                                               // digits / symbols only
+            return mb_strtoupper(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_strtolower(mb_substr($w, 1, NULL, 'UTF-8'), 'UTF-8');
+        }, $name);
+    }
+}
+
 if (!function_exists('kfb_phone')) {
     /**
      * US/Canada numbers as xxx-xxx-xxxx (a leading country code 1 is dropped).

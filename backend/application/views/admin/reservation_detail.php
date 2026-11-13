@@ -153,7 +153,7 @@ if (!empty($booking['legacy_sync_log'])) {
 
   <div class="kfb-detail-grid">
     <div>
-      <?php $ccName = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')); ?>
+      <?php $ccName = kfb_title_case(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''))); ?>
       <span class="kfb-hint">Customer (card holder)</span>
       <?php if ($ccName !== ''): ?>
         <p><?= htmlspecialchars($ccName . (!empty($booking['cc_company']) ? ' | ' . $booking['cc_company'] : '')) ?><br>
@@ -161,7 +161,7 @@ if (!empty($booking['legacy_sync_log'])) {
           <?= htmlspecialchars(kfb_phone($booking['cc_phone'] ?? '')) ?></p>
         <span class="kfb-hint">Passenger</span>
       <?php endif; ?>
-      <p><?= htmlspecialchars(trim($booking['first_name'] . ' ' . $booking['last_name'])) ?><br>
+      <p><?= htmlspecialchars(kfb_title_case(trim($booking['first_name'] . ' ' . $booking['last_name']))) ?><br>
         <?= htmlspecialchars($booking['email']) ?><br>
         <?= htmlspecialchars(kfb_phone($booking['phone'])) ?></p>
     </div>
@@ -268,7 +268,7 @@ if (!empty($booking['legacy_sync_log'])) {
     <header class="kfb-card-head"><h2>Credit Card Information</h2></header>
     <p class="kfb-hint" style="margin: -4px 0 12px;">Card holder = the client/booker (legacy Client Name); may differ from the passenger above.</p>
     <div class="kfb-detail-grid">
-      <div><span class="kfb-hint">Card holder name</span><p><?= kfb_or_dash(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')) ?: ($booking['cardHolderName'] ?? NULL)) ?></p></div>
+      <div><span class="kfb-hint">Card holder name</span><p><?= kfb_or_dash(kfb_title_case(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''))) ?: ($booking['cardHolderName'] ?? NULL)) ?></p></div>
       <div><span class="kfb-hint">Card holder company</span><p><?= kfb_or_dash($booking['cc_company'] ?? NULL) ?></p></div>
       <div><span class="kfb-hint">Card holder phone</span><p><?= kfb_or_dash(kfb_phone($booking['cc_phone'] ?? '')) ?></p></div>
       <div><span class="kfb-hint">Card holder email</span><p><?= kfb_or_dash($booking['cc_email'] ?? NULL) ?></p></div>

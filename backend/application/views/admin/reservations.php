@@ -101,7 +101,7 @@ if (!function_exists('kfb_reservations_page_url')) {
             <tr>
               <td><code class="kfb-mono"><?= htmlspecialchars($r['booking_id']) ?></code></td>
               <td>
-<?php $ccName = trim(($r['cc_first_name'] ?? '') . ' ' . ($r['cc_last_name'] ?? '')); $pxName = trim($r['first_name'] . ' ' . $r['last_name']); ?>
+<?php $ccName = kfb_title_case(trim(($r['cc_first_name'] ?? '') . ' ' . ($r['cc_last_name'] ?? ''))); $pxName = kfb_title_case(trim($r['first_name'] . ' ' . $r['last_name'])); ?>
                 <?= htmlspecialchars($ccName !== '' ? $ccName : $pxName) ?: '—' ?>
                 <br><small class="kfb-hint"><?= htmlspecialchars(!empty($r['cc_email']) ? $r['cc_email'] : $r['email']) ?></small>
                 <?php if ($ccName !== '' && $pxName !== '' && strcasecmp($ccName, $pxName) !== 0): ?>
