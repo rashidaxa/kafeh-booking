@@ -165,12 +165,14 @@ class Legacy_reservations
         // Client = the credit card holder (v23); passenger = whoever
         // Passenger Info names. Bookings from before v23 have no
         // cardholder, so they keep the old behaviour (client = passenger).
-        $passengerName = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
-        $clientName    = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
+        // Names and company are sent in Title Case: the dispatch staff / client read them in the legacy portal,
+        // where whatever we send is stored as-is (see kfb_title_case() / kfb_title_case_company()).
+        $passengerName = kfb_title_case(trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? '')));
+        $clientName    = kfb_title_case(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')));
         if ($clientName === '') {
             $clientName = $passengerName;
         } elseif (!empty($booking['cc_company'])) {
-            $clientName .= ' | ' . trim($booking['cc_company']);
+            $clientName .= ' | ' . kfb_title_case_company($booking['cc_company']);
         }
         $clientPhone = (string)(!empty($booking['cc_phone']) ? $booking['cc_phone'] : ($booking['phone'] ?? ''));
         $clientEmail = (string)(!empty($booking['cc_email']) ? $booking['cc_email'] : ($booking['email'] ?? ''));

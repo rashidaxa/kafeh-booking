@@ -321,102 +321,6 @@
                   </div>
                 </div>
 
-                <div class="kfb-section">
-                  <label class="kfb-check kfb-check-block">
-                    <input type="checkbox" id="kfbReturnTripToggle">
-                    <span><strong>Return Trip</strong> — Also Book The Trip Back To The Origin</span>
-                  </label>
-                  <div id="kfbReturnTripPanel" hidden>
-                    <div class="kfb-field-row-2" style="margin-top:10px">
-                      <label class="kfb-field">
-                        <span>Return Date</span>
-                        <div class="kfb-dt-overlay-wrap">
-                          <input type="date" name="returnDate">
-                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                        </div>
-                      </label>
-                      <label class="kfb-field">
-                        <span>Return Time</span>
-                        <div class="kfb-dt-overlay-wrap">
-                          <input type="time" name="returnTime">
-                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                        </div>
-                      </label>
-                    </div>
-                    <p class="kfb-hint" style="margin:6px 0 0">On the return leg, the pickup &amp; drop-off are swapped.</p>
-
-                    <div id="kfbReturnPickupFlightBlock" hidden>
-                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return pickup</strong> — picking you up at the airport for the trip back.</p>
-                      <div class="kfb-field-row-3">
-                        <label class="kfb-field">
-                          <span>Airline</span>
-                          <input type="text" name="returnAirline" list="kfbAirlinesListReturnPickup" placeholder="Select Or Type Airline">
-                          <datalist id="kfbAirlinesListReturnPickup"></datalist>
-                        </label>
-                        <label class="kfb-field">
-                          <span>Flight #</span>
-                          <input type="text" name="returnFlightNumber" placeholder="E.g. AA1234">
-                        </label>
-                        <label class="kfb-field">
-                          <span>Arrival Time</span>
-                          <div class="kfb-dt-overlay-wrap">
-                            <input type="time" name="returnArrivalTime">
-                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                          </div>
-                        </label>
-                      </div>
-                      <label class="kfb-field" style="margin-top:8px">
-                        <span>Pickup Point</span>
-                        <select name="returnPickupTypeDetail" id="kfbReturnPickupTypeDetail">
-                          <option value="Curbside" selected>Curbside Pickup (Outside) — Included</option>
-                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
-                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
-                        </select>
-                      </label>
-                      <label class="kfb-field" id="kfbReturnTailNumberWrap" hidden>
-                        <span>Aircraft Tail Number <em>*</em></span>
-                        <input type="text" name="returnTailNumber" maxlength="10"
-                               placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
-                      </label>
-                    </div>
-
-                    <div id="kfbReturnDropoffFlightBlock" hidden>
-                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return drop-off</strong> — dropping you back at the airport for your flight home.</p>
-                      <div class="kfb-field-row-3">
-                        <label class="kfb-field">
-                          <span>Airline</span>
-                          <input type="text" name="returnDropoffAirline" list="kfbAirlinesListReturnDropoff" placeholder="Select Or Type Airline">
-                          <datalist id="kfbAirlinesListReturnDropoff"></datalist>
-                        </label>
-                        <label class="kfb-field">
-                          <span>Flight #</span>
-                          <input type="text" name="returnDropoffFlightNumber" placeholder="E.g. AA1234">
-                        </label>
-                        <label class="kfb-field">
-                          <span>Departure Time</span>
-                          <div class="kfb-dt-overlay-wrap">
-                            <input type="time" name="returnDropoffArrivalTime">
-                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                          </div>
-                        </label>
-                      </div>
-                      <label class="kfb-field" style="margin-top:8px">
-                        <span>Drop-Off Point</span>
-                        <select name="returnDropoffTypeDetail" id="kfbReturnDropoffTypeDetail">
-                          <option value="Curbside" selected>Curbside Drop-Off (Outside) — Included</option>
-                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
-                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
-                        </select>
-                      </label>
-                      <label class="kfb-field" id="kfbReturnDropoffTailNumberWrap" hidden>
-                        <span>Aircraft Tail Number <em>*</em></span>
-                        <input type="text" name="returnDropoffTailNumber" maxlength="10"
-                               placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
                 <label class="kfb-field">
                   <textarea name="notes" rows="3" placeholder="Other Notes, Instructions, Or Special Requests."></textarea>
@@ -622,6 +526,9 @@
             </div>
           </div>
 
+          <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbReturnReservationBtn" hidden>Make a Return Reservation</button>
+          <p class="kfb-hint" id="kfbReturnReservationHint" hidden style="margin:6px 0 14px">Need the trip back? We'll copy this reservation with pickup &amp; drop-off swapped — you only choose the new date &amp; time and re-enter your card.</p>
+
           <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Make Another Booking</button>
         </section>
 
@@ -822,8 +729,8 @@
          If the site already loads jQuery 3.x, delete the first line. -->
     <script src="https://grounddispatch.com/booking/vendor/jquery-3.7.1.min.js"></script>
     <script src="https://grounddispatch.com/booking/embed/airports.js?v=20261030"></script>
-    <script src="https://grounddispatch.com/booking/embed/booking7.js?v=20261109"></script>
-    <script src="https://grounddispatch.com/booking/embed/booking-map.js?v=20261030"></script>
+    <script src="https://grounddispatch.com/booking/embed/booking8.js?v=20261118"></script>
+    <script src="https://grounddispatch.com/booking/embed/booking-map.js?v=20261118"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
     <!-- EMBED: COPY END -->
 

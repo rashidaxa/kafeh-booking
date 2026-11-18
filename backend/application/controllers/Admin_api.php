@@ -781,21 +781,26 @@ class Admin_api extends CI_Controller
     }
 
     /**
-     * Best-effort "reservation cancelled" email, sent when an admin rejects a
-     * reservation. Same layout as the confirmation email (mode 'cancelled'
-     * of emails/booking_confirmation), same recipient rules and per-company
-     * branding as _send_confirmation().
+     * Best-effort "reservation request declined" email (emails/request_declined),
+     * sent when an admin rejects a reservation. The confirmation template is
+     * never used for a rejection. Same recipient rules as _send_confirmation().
      */
     protected function _send_cancellation($booking)
     {
         $to = !empty($booking['cc_email']) ? $booking['cc_email'] : ($booking['email'] ?? '');
         if (!$to) return;
         $greet   = !empty($booking['cc_first_name']) ? $booking['cc_first_name'] : ($booking['first_name'] ?? '');
-        $subject = 'Booking ' . $booking['booking_id'] . ' Cancelled';
+        $subject = 'Reservation Request Declined - Booking ' . $booking['booking_id'];
 
         $company = $this->Company_model->get($booking['company_id'] ?? 1);
         $companyName = !empty($company['name']) ? $company['name'] : 'A1 Limousine';
-        $html = $this->load->view('emails/booking_confirmation', $this->booking_presenter->confirmation_vars($booking, $company, 'cancelled'), TRUE);
+        $ts = strtotime(($booking['pickup_date'] ?? '') . ' ' . ($booking['pickup_time'] ?? ''));
+        $html = $this->load->view('emails/request_declined', [
+            'recipient_name' => $greet,
+            'booking_id'     => $booking['booking_id'],
+            'date'           => !empty($booking['pickup_date']) && strtotime($booking['pickup_date']) ? date('l, F j, Y', strtotime($booking['pickup_date'])) : ($booking['pickup_date'] ?? ''),
+            'time'           => $ts && !empty($booking['pickup_time']) ? date('g:i A', $ts) : ($booking['pickup_time'] ?? ''),
+        ], TRUE);
 
         $contact = !empty($company['contact_email']) ? " Please contact us at {$company['contact_email']} if you have any questions." : '';
         $body =

@@ -56,18 +56,29 @@ if (!function_exists('kfb_title_case')) {
 
 if (!function_exists('kfb_title_case_company')) {
     /**
-     * Gentler than kfb_title_case() for company names: only words typed entirely in lower case are
-     * capitalised ("acme limousine" -> "Acme Limousine"). Anything already containing a capital is kept
-     * as typed, so acronyms and brands survive ("IBM", "ABC LLC", "McKinsey & Co", "iPhone Rentals").
+     * Company-name capitalisation:
+     *   - a name typed entirely in CAPITALS ("ACME LIMOUSINE LLC") is converted to Title Case like a person's
+     *     name -> "Acme Limousine LLC" (unless it is a short acronym of 4 letters or fewer, e.g. "IBM");
+     *   - otherwise only words typed entirely in lower case are capitalised ("acme limousine" -> "Acme Limousine"),
+     *     and anything already containing a capital is left as typed ("iPhone Rentals", "McKinsey & Co").
+     * Legal suffixes / well-known acronyms (LLC, LLP, LP, USA, UK, NYC, DC) always end up in capitals.
      */
     function kfb_title_case_company($name)
     {
         $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
         if ($name === '') return '';
-        return preg_replace_callback('/[^\s\-\'’]+/u', function ($m) {
-            $w = $m[0];
-            if ($w !== mb_strtolower($w, 'UTF-8') || !preg_match('/^\p{L}/u', $w)) return $w;
-            return mb_strtoupper(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($w, 1, NULL, 'UTF-8');
+        $letters = preg_replace('/[^\p{L}]/u', '', $name);
+        if (mb_strlen($letters, 'UTF-8') > 4 && $name === mb_strtoupper($name, 'UTF-8')) {
+            $name = kfb_title_case($name);
+        } else {
+            $name = preg_replace_callback('/[^\s\-\'’]+/u', function ($m) {
+                $w = $m[0];
+                if ($w !== mb_strtolower($w, 'UTF-8') || !preg_match('/^\p{L}/u', $w)) return $w;
+                return mb_strtoupper(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($w, 1, NULL, 'UTF-8');
+            }, $name);
+        }
+        return preg_replace_callback('/(?<![\p{L}\p{N}])(Llc|Llp|Lp|Usa|Uk|Nyc|Dc)(?![\p{L}\p{N}])/u', function ($m) {
+            return mb_strtoupper($m[1], 'UTF-8');
         }, $name);
     }
 }

@@ -185,6 +185,8 @@
     var dropoffEl = document.getElementById("kfbDropoff");
     if (pickupEl)  pickupEl.addEventListener("change", updateRoute);
     if (dropoffEl) dropoffEl.addEventListener("change", updateRoute);
+
+    if (pendingPresets) { var queued = pendingPresets; pendingPresets = null; presetLocations(queued); }
   }
 
   // -------- Autocomplete: pickup --------
@@ -290,6 +292,59 @@
     // Same fallback as pickup — see comment there.
     el.addEventListener("blur", debouncedUpdateRoute);
   }
+
+  // -------- Preset locations (return-reservation prefill) --------
+  // Text typed/pasted into a field has no Places geometry, so a prefilled
+  // address would never get coordinates (no route, no price). The booking
+  // widget calls window.kfbPresetLocations() with the addresses it just
+  // wrote into the fields; each one is remembered here keyed by its text and
+  // used by updateRoute() in place of ac.getPlace() — but only while the
+  // field still holds exactly that text, so a later manual edit or a real
+  // autocomplete selection takes over again.
+  var presetPlaces = {};
+  var pendingPresets = null;
+  function presetKey(t) { return String(t || "").trim().toLowerCase(); }
+  function presetFor(text) { return presetPlaces[presetKey(text)] || null; }
+  function placeFor(ac, text) {
+    return presetFor(text) || (ac ? ac.getPlace() : null);
+  }
+  function buildPresetPlace(item) {
+    var comps = [];
+    if (item.state)   comps.push({ short_name: item.state,   long_name: item.state,   types: ["administrative_area_level_1"] });
+    if (item.country) comps.push({ short_name: item.country, long_name: item.country, types: ["country"] });
+    return { geometry: { location: new google.maps.LatLng(item.lat, item.lng) }, address_components: comps };
+  }
+  // items: [{ text, lat?, lng?, state?, country? }] — items without lat/lng are geocoded from their text.
+  function presetLocations(items) {
+    if (!directionsService) { pendingPresets = items; return; } // map not booted yet — replayed from boot()
+    var geocoder = google.maps.Geocoder ? new google.maps.Geocoder() : null;
+    var left = items.length;
+    function done() {
+      if (--left > 0) return;
+      setTimeout(function () {
+        var pEl = document.getElementById("kfbPickup"), dEl = document.getElementById("kfbDropoff");
+        var pp = pEl && presetFor(pEl.value), dp = dEl && presetFor(dEl.value);
+        if (pp) dropPickupMarker(pp.geometry.location, "Pickup");
+        if (dp) dropDropoffMarker(dp.geometry.location, "Dropoff");
+        updateRoute();
+      }, 60); // let the stop rows' MutationObserver attach their entries first
+    }
+    if (!left) return;
+    items.forEach(function (item) {
+      var text = item && item.text;
+      if (!text) { done(); return; }
+      if (isFinite(item.lat) && isFinite(item.lng) && item.lat !== null && item.lng !== null) {
+        presetPlaces[presetKey(text)] = buildPresetPlace(item);
+        done();
+      } else if (geocoder) {
+        geocoder.geocode({ address: text }, function (results, status) {
+          if (status === "OK" && results && results[0]) presetPlaces[presetKey(text)] = results[0];
+          done();
+        });
+      } else { done(); }
+    });
+  }
+  window.kfbPresetLocations = presetLocations;
 
   // -------- Update autocomplete filter when location type changes --------
   // The widget dispatches "kfb:loc-type-changed" with detail.group in
@@ -529,7 +584,8 @@
       .filter(function (x) { return x.value; })
       .map(function (x) {
         // Prefer the place geometry if the user picked it from the dropdown
-        var place = x.entry.ac && x.entry.ac.getPlace();
+        var place = placeFor(x.entry.ac, x.value);
+        if (place && place.geometry && !x.entry.marker && presetFor(x.value)) updateStopMarker(x.entry.row, place.geometry.location, "Stop");
         return {
           location: (place && place.geometry) ? place.geometry.location : x.value,
           stopover: true,
@@ -537,8 +593,10 @@
       });
 
     // Prefer the actual place geometry for endpoints too
-    var originLoc      = (pickupAC  && pickupAC.getPlace()  && pickupAC.getPlace().geometry)  ? pickupAC.getPlace().geometry.location  : origin;
-    var destinationLoc = (dropoffAC && dropoffAC.getPlace() && dropoffAC.getPlace().geometry) ? dropoffAC.getPlace().geometry.location : destination;
+    var originPlace      = placeFor(pickupAC, origin);
+    var destinationPlace = placeFor(dropoffAC, destination);
+    var originLoc      = (originPlace      && originPlace.geometry)      ? originPlace.geometry.location      : origin;
+    var destinationLoc = (destinationPlace && destinationPlace.geometry) ? destinationPlace.geometry.location : destination;
 
     // Fired in parallel with the route request below, not chained after
     // it — see updateGarageDistances() for why.
@@ -574,8 +632,8 @@
 
         // Pickup/dropoff coordinates + state/country — the pricing zone
         // itself is classified server-side (Pricing_engine::classify_zone()).
-        var pickupPlace  = pickupAC  ? pickupAC.getPlace()  : null;
-        var dropoffPlace = dropoffAC ? dropoffAC.getPlace() : null;
+        var pickupPlace  = originPlace;
+        var dropoffPlace = destinationPlace;
         var stopCount = waypoints.length;
 
         // Publish to the global route state so the booking widget can
