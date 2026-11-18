@@ -37,7 +37,7 @@ $isReceipt = ($mode === 'receipt');
 $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "cancelled" wording, no policy/instructions/terms blocks, nothing charged
 ?>
 <!DOCTYPE html>
-<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en"><head>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en" style="background-color: rgb(235, 235, 235); -webkit-print-color-adjust: exact; print-color-adjust: exact;"><head>
 
       <title><?= $isReceipt ? 'Itemized Trip Receipt' : ($isCancelled ? 'Reservation Cancelled' : 'Reservation Confirmation') ?></title>
 
@@ -217,7 +217,7 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
 
    </head>
 
-   <body style="background-color: rgb(235, 235, 235); margin: 0px; padding: 0px; -moz-text-size-adjust: none;" data-background-color="rgb(235, 235, 235)">
+   <body style="background-color: rgb(235, 235, 235); margin: 0px; padding: 0px; -moz-text-size-adjust: none; -webkit-print-color-adjust: exact; print-color-adjust: exact;" data-background-color="rgb(235, 235, 235)">
 <?php if ($isReceipt): ?>
 <div class="no-print" style="max-width:640px;margin:12px auto 0;text-align:right;"><button type="button" onclick="window.print()" style="font:14px Arial,Helvetica,sans-serif;padding:8px 16px;border:1px solid #0097db;background:#0097db;color:#fff;border-radius:4px;cursor:pointer;">Print / Save as PDF</button></div>
 <?php endif; ?>

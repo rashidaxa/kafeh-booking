@@ -156,7 +156,7 @@ if (!empty($booking['legacy_sync_log'])) {
       <?php $ccName = kfb_title_case(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''))); ?>
       <span class="kfb-hint">Customer (card holder)</span>
       <?php if ($ccName !== ''): ?>
-        <p><?= htmlspecialchars($ccName . (!empty($booking['cc_company']) ? ' | ' . $booking['cc_company'] : '')) ?><br>
+        <p><?= htmlspecialchars($ccName . (!empty($booking['cc_company']) ? ' | ' . kfb_title_case_company($booking['cc_company']) : '')) ?><br>
           <?= htmlspecialchars($booking['cc_email'] ?? '') ?><br>
           <?= htmlspecialchars(kfb_phone($booking['cc_phone'] ?? '')) ?></p>
         <span class="kfb-hint">Passenger</span>

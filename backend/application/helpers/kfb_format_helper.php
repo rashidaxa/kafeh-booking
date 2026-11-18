@@ -34,19 +34,40 @@ if (!function_exists('kfb_datetime')) {
 
 if (!function_exists('kfb_title_case')) {
     /**
-     * "rashid shahzad" / "RASHID SHAHZAD" -> "Rashid Shahzad"; also O'brien -> O'Brien, anne-marie -> Anne-Marie.
-     * Only words that are entirely lower- or upper-case are changed: a word typed with deliberate
-     * capitals ("McDonald", "DeShawn", "van der Berg" stays as typed where already mixed) is left alone.
+     * Normalises a person's name to Title Case whatever was typed:
+     * "rashid shahzad", "RASHID SHAHZAD" and "rASHID sHAHZAD" all -> "Rashid Shahzad".
+     * Each part after a space, hyphen or apostrophe is capitalised (o'brien -> O'Brien,
+     * anne-marie -> Anne-Marie), and a "Mc" prefix keeps its second capital (mcdonald -> McDonald).
      */
     function kfb_title_case($name)
     {
         $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
         if ($name === '') return '';
+        $name = mb_strtolower($name, 'UTF-8');
+        $name = preg_replace_callback('/(^|[\s\-\'’])(\p{L})/u', function ($m) {
+            return $m[1] . mb_strtoupper($m[2], 'UTF-8');
+        }, $name);
+        // McDonald, McArthur — Mc + letter: capitalise the letter after "Mc" (only at the start of a part).
+        return preg_replace_callback('/(^|[\s\-])Mc(\p{L})/u', function ($m) {
+            return $m[1] . 'Mc' . mb_strtoupper($m[2], 'UTF-8');
+        }, $name);
+    }
+}
+
+if (!function_exists('kfb_title_case_company')) {
+    /**
+     * Gentler than kfb_title_case() for company names: only words typed entirely in lower case are
+     * capitalised ("acme limousine" -> "Acme Limousine"). Anything already containing a capital is kept
+     * as typed, so acronyms and brands survive ("IBM", "ABC LLC", "McKinsey & Co", "iPhone Rentals").
+     */
+    function kfb_title_case_company($name)
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
+        if ($name === '') return '';
         return preg_replace_callback('/[^\s\-\'’]+/u', function ($m) {
             $w = $m[0];
-            if ($w !== mb_strtolower($w, 'UTF-8') && $w !== mb_strtoupper($w, 'UTF-8')) return $w; // already mixed case
-            if (!preg_match('/\p{L}/u', $w)) return $w;                                               // digits / symbols only
-            return mb_strtoupper(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_strtolower(mb_substr($w, 1, NULL, 'UTF-8'), 'UTF-8');
+            if ($w !== mb_strtolower($w, 'UTF-8') || !preg_match('/^\p{L}/u', $w)) return $w;
+            return mb_strtoupper(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($w, 1, NULL, 'UTF-8');
         }, $name);
     }
 }
