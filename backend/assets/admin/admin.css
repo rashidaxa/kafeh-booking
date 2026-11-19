@@ -598,6 +598,12 @@ body.kfb-admin {
 }
 .kfb-money-suffix { left: auto; right: 10px; }
 .kfb-money input { padding-left: 30px; }
+/* The browser's number spinner (shown on hover) sits at the right edge of the input — exactly where the
+   "/mi", "mi", "hrs" and "%" suffixes are drawn — so it is removed for every input inside .kfb-money
+   (type the value, or use the keyboard arrow keys). */
+.kfb-money input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.kfb-money input[type="number"]::-webkit-outer-spin-button,
+.kfb-money input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
 .kfb-money .kfb-money-suffix + input,
 .kfb-money input:has(+ .kfb-money-suffix) { padding-left: 12px; padding-right: 28px; }
 
