@@ -57,7 +57,7 @@ if (!function_exists('kfb_client_bookings_page_url')) {
             <tr>
               <td><code class="kfb-mono"><?= htmlspecialchars($r['booking_id']) ?></code></td>
               <td>
-                <?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name'])) ?: '—' ?>
+                <?= htmlspecialchars(kfb_title_case(trim($r['first_name'] . ' ' . $r['last_name']))) ?: '—' ?>
                 <br><small class="kfb-hint"><?= htmlspecialchars($r['email']) ?></small>
               </td>
               <td><?= htmlspecialchars($r['company_name'] ?? '—') ?></td>

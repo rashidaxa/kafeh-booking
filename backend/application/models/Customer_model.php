@@ -22,6 +22,7 @@ class Customer_model extends CI_Model
     public function __construct()
     {
         parent::__construct();
+        $this->load->helper('kfb_format');
         $this->load->database();
     }
 
@@ -57,8 +58,8 @@ class Customer_model extends CI_Model
         $existing = $this->get_by_email($email);
         if ($existing) {
             $this->db->where('id', (int)$existing['id'])->update('kfb_customers', [
-                'first_name'      => $data['first_name'] ?? $existing['first_name'],
-                'last_name'       => $data['last_name']  ?? $existing['last_name'],
+                'first_name'      => isset($data['first_name']) ? kfb_title_case($data['first_name']) : $existing['first_name'],
+                'last_name'       => isset($data['last_name'])  ? kfb_title_case($data['last_name'])  : $existing['last_name'],
                 'phone'           => $data['phone']      ?? $existing['phone'],
                 'total_bookings'  => (int)$existing['total_bookings'] + 1,
                 'last_booking_at' => date('Y-m-d H:i:s'),
@@ -70,8 +71,8 @@ class Customer_model extends CI_Model
         $row = [
             'company_id'    => $this->company_id ?: 1,
             'email'         => $email,
-            'first_name'    => $data['first_name'] ?? '',
-            'last_name'     => $data['last_name']  ?? '',
+            'first_name'    => kfb_title_case($data['first_name'] ?? ''),
+            'last_name'     => kfb_title_case($data['last_name']  ?? ''),
             'phone'         => $data['phone']      ?? NULL,
             'total_bookings' => 1,
             'last_booking_at' => date('Y-m-d H:i:s'),
@@ -324,8 +325,8 @@ class Customer_model extends CI_Model
         if (!$customer_id) return FALSE;
 
         $update = [
-            'first_name' => $data['first_name'] ?? '',
-            'last_name'  => $data['last_name']  ?? '',
+            'first_name' => kfb_title_case($data['first_name'] ?? ''),
+            'last_name'  => kfb_title_case($data['last_name']  ?? ''),
             'phone'      => $data['phone']      ?? NULL,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
@@ -516,8 +517,8 @@ class Customer_model extends CI_Model
     public function admin_update_profile($id, $first, $last, $phone)
     {
         return $this->db->where('id', (int)$id)->update('kfb_customers', [
-            'first_name' => trim((string)$first),
-            'last_name'  => trim((string)$last),
+            'first_name' => kfb_title_case($first),
+            'last_name'  => kfb_title_case($last),
             'phone'      => trim((string)$phone) !== '' ? trim((string)$phone) : NULL,
             'updated_at' => date('Y-m-d H:i:s'),
         ]) ? TRUE : FALSE;

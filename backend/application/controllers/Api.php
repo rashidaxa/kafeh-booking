@@ -61,6 +61,7 @@ class Api extends CI_Controller
         parent::__construct();
         $this->load->model(['Booking_model', 'Client_booking_model', 'Promo_model', 'Addon_model', 'Customer_model', 'Settings_model', 'Surcharge_model', 'Company_model', 'Terms_model']);
         $this->load->library(['paypal', 'flights', 'mailer', 'pricing_engine']);
+        $this->load->helper('kfb_format');
         $this->_set_cors_headers();
         $this->_resolve_company();
     }
@@ -267,8 +268,8 @@ class Api extends CI_Controller
             // different card holder email never lands in that profile.
             $customerId = $this->Customer_model->upsert_from_booking([
                 'email'      => $raw['ccEmail'],
-                'first_name' => $raw['ccFirstName'] ?? '',
-                'last_name'  => $raw['ccLastName']  ?? '',
+                'first_name' => kfb_title_case($raw['ccFirstName'] ?? ''),
+                'last_name'  => kfb_title_case($raw['ccLastName']  ?? ''),
                 'phone'      => $raw['ccPhone']      ?? '',
             ]);
             if ($customerId) {
@@ -729,8 +730,8 @@ class Api extends CI_Controller
             $id = (int)$existing['id'];
             $this->db->where('id', $id)->update('kfb_customers', [
                 'password_hash'     => password_hash($password, PASSWORD_BCRYPT),
-                'first_name'        => $raw['first_name'] ?? $existing['first_name'],
-                'last_name'         => $raw['last_name']  ?? $existing['last_name'],
+                'first_name'        => isset($raw['first_name']) ? kfb_title_case($raw['first_name']) : $existing['first_name'],
+                'last_name'         => isset($raw['last_name'])  ? kfb_title_case($raw['last_name'])  : $existing['last_name'],
                 'phone'             => $raw['phone']      ?? $existing['phone'],
                 'email_verified_at' => NULL,
                 'updated_at'        => date('Y-m-d H:i:s'),
@@ -740,8 +741,8 @@ class Api extends CI_Controller
                 'company_id'    => (int)$this->company['id'],
                 'email'         => $email,
                 'password_hash' => password_hash($password, PASSWORD_BCRYPT),
-                'first_name'    => $raw['first_name'] ?? '',
-                'last_name'     => $raw['last_name']  ?? '',
+                'first_name'    => kfb_title_case($raw['first_name'] ?? ''),
+                'last_name'     => kfb_title_case($raw['last_name']  ?? ''),
                 'phone'         => $raw['phone']      ?? NULL,
                 'status'        => 'active',
                 'created_at'    => date('Y-m-d H:i:s'),
@@ -1333,9 +1334,10 @@ class Api extends CI_Controller
         $company = $this->Company_model->get($booking['company_id'] ?? 1);
         $to = !empty($company['notification_email']) ? $company['notification_email'] : $this->config->item('admin_notification_email');
         if (!$to) return;
-        $name = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
-        $ccName = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
-        if ($ccName !== '' && !empty($booking['cc_company'])) $ccName .= ' | ' . $booking['cc_company'];
+        $this->load->helper('kfb_format');
+        $name = kfb_title_case(trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? '')));
+        $ccName = kfb_title_case(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')));
+        if ($ccName !== '' && !empty($booking['cc_company'])) $ccName .= ' | ' . kfb_title_case_company($booking['cc_company']);
         $subject = $eventLabel . ' — Booking ' . ($booking['booking_id'] ?? '');
         $dash = function ($v) { return ($v !== NULL && trim((string)$v) !== '') ? $v : '—'; };
         $details = [

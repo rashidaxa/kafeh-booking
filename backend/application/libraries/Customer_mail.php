@@ -20,7 +20,8 @@ class Customer_mail
 
     protected function _name(array $customer)
     {
-        $name = trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? ''));
+        $this->CI->load->helper('kfb_format');
+        $name = kfb_title_case(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')));
         return $name !== '' ? $name : 'Customer';
     }
 

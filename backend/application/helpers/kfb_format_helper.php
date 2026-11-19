@@ -34,52 +34,27 @@ if (!function_exists('kfb_datetime')) {
 
 if (!function_exists('kfb_title_case')) {
     /**
-     * Normalises a person's name to Title Case whatever was typed:
-     * "rashid shahzad", "RASHID SHAHZAD" and "rASHID sHAHZAD" all -> "Rashid Shahzad".
-     * Each part after a space, hyphen or apostrophe is capitalised (o'brien -> O'Brien,
-     * anne-marie -> Anne-Marie), and a "Mc" prefix keeps its second capital (mcdonald -> McDonald).
+     * The normal rule, used for every person's name and every company name: the first letter of each word
+     * (words are separated by spaces) is a capital and the rest is lower case, whatever was typed:
+     * "rashid shahzad", "RASHID SHAHZAD" and "rASHID sHAHZAD" all -> "Rashid Shahzad";
+     * "o'brien" -> "O'brien", "mcdonald" -> "Mcdonald", "ACME LIMOUSINE LLC" -> "Acme Limousine Llc", "WmmW" -> "Wmmw".
      */
     function kfb_title_case($name)
     {
         $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
         if ($name === '') return '';
         $name = mb_strtolower($name, 'UTF-8');
-        $name = preg_replace_callback('/(^|[\s\-\'’])(\p{L})/u', function ($m) {
+        return preg_replace_callback('/(^|\s)(\p{L})/u', function ($m) {
             return $m[1] . mb_strtoupper($m[2], 'UTF-8');
-        }, $name);
-        // McDonald, McArthur — Mc + letter: capitalise the letter after "Mc" (only at the start of a part).
-        return preg_replace_callback('/(^|[\s\-])Mc(\p{L})/u', function ($m) {
-            return $m[1] . 'Mc' . mb_strtoupper($m[2], 'UTF-8');
         }, $name);
     }
 }
 
 if (!function_exists('kfb_title_case_company')) {
-    /**
-     * Company-name capitalisation:
-     *   - a name typed entirely in CAPITALS ("ACME LIMOUSINE LLC") is converted to Title Case like a person's
-     *     name -> "Acme Limousine LLC" (unless it is a short acronym of 4 letters or fewer, e.g. "IBM");
-     *   - otherwise only words typed entirely in lower case are capitalised ("acme limousine" -> "Acme Limousine"),
-     *     and anything already containing a capital is left as typed ("iPhone Rentals", "McKinsey & Co").
-     * Legal suffixes / well-known acronyms (LLC, LLP, LP, USA, UK, NYC, DC) always end up in capitals.
-     */
+    /** Company names follow the same rule as people's names — see kfb_title_case(). */
     function kfb_title_case_company($name)
     {
-        $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
-        if ($name === '') return '';
-        $letters = preg_replace('/[^\p{L}]/u', '', $name);
-        if (mb_strlen($letters, 'UTF-8') > 4 && $name === mb_strtoupper($name, 'UTF-8')) {
-            $name = kfb_title_case($name);
-        } else {
-            $name = preg_replace_callback('/[^\s\-\'’]+/u', function ($m) {
-                $w = $m[0];
-                if ($w !== mb_strtolower($w, 'UTF-8') || !preg_match('/^\p{L}/u', $w)) return $w;
-                return mb_strtoupper(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($w, 1, NULL, 'UTF-8');
-            }, $name);
-        }
-        return preg_replace_callback('/(?<![\p{L}\p{N}])(Llc|Llp|Lp|Usa|Uk|Nyc|Dc)(?![\p{L}\p{N}])/u', function ($m) {
-            return mb_strtoupper($m[1], 'UTF-8');
-        }, $name);
+        return kfb_title_case($name);
     }
 }
 

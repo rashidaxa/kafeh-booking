@@ -526,9 +526,7 @@
 
       // Dropoff: only if "return at different" is on
       var dropoffType = getLocType("dropoff");
-      if ($("#kfbReturnDifferent").is(":checked")) {
-        if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off Location");
-      }
+      if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off Location");
 
       if (!$('input[name="passengers"]').val() || parseInt($('input[name="passengers"]').val(), 10) < 1) {
         missing.push("Travellers");
@@ -545,7 +543,7 @@
         if (!$('input[name="arrivalTime"]').val()) missing.push("Arrival Time");
       }
       // If dropoff is Airport AND "return at different" is on, require dropoff airline/flight/time
-      if ($("#kfbReturnDifferent").is(":checked") && dropoffType === "Airport") {
+      if (dropoffType === "Airport") {
         if (!$('input[name="dropoffAirline"]').val().trim()) missing.push("Drop-off Airline");
         if (!$('input[name="dropoffFlightNumber"]').val().trim()) missing.push("Drop-off Flight #");
         if (!$('input[name="dropoffArrivalTime"]').val()) missing.push("Drop-off Departure Time");
@@ -559,8 +557,7 @@
             isPastDateTime($('input[name="returnDate"]').val(), $('input[name="returnTime"]').val())) {
           missing.push("Return Date/Time (Can't Be In The Past)");
         }
-        var returnDifferent = $("#kfbReturnDifferent").is(":checked");
-        var returnPickupIsAirport = (returnDifferent ? dropoffType : pickupType) === "Airport";
+        var returnPickupIsAirport = dropoffType === "Airport";
         if (returnPickupIsAirport) {
           if (!$('input[name="returnAirline"]').val().trim()) missing.push("Return Pickup Airline");
           if (!$('input[name="returnFlightNumber"]').val().trim()) missing.push("Return Pickup Flight #");
@@ -1027,7 +1024,7 @@
     function pricingEngineInput() {
       syncRouteFromMap();
       var pickupType  = getLocType("pickup");
-      var dropoffType = $("#kfbReturnDifferent").is(":checked") ? getLocType("dropoff") : pickupType;
+      var dropoffType = getLocType("dropoff");
       return {
         pickupLat: state.pickup.lat, pickupLng: state.pickup.lng,
         pickupState: state.pickup.state, pickupCountry: state.pickup.country,
@@ -1379,15 +1376,6 @@
         state.selectedVehicle = null;
       }
 
-      // Return reservation: re-pick the vehicle used on the original trip, once.
-      if (!state.selectedVehicle && state.preferredVehicleId) {
-        var pref = list.filter(function (v) { return v.id === state.preferredVehicleId; })[0];
-        if (pref) {
-          state.selectedVehicle = $.extend({}, pref, { price: priceFor(pref), breakdown: priceBreakdown(pref) });
-          state.preferredVehicleId = null;
-        }
-      }
-
       var ZONE_LABELS = { local: "Local", long_distance: "Long-Distance", worldwide: "Worldwide" };
       $grid.empty();
       $("#kfbQuoteStatus").remove();
@@ -1467,11 +1455,7 @@
       $("#kfbSumService").text(selectedServiceType() || "—");
       $("#kfbSumDistance").text(fmtMiles(state.distanceMiles) + " mi · " + fmtMins(state.durationMins) + " min");
       $("#kfbSumPickup").text($('input[name="pickup"]').val() || "—");
-      $("#kfbSumDropoff").text(
-        $('#kfbReturnDifferent').is(":checked")
-          ? ($('input[name="dropoff"]').val() || "—")
-          : "Same as pickup"
-      );
+      $("#kfbSumDropoff").text($('input[name="dropoff"]').val() || "—");
 
       // Stops
       var stops = [];
@@ -1700,9 +1684,7 @@
       var pickupType = getLocType("pickup");
       var pickupValue = $('input[name="pickup"]').val();
       var dropoffType = getLocType("dropoff");
-      var dropoffValue = $('#kfbReturnDifferent').is(":checked")
-        ? $('input[name="dropoff"]').val()
-        : pickupValue;
+      var dropoffValue = $('input[name="dropoff"]').val();
 
       var payload = {
         service:         selectedServiceType(),
@@ -1716,7 +1698,7 @@
         pickupTypeDetail: state.pickupTypeDetail,
         tailNumber:      state.tailNumber || null,
         dropoff:         dropoffValue,
-        dropoffType:     $('#kfbReturnDifferent').is(":checked") ? dropoffType : pickupType,
+        dropoffType:     dropoffType,
         // Only send drop-off flight details when the drop-off really is an airport — the
         // inputs can hold leftovers from an earlier selection, which the back office then
         // printed as a second "Airport:" block under a normal street address.
@@ -1890,6 +1872,9 @@
      * still has to accept the reservation before funds are captured.
      */
     function submitBooking() {
+      // One submission at a time: a second click (or Enter / the mobile button) while the first
+      // request is still running would create a second reservation.
+      if (state.submitting) return;
       var v = state.selectedVehicle;
       if (!v) { toast("Choose A Vehicle First.", "error"); return; }
       var bd = priceBreakdown(v);
@@ -1972,6 +1957,7 @@
       }
 
       var $btn = $("#kfbBookNowBtn, #kfbBookNowBtnMobile");
+      state.submitting = true;
       $btn.prop("disabled", true);
       var isEditing = !!state.editingBookingId;
       $("#kfbPaymentStatus").show().find("p").text(isEditing ? "Saving your changes…" : (state.paypalEnabled ? "Creating your reservation…" : "Submitting your reservation…"));
@@ -1994,6 +1980,7 @@
           if (isEditing && editResult && editResult.price_changed === false) {
             // No PayPal round-trip needed — the edit is already saved.
             $("#kfbPaymentStatus").hide();
+            state.submitting = false;
             $btn.prop("disabled", false);
             toast("Reservation Updated ✓");
             state.editingBookingId = null;
@@ -2006,8 +1993,9 @@
           // the widget's cached setting, decides.
           if (!isEditing && editResult && editResult.payment_mode === "none") {
             $("#kfbPaymentStatus").hide();
-            $btn.prop("disabled", false);
+            // Stays locked (state.submitting) — the success screen replaces the form; resetAll() unlocks.
             showSuccess(state.bookingId, "none");
+            $btn.prop("disabled", false);
             if (!state.authToken) promptAccountCreation(state.bookingId);
             return;
           }
@@ -2019,6 +2007,7 @@
         })
         .catch(function (err) {
           $("#kfbPaymentStatus").hide();
+          state.submitting = false;
           $btn.prop("disabled", false);
           if (isEditing && handleAuthFailure(err)) return;
           var msg = (err && err.responseJSON && err.responseJSON.error) || (err && err.message) || "Could Not Process Payment.";
@@ -2090,9 +2079,7 @@
       // hidden after a reservation (no Verify / Log in / Create account button).
       $("#kfbBookingView .kfb-panel, #kfbBookingView > .kfb-stepper, #kfbBookingView .kfb-actions, #kfbBookingView .kfb-side-col").hide();
       var $ok = $("#kfbSuccess").show();
-      // A reservation was just submitted: any pending return draft is finished with. The
-      // return button (offered once there's a saved booking to copy) starts a new one.
-      clearReturnDraft();
+      // The return button is offered once there's a saved booking to copy.
       $("#kfbReturnReservationBtn, #kfbReturnReservationHint").prop("hidden", !(bookingId || state.bookingId));
       $("#kfbSuccessId").text(bookingId || state.bookingId || "—");
       $("#kfbSuccessName").text($('input[name="ccFirstName"]').val() || $('input[name="firstName"]').val() || "rider");
@@ -2148,8 +2135,7 @@
     function updateReturnTripAirportBlocks() {
       if (!state.isReturnTrip) return;
       var pickupIsAirport = getLocType("pickup") === "Airport";
-      var returnDifferent = $("#kfbReturnDifferent").is(":checked");
-      var dropoffIsAirport = (returnDifferent ? getLocType("dropoff") : getLocType("pickup")) === "Airport";
+      var dropoffIsAirport = getLocType("dropoff") === "Airport";
       // Return leg pickup = original dropoff; return leg dropoff = original pickup.
       $("#kfbReturnPickupFlightBlock").toggle(dropoffIsAirport);
       $("#kfbReturnDropoffFlightBlock").toggle(pickupIsAirport);
@@ -3108,7 +3094,6 @@
       // The dropoff section only exists when "Return at a different
       // location" is on — a booking always has a real dropoff value
       // (falls back to pickup at creation time if it wasn't), so show it.
-      $("#kfbReturnDifferent").prop("checked", true).trigger("change");
       var dropoffLocType = booking.dropoff_loc_type || "Search All";
       $('.kfb-loc-type-btn[data-group="dropoff"][data-value="' + dropoffLocType + '"]').trigger("click");
       $('input[name="dropoff"]').val(booking.dropoff || "");
@@ -3271,42 +3256,17 @@
     // ============================================================
     // RETURN RESERVATION (new booking that mirrors a finished one)
     // ============================================================
-    // The "Make a Return Reservation" button on the success screen copies the
-    // reservation just made into a draft (localStorage, 30 minutes, or until a
-    // reservation is submitted) and re-opens the form with: pickup <-> drop-off
-    // swapped, stops in reverse order, everything else (passengers, bags, child
-    // seats, notes, contact details, vehicle, add-ons) carried over. NOT copied:
-    // pickup date/time (customer must choose), card details, signature, terms
-    // acceptance and promo code. The draft is built from the saved booking (GET
-    // /reservation/:id), not the form, because after PayPal's redirect the form
-    // is empty.
-    var RETURN_DRAFT_KEY = "kfb_return_draft";
-    var RETURN_DRAFT_TTL_MS = 30 * 60 * 1000;
-    var returnDraftMemory = null; // fallback when localStorage is unavailable (private mode)
-
-    function readReturnDraft() {
-      var d = null;
-      try { d = JSON.parse(localStorage.getItem(RETURN_DRAFT_KEY) || "null"); } catch (e) { d = null; }
-      if (!d) d = returnDraftMemory;
-      if (!d || !d.expires || Date.now() > d.expires) { clearReturnDraft(); return null; }
-      return d.data || null;
-    }
-    function saveReturnDraft(data) {
-      var wrapped = { expires: Date.now() + RETURN_DRAFT_TTL_MS, data: data };
-      returnDraftMemory = wrapped;
-      try { localStorage.setItem(RETURN_DRAFT_KEY, JSON.stringify(wrapped)); } catch (e) { /* kept in memory for this page load */ }
-    }
-    function clearReturnDraft() {
-      returnDraftMemory = null;
-      try { localStorage.removeItem(RETURN_DRAFT_KEY); } catch (e) { /* ignore */ }
-    }
-
-    // The saved booking, turned around: its drop-off side becomes the new pickup side and vice versa.
+    // "Make a Return Reservation" on the success screen re-opens the form with ONLY:
+    //   - names, phone numbers and emails (passenger + cardholder)
+    //   - pickup <-> drop-off swapped, stops in reverse order
+    //   - the airport / airline details that go with each swapped address
+    // Everything else (date/time, vehicle, travellers, bags, child seats, notes, add-ons,
+    // promo, card, signature, terms) is left blank. Nothing is stored — a page refresh
+    // simply starts over. Built from the saved booking (GET /reservation/:id) because
+    // after PayPal's redirect the form is empty.
     function buildReturnDraft(b) {
       var stops = (b.stops || []).map(function (st) { return st.address; }).filter(Boolean).reverse();
       return {
-        service: b.service_type || "Transfer",
-        hours: b.hours_requested || "",
         pickup: b.dropoff || "", pickupLocType: b.dropoff_loc_type || "Search All",
         pickupAirline: b.dropoff_airline || "", pickupFlight: b.dropoff_flight_number || "",
         pickupArrival: (b.dropoff_arrival_time || "").slice(0, 5),
@@ -3316,11 +3276,8 @@
         dropoffArrival: (b.arrival_time || "").slice(0, 5),
         dropoffDetail: b.pickup_type_detail || "Curbside", dropoffTail: b.tail_number || "",
         stops: stops,
-        passengers: b.passengers || 1, bags: b.luggage || 0,
-        childSeats: b.child_seats_breakdown || "", addons: b.addons_json || "",
-        notes: b.notes || "", vehicleId: b.vehicle_id || "",
         firstName: b.first_name || "", lastName: b.last_name || "", phone: b.phone || "", email: b.email || "",
-        ccFirstName: b.cc_first_name || "", ccLastName: b.cc_last_name || "", ccCompany: b.cc_company || "",
+        ccFirstName: b.cc_first_name || "", ccLastName: b.cc_last_name || "",
         ccPhone: b.cc_phone || "", ccEmail: b.cc_email || ""
       };
     }
@@ -3328,9 +3285,6 @@
     function applyReturnDraft(d) {
       resetAll();
       setView("booking");
-      $('input[name="service"][value="' + d.service + '"]').prop("checked", true).trigger("change");
-      if (d.hours) $("#kfbHoursInput").val(d.hours);
-      // pickupDate / pickupTime stay empty on purpose.
 
       $('.kfb-loc-type-btn[data-group="pickup"][data-value="' + d.pickupLocType + '"]').trigger("click");
       $('input[name="pickup"]').val(d.pickup);
@@ -3342,7 +3296,6 @@
       state.tailNumber = d.pickupTail;
       $('input[name="tailNumber"]').val(d.pickupTail);
 
-      $("#kfbReturnDifferent").prop("checked", true).trigger("change");
       $('.kfb-loc-type-btn[data-group="dropoff"][data-value="' + d.dropoffLocType + '"]').trigger("click");
       $('input[name="dropoff"]').val(d.dropoff);
       $('input[name="dropoffAirline"]').val(d.dropoffAirline);
@@ -3358,22 +3311,6 @@
       d.stops.forEach(function () { addStopRow(); });
       $("#kfbStopsContainer input[name='stop[]']").each(function (i) { $(this).val(d.stops[i] || ""); });
 
-      $('input[name="passengers"]').val(d.passengers);
-      $('input[name="bags"]').val(d.bags);
-
-      $("#kfbChildSeatsContainer").empty();
-      state.childSeats = {};
-      var seats = {};
-      try { seats = d.childSeats ? JSON.parse(d.childSeats) : {}; } catch (e) { seats = {}; }
-      Object.keys(seats).forEach(function (type) {
-        addChildSeatRow();
-        var $row = $("#kfbChildSeatsContainer .kfb-cs-row").last();
-        $row.find(".kfb-cs-type").val(type);
-        $row.find(".kfb-cs-qty").val(seats[type]).trigger("input");
-      });
-
-      $('textarea[name="notes"]').val(d.notes);
-
       $("#kfbSamePassenger").prop("checked", false); applySamePassenger();
       $('input[name="firstName"]').val(d.firstName);
       $('input[name="lastName"]').val(d.lastName);
@@ -3381,7 +3318,6 @@
       $('input[name="email"]').val(d.email);
       $('input[name="ccFirstName"]').val(d.ccFirstName);
       $('input[name="ccLastName"]').val(d.ccLastName);
-      $('input[name="ccCompany"]').val(d.ccCompany);
       $('input[name="ccPhone"]').val(d.ccPhone);
       $('input[name="ccEmail"]').val(d.ccEmail);
       if (state.customer) lockEmailToAccount(state.customer.email);
@@ -3391,26 +3327,15 @@
         return a !== "" && a === c;
       });
       $("#kfbSamePassenger").prop("checked", same); applySamePassenger();
-      // Card number / expiry / CVV / billing address are intentionally left blank.
 
-      // Coordinates for the route + price: the text alone has none, so hand the
-      // addresses to the map controller (it uses them until the customer picks
-      // something else from autocomplete).
+      // Coordinates for the route + price: typed text has none, so hand the addresses to
+      // the map controller (it uses them until the customer picks something else).
       var presetItems = [d.pickup, d.dropoff].concat(d.stops).filter(Boolean).map(function (t) { return { text: t }; });
       if (typeof window.kfbPresetLocations === "function") window.kfbPresetLocations(presetItems);
-      else window.addEventListener("load", function () { // booking-map.js not parsed yet (restore on page load)
-        if (typeof window.kfbPresetLocations === "function") window.kfbPresetLocations(presetItems);
-      });
 
-      try { state.addons = d.addons ? JSON.parse(d.addons) : []; } catch (e) { state.addons = []; }
-      recomputeAddonTotals();
-      renderAddons();
-
-      state.preferredVehicleId = d.vehicleId || null; // picked in renderVehicles() once the fleet is there
       requoteVehicles();
       renderVehicles();
       renderSideSummary();
-      refreshSignatureVisibility();
       syncAllDtOverlays();
       renderSavedCardDropdown();
       gotoStep(1);
@@ -3425,22 +3350,11 @@
       $.ajax({ url: API_BASE + "/reservation/" + encodeURIComponent(bookingId), method: "GET", dataType: "json", timeout: 10000 })
         .done(function (booking) {
           if (!booking || !booking.booking_id) { toast("Could Not Start A Return Reservation.", "error"); return; }
-          var draft = buildReturnDraft(booking);
-          saveReturnDraft(draft);
-          applyReturnDraft(draft);
-          toast("Return Reservation Started — Pick Your New Date & Time, And Re-Enter Your Card.");
+          applyReturnDraft(buildReturnDraft(booking));
+          toast("Return Reservation Started — Choose Your Date, Time And Vehicle.");
         })
         .fail(function () { toast("Could Not Start A Return Reservation.", "error"); })
         .always(function () { $btn.prop("disabled", false); });
-    }
-
-    // On page load: if a draft is still within its 30 minutes, re-apply it (e.g. the
-    // customer refreshed or came back). Skipped on the PayPal success return, where
-    // the confirmation screen is shown instead.
-    function restoreReturnDraftOnBoot(paypalStatus) {
-      if (paypalStatus === "success") return;
-      var d = readReturnDraft();
-      if (d) applyReturnDraft(d);
     }
 
     // ============================================================
@@ -3530,6 +3444,7 @@
     // RESET FORM (v4)
     // ============================================================
     function resetAll() {
+      state.submitting = false;
       state.selectedVehicle = null;
       state.bookingId = null;
       state.editingBookingId = null;
@@ -3561,9 +3476,7 @@
       $("#kfbAddonList").empty();
       $("#kfbAccountPrompt").attr("hidden", true);
       $("#kfbReturnReservationBtn, #kfbReturnReservationHint").prop("hidden", true);
-      state.preferredVehicleId = null;
       $("#kfbSignatureClear").trigger("click"); // wipes the drawn ink + state.signatureData
-      $("#kfbReturnDifferent").prop("checked", true).trigger("change");
       $('input[name="returnDate"], input[name="returnTime"], input[name="tailNumber"], input[name="dropoffTailNumber"], input[name="returnTailNumber"], input[name="returnDropoffTailNumber"]').val("");
       $(".kfb-airport-extras").hide();
       $("#kfbTailNumberWrap").attr("hidden", true);
@@ -3600,7 +3513,6 @@
     // WIRE IT ALL UP
     // ============================================================
     $(function () {
-      $("#kfbReturnDifferent").prop("checked", true);
       $('input[name="service"][value="Transfer"]').prop("checked", true);
       $(".kfb-service-pill[data-service='Transfer']").addClass("is-active");
 
@@ -3668,12 +3580,6 @@
       makeStepper("#kfbStepperPassengers", function () { renderVehicles(); recalcSelectedVehicle(); });
       makeStepper("#kfbStepperBags");
 
-      $("#kfbReturnDifferent").on("change", function () {
-        var on = $(this).is(":checked");
-        if (on) $("#kfbDropoffWrap").slideDown(120);
-        else    $("#kfbDropoffWrap").slideUp(120);
-        updateReturnTripAirportBlocks();
-      });
 
       window.addEventListener("kfb:route-updated", function () {
         syncRouteFromMap();
@@ -3771,10 +3677,26 @@
       $("#kfbPromoInput").on("keydown", function (e) {
         if (e.key === "Enter") { e.preventDefault(); applyPromo(); }
       });
-      $("#kfbResetBtn").on("click", function (e) { e.preventDefault(); clearReturnDraft(); resetAll(); });
-      $("#kfbCancelBtn").on("click", function (e) { e.preventDefault(); clearReturnDraft(); resetAll(); });
+      $("#kfbResetBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
+      $("#kfbCancelBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
       $("#kfbReturnReservationBtn").on("click", function (e) { e.preventDefault(); startReturnReservation(); });
       $("#kfbSortVehicles").on("change", renderVehicles);
+
+      // Names and company are always Title Case, whatever was typed (the server does the same
+      // when saving, emailing and sending to the legacy portal — this just shows it right away).
+      function titleCaseName(v) {
+        v = String(v || "").replace(/\s+/g, " ").trim().toLowerCase();
+        return v.replace(/(^|\s)(\p{L})/gu, function (m, a, b) { return a + b.toUpperCase(); });
+      }
+      function titleCaseCompany(v) { return titleCaseName(v); }
+      $(document).on("blur change", 'input[name="firstName"], input[name="lastName"], input[name="ccFirstName"], input[name="ccLastName"], input[name="registerFirstName"], input[name="registerLastName"], input[name="profileFirstName"], input[name="profileLastName"]', function () {
+        var fixed = titleCaseName($(this).val());
+        if (fixed !== $(this).val()) $(this).val(fixed).trigger("input");
+      });
+      $(document).on("blur change", 'input[name="ccCompany"]', function () {
+        var fixed = titleCaseCompany($(this).val());
+        if (fixed !== $(this).val()) $(this).val(fixed);
+      });
 
       ensureSamePassengerCheckbox();
       $(document).on("change", "#kfbSamePassenger", applySamePassenger);
@@ -3859,10 +3781,8 @@
       // logged in, or it wrongly offers the prompt to an already-logged-
       // in customer returning from PayPal.
       checkAuthOnBoot();
-      var paypalReturnStatus = new URLSearchParams(location.search).get("kfb_paypal");
       handlePaypalReturn();
       handlePasswordResetLink();
-      restoreReturnDraftOnBoot(paypalReturnStatus);
 
       // Return trip toggle
       var $retTrip = $("#kfbReturnTripToggle");

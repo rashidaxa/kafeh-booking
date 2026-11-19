@@ -76,6 +76,21 @@ class Legacy_reservations
         'LATE_NIGHT_FEE' => 'am-/-pm-fee',
     ];
 
+    /**
+     * The legacy portal's airline id for the airline text on our side, or 0 when it has no entry. The mapper is
+     * config/legacy_airlines.php (lower-case name => the portal's dropdown option value); the airline we have is
+     * lower-cased/trimmed before the lookup.
+     */
+    public function legacy_airline_id($name)
+    {
+        $name = trim((string)$name);
+        if ($name === '') return 0;
+        $this->CI->config->load('legacy_airlines', FALSE, TRUE);
+        $map = $this->CI->config->item('legacy_airlines') ?: [];
+        $key = strtolower(preg_replace('/\s+/', ' ', $name));
+        return isset($map[$key]) ? (int)$map[$key] : 0;
+    }
+
     /** A1 Limousine Service's company_id in the legacy companies table — this portal serves one brand. */
     const LEGACY_COMPANY_ID = 6;
 
@@ -193,6 +208,9 @@ class Legacy_reservations
             }
         }
 
+        $pickupAirlineId  = $this->legacy_airline_id($leg['airline'] ?? '');
+        $dropoffAirlineId = $this->legacy_airline_id($leg['dropoff_airline'] ?? '');
+
         return [
             // Outbound: our exact booking_id (already ends "-ON" — see
             // Booking_model::_new_booking_id()). Return: the return leg's
@@ -238,16 +256,15 @@ class Legacy_reservations
             'drop_off_address'       => (string)($leg['dropoff'] ?? ''),
             'trip_notice_details'    => $this->_trip_notes($booking, $leg, $clientPhone, $clientEmail),
             'client_preferences'     => '',
-            // Airline is free text on this side but an FK id on the legacy
-            // side (locations.location_id), which only that portal can
-            // look up. Sent as 0 plus the name in `*_airline_name`; the
-            // portal's create_reservation endpoint resolves the name to
-            // an id, and appends it to trip_notice_details if no match.
-            'pickup_airline'         => 0,
-            'pickup_airline_name'    => (string)($leg['airline'] ?? ''),
+            // Airline is free text on this side but an FK id on the legacy side (locations.location_id).
+            // legacy_airline_id() maps what the customer entered to that id (config/legacy_airlines.php);
+            // with no match it is sent as 0 plus the name in `*_airline_name`, which the portal appends
+            // to trip_notice_details (the notes).
+            'pickup_airline'         => $pickupAirlineId,
+            'pickup_airline_name'    => $pickupAirlineId ? '' : (string)($leg['airline'] ?? ''),
             'pickup_flight_number'   => (string)($leg['flight_number'] ?? ''),
-            'drop_off_airline'       => 0,
-            'drop_off_airline_name'  => (string)($leg['dropoff_airline'] ?? ''),
+            'drop_off_airline'       => $dropoffAirlineId,
+            'drop_off_airline_name'  => $dropoffAirlineId ? '' : (string)($leg['dropoff_airline'] ?? ''),
             'drop_off_flight_number' => (string)($leg['dropoff_flight_number'] ?? ''),
             'pickup_connecting_city' => '',
             'dropoff_connecting_city' => '',

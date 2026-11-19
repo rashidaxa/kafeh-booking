@@ -95,7 +95,7 @@ $hasBillingInfo = !empty($booking['cardHolderName']) || !empty($booking['cardNum
   <div class="kfb-detail-grid">
     <div>
       <span class="kfb-hint">Customer</span>
-      <p><?= htmlspecialchars(trim($booking['first_name'] . ' ' . $booking['last_name'])) ?><br>
+      <p><?= htmlspecialchars(kfb_title_case(trim($booking['first_name'] . ' ' . $booking['last_name']))) ?><br>
         <?= htmlspecialchars($booking['email']) ?><br>
         <?= htmlspecialchars(kfb_phone($booking['phone'])) ?></p>
     </div>

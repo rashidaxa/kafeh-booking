@@ -66,7 +66,7 @@ $page_url = function ($page) use ($filters) {
         <tbody>
           <?php foreach ($users as $u): ?>
             <tr>
-              <td><?= htmlspecialchars(trim($u['first_name'] . ' ' . $u['last_name'])) ?: '—' ?></td>
+              <td><?= htmlspecialchars(kfb_title_case(trim($u['first_name'] . ' ' . $u['last_name']))) ?: '—' ?></td>
               <td><?= htmlspecialchars($u['email']) ?><?php if (!empty($u['phone'])): ?><br><small class="kfb-hint"><?= htmlspecialchars(kfb_phone($u['phone'])) ?></small><?php endif; ?></td>
               <td><?= htmlspecialchars($u['company_name'] ?? '—') ?></td>
               <td><?= (int)$u['has_account'] ? 'Account' : '<span class="kfb-hint">Guest</span>' ?></td>

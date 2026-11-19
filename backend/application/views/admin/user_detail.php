@@ -1,6 +1,6 @@
 <?php
 $u = $user;
-$fullName = trim($u['first_name'] . ' ' . $u['last_name']);
+$fullName = kfb_title_case(trim($u['first_name'] . ' ' . $u['last_name']));
 $hasAccount = (int)$u['has_account'] === 1;
 $isActive = $u['status'] === 'active';
 $resCount = (int)$u['reservations_count'];
@@ -144,7 +144,7 @@ $deleteMsg = 'Delete ' . ($fullName !== '' ? $fullName : $u['email']) . '? Their
         <?php foreach ($reservations as $r): ?>
           <tr>
             <td><code class="kfb-mono"><?= htmlspecialchars($r['booking_id']) ?></code></td>
-            <td><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name'])) ?: '—' ?></td>
+            <td><?= htmlspecialchars(kfb_title_case(trim($r['first_name'] . ' ' . $r['last_name']))) ?: '—' ?></td>
             <td><?= htmlspecialchars(kfb_date($r['pickup_date'])) ?> <small class="kfb-hint"><?= htmlspecialchars(kfb_hm($r['pickup_time'])) ?></small></td>
             <td>$<?= number_format((float)$r['amount'], 2) ?></td>
             <td><?= htmlspecialchars(ucfirst(str_replace('_', ' ', (string)$r['status']))) ?></td>

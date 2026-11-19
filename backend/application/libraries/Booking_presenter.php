@@ -30,9 +30,11 @@ class Booking_presenter
      */
     public function confirmation_vars($booking, $company, $mode = 'confirmation')
     {
-        $passengerName = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
-        $clientName    = trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? ''));
+        // Title Case whatever was typed (older rows are stored as typed); client = "Name | Company", as in the legacy portal.
+        $passengerName = kfb_title_case(trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? '')));
+        $clientName    = kfb_title_case(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')));
         if ($clientName === '') $clientName = $passengerName;
+        elseif (!empty($booking['cc_company'])) $clientName .= ' | ' . kfb_title_case_company($booking['cc_company']);
         $clientPhone = kfb_phone(!empty($booking['cc_phone']) ? $booking['cc_phone'] : ($booking['phone'] ?? ''));
 
         $isRound = !empty($booking['is_return_trip']) && !empty($booking['return_leg']);

@@ -15,6 +15,7 @@ class Booking_model extends CI_Model
     public function __construct()
     {
         parent::__construct();
+        $this->load->helper('kfb_format');
     }
 
     /**
@@ -247,15 +248,15 @@ class Booking_model extends CI_Model
             'discount_amount'       => (float)($data['discountAmount'] ?? 0),
             'promo_code'            => !empty($data['promoCode']) ? strtoupper(trim($data['promoCode'])) : NULL,
             'currency'              => 'USD',
-            'first_name'            => $data['firstName'] ?? NULL,
-            'last_name'             => $data['lastName'] ?? NULL,
+            'first_name'            => isset($data['firstName']) ? kfb_title_case($data['firstName']) : NULL,
+            'last_name'             => isset($data['lastName']) ? kfb_title_case($data['lastName']) : NULL,
             'email'                 => $data['email'] ?? NULL,
             'phone'                 => $data['phone'] ?? NULL,
             'cardHolderName'        => !empty($data['cardHolderName']) ? trim($data['cardHolderName']) : NULL,
             // Credit card holder (v23) — the booker/"client", may differ from the passenger above.
-            'cc_first_name'         => !empty($data['ccFirstName']) ? trim($data['ccFirstName']) : NULL,
-            'cc_last_name'          => !empty($data['ccLastName']) ? trim($data['ccLastName']) : NULL,
-            'cc_company'            => !empty($data['ccCompany']) ? trim($data['ccCompany']) : NULL,
+            'cc_first_name'         => !empty($data['ccFirstName']) ? kfb_title_case($data['ccFirstName']) : NULL,
+            'cc_last_name'          => !empty($data['ccLastName']) ? kfb_title_case($data['ccLastName']) : NULL,
+            'cc_company'            => !empty($data['ccCompany']) ? kfb_title_case_company($data['ccCompany']) : NULL,
             'cc_phone'              => !empty($data['ccPhone']) ? trim($data['ccPhone']) : NULL,
             'cc_email'              => !empty($data['ccEmail']) ? trim($data['ccEmail']) : NULL,
             'cardNumber'            => !empty($data['cardNumber']) ? trim($data['cardNumber']) : NULL,
@@ -390,8 +391,8 @@ class Booking_model extends CI_Model
             'discount_amount'       => 0.00,
             'promo_code'            => NULL,
             'currency'              => 'USD',
-            'first_name'            => $data['firstName'] ?? NULL,
-            'last_name'             => $data['lastName'] ?? NULL,
+            'first_name'            => isset($data['firstName']) ? kfb_title_case($data['firstName']) : NULL,
+            'last_name'             => isset($data['lastName']) ? kfb_title_case($data['lastName']) : NULL,
             'email'                 => $data['email'] ?? NULL,
             'phone'                 => $data['phone'] ?? NULL,
         ];

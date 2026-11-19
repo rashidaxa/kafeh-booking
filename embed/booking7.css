@@ -570,6 +570,7 @@ div.kfb-stepper > .kfb-stepper-out:focus { box-shadow: none !important; }
    regardless of specificity — without this the box above ignores the
    `hidden` attribute in the markup and shows on page load. */
 .kfb-payment-status[hidden] { display: none; }
+#kfbReturnReservationBtn[hidden], #kfbReturnReservationHint[hidden] { display: none; }
 .kfb-spinner {
   width: 16px; height: 16px; border-radius: 50%;
   border: 2px solid #fde68a; border-top-color: #d97706;

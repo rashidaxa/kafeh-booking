@@ -33,7 +33,7 @@ class Admin_api extends CI_Controller
         parent::__construct();
         $this->load->model(['Admin_model', 'Vehicle_model', 'Promo_model', 'Addon_model', 'Surcharge_model', 'Settings_model', 'Booking_model', 'Client_booking_model', 'Company_model']);
         $this->load->library(['session', 'paypal', 'legacy_reservations', 'mailer', 'booking_presenter']);
-        $this->load->helper('url');
+        $this->load->helper(['url', 'kfb_format']);
         $this->_set_cors_headers();
 
         // Block everything unless logged in. A constructor can't stop
@@ -789,7 +789,7 @@ class Admin_api extends CI_Controller
     {
         $to = !empty($booking['cc_email']) ? $booking['cc_email'] : ($booking['email'] ?? '');
         if (!$to) return;
-        $greet   = !empty($booking['cc_first_name']) ? $booking['cc_first_name'] : ($booking['first_name'] ?? '');
+        $greet   = kfb_title_case(!empty($booking['cc_first_name']) ? $booking['cc_first_name'] : ($booking['first_name'] ?? ''));
         $subject = 'Reservation Request Declined - Booking ' . $booking['booking_id'];
 
         $company = $this->Company_model->get($booking['company_id'] ?? 1);
@@ -826,8 +826,8 @@ class Admin_api extends CI_Controller
         // The cardholder is the booker — confirmations go to them (older
         // bookings without one fall back to the passenger's details).
         $to      = !empty($booking['cc_email']) ? $booking['cc_email'] : $booking['email'];
-        $greet   = !empty($booking['cc_first_name']) ? $booking['cc_first_name'] : $booking['first_name'];
-        $passenger = trim($booking['first_name'] . ' ' . $booking['last_name']);
+        $greet   = kfb_title_case(!empty($booking['cc_first_name']) ? $booking['cc_first_name'] : $booking['first_name']);
+        $passenger = kfb_title_case(trim($booking['first_name'] . ' ' . $booking['last_name']));
         $subject = 'Booking ' . $booking['booking_id'] . ' Confirmed';
 
         // Branded with the company the booking came from (logo, address,

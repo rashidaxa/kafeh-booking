@@ -726,7 +726,7 @@ $isCancelled = ($mode === 'cancelled'); // rejected by admin: same layout, "canc
 
                                                                      <p style="margin: 0; mso-line-height-alt: 21px;">Drop-off Time:  <?= $e(date("g:i A", strtotime($leg["dropoff_time"]))) ?> / <?= $e(date("H:i ", strtotime($leg["dropoff_time"]))) ?>Hrs</p>
 
-                                                                     <p style="margin: 0; mso-line-height-alt: 21px;">Service Type: <?= $e(ucwords($leg["trip_type"])) ?></p>
+                                                                     <p style="margin: 0; mso-line-height-alt: 21px;">Service Type: <?= $e(ucwords(strtolower($leg["trip_type"]))) ?></p>
 
                                                                      <p style="margin: 0; mso-line-height-alt: 21px;">Passenger: <?= $e(ucwords($leg["passenger_name"])) ?></p>
 

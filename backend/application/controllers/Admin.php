@@ -208,8 +208,8 @@ class Admin extends CI_Controller
             return $this->_user_flash($back, 'success', 'Email changed to ' . $fresh['email'] . '. It is unverified — the customer verifies it at their next login — and they were notified by email. Their sessions were ended.');
         }
 
-        $first = trim((string)$this->input->post('first_name'));
-        $last  = trim((string)$this->input->post('last_name'));
+        $first = kfb_title_case($this->input->post('first_name'));
+        $last  = kfb_title_case($this->input->post('last_name'));
         if ($first === '' || $last === '') return $this->_user_flash($back, 'error', 'First and last name are required.');
         $this->Customer_model->admin_update_profile($user['id'], $first, $last, (string)$this->input->post('phone'));
         return $this->_user_flash($back, 'success', 'Profile updated.');
