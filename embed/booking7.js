@@ -38,7 +38,7 @@
     if (thisScript && thisScript.src && /\/booking7\.js(\?|#|$)/.test(thisScript.src)) {
       cssBase = thisScript.src.replace(/booking7\.js(\?.*)?(#.*)?$/, "");
     }
-    var href = cssBase + "booking7.css?v=20261118";
+    var href = cssBase + "booking7.css?v=20261119";
     var links = document.getElementsByTagName("link");
     var link = null;
     for (var i = 0; i < links.length; i++) {
@@ -186,6 +186,9 @@
     ];
 
     // -------- State --------
+    // Earlier builds saved a return-reservation draft here; nothing is saved any more — drop any leftover copy.
+    try { localStorage.removeItem("kfb_return_draft"); } catch (e) { /* ignore */ }
+
     var state = {
       currentStep: 1,
       selectedVehicle: null,
