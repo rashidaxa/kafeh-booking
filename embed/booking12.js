@@ -3271,7 +3271,7 @@
     // RETURN RESERVATION (new booking that mirrors a finished one)
     // ============================================================
     // "Make a Return Reservation" on the success screen re-opens the form with ONLY:
-    //   - names, phone numbers and emails (passenger + cardholder)
+    //   - names, phone numbers and emails (passenger + cardholder) and the cardholder's company name
     //   - pickup <-> drop-off swapped, stops in reverse order
     //   - the airline that goes with each swapped airport address (no flight number, times, pickup point or tail number)
     // Everything else (pickup date/time, flight number, arrival/departure time, vehicle, travellers, bags,
@@ -3287,7 +3287,7 @@
         dropoffAirline: b.airline || "",
         stops: stops,
         firstName: b.first_name || "", lastName: b.last_name || "", phone: b.phone || "", email: b.email || "",
-        ccFirstName: b.cc_first_name || "", ccLastName: b.cc_last_name || "",
+        ccFirstName: b.cc_first_name || "", ccLastName: b.cc_last_name || "", ccCompany: b.cc_company || "",
         ccPhone: b.cc_phone || "", ccEmail: b.cc_email || ""
       };
     }
@@ -3316,6 +3316,7 @@
       $('input[name="email"]').val(d.email);
       $('input[name="ccFirstName"]').val(d.ccFirstName);
       $('input[name="ccLastName"]').val(d.ccLastName);
+      $('input[name="ccCompany"]').val(d.ccCompany);
       $('input[name="ccPhone"]').val(d.ccPhone);
       $('input[name="ccEmail"]').val(d.ccEmail);
       if (state.customer) lockEmailToAccount(state.customer.email);
