@@ -323,6 +323,20 @@ class Legacy_reservations
         if (!empty($leg['dropoff_arrival_time'])) $parts[] = 'Drop-off Arrival: ' . $fmt($leg['dropoff_arrival_time']);
         if (!empty($leg['dropoff_tail_number']))  $parts[] = 'Drop-off Tail #: ' . $leg['dropoff_tail_number'];
 
+        // Selected add-ons (kfb_addons) — the legacy price line only carries their total, so name them here.
+        // Read from this leg's own row: the return leg of a round trip has none (only the outbound row carries them).
+        $addons = !empty($leg['addons_json']) ? json_decode($leg['addons_json'], TRUE) : NULL;
+        if (is_array($addons)) {
+            $names = [];
+            foreach ($addons as $a) {
+                $name = trim((string)($a['name'] ?? ''));
+                if ($name === '') continue;
+                $qty = (int)($a['quantity'] ?? 1);
+                $names[] = $name . ($qty > 1 ? ' x' . $qty : '');
+            }
+            if ($names) $parts[] = 'Add-ons: ' . implode(', ', $names);
+        }
+
         // Passenger contact only when it isn't already the client's.
         if (!empty($booking['phone']) && $booking['phone'] !== $clientPhone) $parts[] = 'Passenger Phone: ' . kfb_phone($booking['phone']);
         if (!empty($booking['email']) && strcasecmp($booking['email'], $clientEmail) !== 0) $parts[] = 'Passenger Email: ' . $booking['email'];

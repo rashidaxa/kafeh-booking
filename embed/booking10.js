@@ -3263,7 +3263,7 @@
     // "Make a Return Reservation" on the success screen re-opens the form with ONLY:
     //   - names, phone numbers and emails (passenger + cardholder)
     //   - pickup <-> drop-off swapped, stops in reverse order
-    //   - the airline (and pickup point / tail number) that goes with each swapped airport address
+    //   - the airline that goes with each swapped airport address (no flight number, times, pickup point or tail number)
     // Everything else (pickup date/time, flight number, arrival/departure time, vehicle, travellers, bags,
     // child seats, notes, add-ons, promo, card, signature, terms) is left blank. Nothing is stored — a page refresh
     // simply starts over. Built from the saved booking (GET /reservation/:id) because
@@ -3273,10 +3273,8 @@
       return {
         pickup: b.dropoff || "", pickupLocType: b.dropoff_loc_type || "Search All",
         pickupAirline: b.dropoff_airline || "",
-        pickupDetail: b.dropoff_type_detail || "Curbside", pickupTail: b.dropoff_tail_number || "",
         dropoff: b.pickup || "", dropoffLocType: b.pickup_loc_type || "Search All",
         dropoffAirline: b.airline || "",
-        dropoffDetail: b.pickup_type_detail || "Curbside", dropoffTail: b.tail_number || "",
         stops: stops,
         firstName: b.first_name || "", lastName: b.last_name || "", phone: b.phone || "", email: b.email || "",
         ccFirstName: b.cc_first_name || "", ccLastName: b.cc_last_name || "",
@@ -3291,18 +3289,10 @@
       $('.kfb-loc-type-btn[data-group="pickup"][data-value="' + d.pickupLocType + '"]').trigger("click");
       $('input[name="pickup"]').val(d.pickup);
       $('input[name="airline"]').val(d.pickupAirline);
-      state.pickupTypeDetail = d.pickupDetail;
-      $("#kfbPickupTypeDetail").val(d.pickupDetail).trigger("change");
-      state.tailNumber = d.pickupTail;
-      $('input[name="tailNumber"]').val(d.pickupTail);
 
       $('.kfb-loc-type-btn[data-group="dropoff"][data-value="' + d.dropoffLocType + '"]').trigger("click");
       $('input[name="dropoff"]').val(d.dropoff);
       $('input[name="dropoffAirline"]').val(d.dropoffAirline);
-      state.dropoffTypeDetail = d.dropoffDetail;
-      $("#kfbDropoffTypeDetail").val(d.dropoffDetail).trigger("change");
-      state.dropoffTailNumber = d.dropoffTail;
-      $('input[name="dropoffTailNumber"]').val(d.dropoffTail);
 
       $("#kfbStopsContainer").empty();
       stopIndex = 0;
@@ -3330,6 +3320,13 @@
       // the map controller (it uses them until the customer picks something else).
       var presetItems = [d.pickup, d.dropoff].concat(d.stops).filter(Boolean).map(function (t) { return { text: t }; });
       if (typeof window.kfbPresetLocations === "function") window.kfbPresetLocations(presetItems);
+
+      // Belt and braces — none of these may ever carry over from the previous reservation.
+      $('textarea[name="notes"]').val("");
+      $('input[name="terms"]').prop("checked", false);
+      state.promo = null;
+      $("#kfbPromoInput").val("");
+      renderPromoState();
 
       requoteVehicles();
       renderVehicles();
@@ -3470,6 +3467,8 @@
       state.quotesByVehicleId = {};
       state.pricingZone = null;
       $("#kfbForm")[0].reset();
+      renderPromoState(); // state.promo was just cleared — also clear the "applied" box and re-enable the promo input
+      $("#kfbPromoInput").val("");
       applySamePassenger(); // form reset unticked the box — release the locked passenger fields
       $("#kfbStopsContainer").empty();
       $("#kfbChildSeatsContainer").empty();
