@@ -1409,10 +1409,10 @@
           : "";
         var imgHtml = imgSrc
           ? '<img src="' + imgSrc + '" alt="' + escapeHtml(v.name) + '" loading="lazy">'
-          : '<span class="kfb-vehicle-emoji">' + escapeHtml(v.emoji || "🚖") + '</span>';
+          : ""; // no image uploaded: an empty box, deliberately no emoji / placeholder
         var $card = $(
           '<div class="kfb-vehicle-card ' + (selected ? "is-selected" : "") + '" data-id="' + escapeHtml(v.id) + '">' +
-            '<div class="kfb-vehicle-image">' + imgHtml + '</div>' +
+            '<div class="kfb-vehicle-image' + (imgSrc ? '' : ' is-empty') + '">' + imgHtml + '</div>' +
             '<div class="kfb-vehicle-meta">' +
               '<span class="kfb-vehicle-meta-item">👥 ' + (v.capacity || v.max_passengers || 0) + '</span>' +
               '<span class="kfb-vehicle-meta-item">🧳 ' + (v.luggage || 0) + '</span>' +
@@ -2460,8 +2460,18 @@
           prefillContactFromCustomer();
           loadSavedCards();
           $('input[name="verifyOtp"]').val("");
+          // Came here from the reservation's success screen: leave a visible confirmation there
+          // (the toast alone disappears, and the prompt still said "check your email").
+          if (state.accountFromSuccess) {
+            state.accountFromSuccess = false;
+            var $prompt = $("#kfbAccountPrompt");
+            $prompt.removeAttr("hidden");
+            $prompt.find(".kfb-account-prompt-fields, .kfb-account-prompt-error").attr("hidden", true);
+            $prompt.find(".kfb-account-prompt-msg").html('<span class="kfb-promo-tick">✓</span> <strong>Your account has been created and verified.</strong> You are now logged in, and this reservation is saved under ' + escapeHtml((res.customer && res.customer.email) || email) + '.');
+          }
           setView("booking");
-          toast("Email Verified — Welcome!");
+          toast("Account Created & Verified — You Are Now Logged In.");
+          $("html, body").animate({ scrollTop: 0 }, 200);
         } else {
           showViewError($("#kfbVerifyError"), (res && res.error) || "Invalid Or Expired Code.");
         }
@@ -3414,6 +3424,7 @@
             // Not loginable yet — needs the OTP just emailed. Navigating
             // away from the success screen is fine here: the booking
             // itself is already confirmed either way.
+            state.accountFromSuccess = true; // so doVerifyOtp() can confirm on the success screen it returns to
             showVerifyView(res.email || email);
           } else {
             showPromptError((res && res.error) || "Could Not Create Account.");
@@ -3442,6 +3453,7 @@
     function resetAll() {
       state.submitting = false;
       state.isReturnReservation = false;
+      state.accountFromSuccess = false;
       state.selectedVehicle = null;
       state.bookingId = null;
       state.editingBookingId = null;

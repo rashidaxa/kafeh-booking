@@ -323,6 +323,26 @@ class Legacy_reservations
         if (!empty($leg['dropoff_arrival_time'])) $parts[] = 'Drop-off Arrival: ' . $fmt($leg['dropoff_arrival_time']);
         if (!empty($leg['dropoff_tail_number']))  $parts[] = 'Drop-off Tail #: ' . $leg['dropoff_tail_number'];
 
+        // Airport pickup / drop-off point (Curbside, Meet & Greet, Private Terminal) — the legacy form has no field for it.
+        if (strcasecmp((string)($leg['pickup_loc_type'] ?? ''), 'Airport') === 0 && !empty($leg['pickup_type_detail'])) {
+            $parts[] = 'Pickup Point: ' . $leg['pickup_type_detail'];
+        }
+        if (strcasecmp((string)($leg['dropoff_loc_type'] ?? ''), 'Airport') === 0 && !empty($leg['dropoff_type_detail'])) {
+            $parts[] = 'Drop-off Point: ' . $leg['dropoff_type_detail'];
+        }
+
+        // Child seats and their types (stored as {type: quantity}).
+        $seats = !empty($leg['child_seats_breakdown']) ? json_decode($leg['child_seats_breakdown'], TRUE) : NULL;
+        if (is_array($seats)) {
+            $seatLabels = ['rear_facing' => 'Rear-Facing Seat (Infant)', 'forward_facing' => 'Forward-Facing Seat (Toddler)', 'booster' => 'Booster Seat'];
+            $list = [];
+            foreach ($seats as $type => $qty) {
+                if ((int)$qty < 1) continue;
+                $list[] = ($seatLabels[$type] ?? ucfirst(str_replace('_', ' ', (string)$type))) . ' x' . (int)$qty;
+            }
+            if ($list) $parts[] = 'Child Seats: ' . implode(', ', $list);
+        }
+
         // Selected add-ons (kfb_addons) — the legacy price line only carries their total, so name them here.
         // Read from this leg's own row: the return leg of a round trip has none (only the outbound row carries them).
         $addons = !empty($leg['addons_json']) ? json_decode($leg['addons_json'], TRUE) : NULL;
@@ -337,7 +357,10 @@ class Legacy_reservations
             if ($names) $parts[] = 'Add-ons: ' . implode(', ', $names);
         }
 
-        // Passenger contact only when it isn't already the client's.
+        // Passenger name / contact only when they aren't already the client's.
+        $pName  = kfb_title_case(trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? '')));
+        $cName  = kfb_title_case(trim(($booking['cc_first_name'] ?? '') . ' ' . ($booking['cc_last_name'] ?? '')));
+        if ($pName !== '' && $cName !== '' && strcasecmp($pName, $cName) !== 0) $parts[] = 'Passenger: ' . $pName;
         if (!empty($booking['phone']) && $booking['phone'] !== $clientPhone) $parts[] = 'Passenger Phone: ' . kfb_phone($booking['phone']);
         if (!empty($booking['email']) && strcasecmp($booking['email'], $clientEmail) !== 0) $parts[] = 'Passenger Email: ' . $booking['email'];
 
