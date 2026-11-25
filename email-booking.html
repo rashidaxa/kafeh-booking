@@ -14,7 +14,7 @@
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
 
-  <!-- LOCAL DEV ONLY. embed/booking-lite1.js defaults to the production
+  <!-- LOCAL DEV ONLY. embed/booking-lite2.js defaults to the production
        backend (grounddispatch.com) when these globals aren't set —
        this page is always hosted there directly (an admin sends the
        customer a direct link; it's never copied onto another site),
@@ -257,107 +257,6 @@
                   </div>
                 </div>
 
-                <!-- Return Trip toggle + return date/time (v4) -->
-                <div class="kfb-section">
-                  <label class="kfb-check kfb-check-block">
-                    <input type="checkbox" id="kfbReturnTripToggle">
-                    <span><strong>Return Trip</strong> — Also Book The Trip Back To The Origin</span>
-                  </label>
-                  <div id="kfbReturnTripPanel" hidden>
-                    <div class="kfb-field-row-2" style="margin-top:10px">
-                      <label class="kfb-field">
-                        <span>Return Date</span>
-                        <div class="kfb-dt-overlay-wrap">
-                          <input type="date" name="returnDate">
-                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                        </div>
-                      </label>
-                      <label class="kfb-field">
-                        <span>Return Time</span>
-                        <div class="kfb-dt-overlay-wrap">
-                          <input type="time" name="returnTime">
-                          <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                        </div>
-                      </label>
-                    </div>
-                    <p class="kfb-hint" style="margin:6px 0 0">On the return leg, the pickup &amp; drop-off are swapped.</p>
-
-                    <!-- Return leg PICKUP flight info — shown when the original drop-off is an airport
-                         (the return leg picks the customer up there for the trip back). -->
-                    <div id="kfbReturnPickupFlightBlock" hidden>
-                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return pickup</strong> — picking you up at the airport for the trip back.</p>
-                      <div class="kfb-field-row-3">
-                        <label class="kfb-field">
-                          <span>Airline</span>
-                          <input type="text" name="returnAirline" list="kfbAirlinesListReturnPickup" placeholder="Select Or Type Airline">
-                          <datalist id="kfbAirlinesListReturnPickup"></datalist>
-                        </label>
-                        <label class="kfb-field">
-                          <span>Flight #</span>
-                          <input type="text" name="returnFlightNumber" placeholder="E.g. AA1234">
-                        </label>
-                        <label class="kfb-field">
-                          <span>Arrival Time</span>
-                          <div class="kfb-dt-overlay-wrap">
-                            <input type="time" name="returnArrivalTime">
-                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                          </div>
-                        </label>
-                      </div>
-                      <label class="kfb-field" style="margin-top:8px">
-                        <span>Pickup Point</span>
-                        <select name="returnPickupTypeDetail" id="kfbReturnPickupTypeDetail">
-                          <option value="Curbside" selected>Curbside Pickup (Outside) — Included</option>
-                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
-                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
-                        </select>
-                      </label>
-                      <label class="kfb-field" id="kfbReturnTailNumberWrap" hidden>
-                        <span>Aircraft Tail Number <em>*</em></span>
-                        <input type="text" name="returnTailNumber" maxlength="10"
-                               placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
-                      </label>
-                    </div>
-
-                    <!-- Return leg DROP-OFF flight info — shown when the original pickup is an airport
-                         (the return leg drops the customer back there for their flight home). -->
-                    <div id="kfbReturnDropoffFlightBlock" hidden>
-                      <p class="kfb-hint" style="margin:12px 0 4px"><strong>Return drop-off</strong> — dropping you back at the airport for your flight home.</p>
-                      <div class="kfb-field-row-3">
-                        <label class="kfb-field">
-                          <span>Airline</span>
-                          <input type="text" name="returnDropoffAirline" list="kfbAirlinesListReturnDropoff" placeholder="Select Or Type Airline">
-                          <datalist id="kfbAirlinesListReturnDropoff"></datalist>
-                        </label>
-                        <label class="kfb-field">
-                          <span>Flight #</span>
-                          <input type="text" name="returnDropoffFlightNumber" placeholder="E.g. AA1234">
-                        </label>
-                        <label class="kfb-field">
-                          <span>Departure Time</span>
-                          <div class="kfb-dt-overlay-wrap">
-                            <input type="time" name="returnDropoffArrivalTime">
-                            <span class="kfb-dt-overlay-display" aria-hidden="true"></span>
-                          </div>
-                        </label>
-                      </div>
-                      <label class="kfb-field" style="margin-top:8px">
-                        <span>Drop-Off Point</span>
-                        <select name="returnDropoffTypeDetail" id="kfbReturnDropoffTypeDetail">
-                          <option value="Curbside" selected>Curbside Drop-Off (Outside) — Included</option>
-                          <option value="Meet & Greet">Meet &amp; Greet (Inside) — Additional Fee</option>
-                          <option value="Private Terminal (FBO)">Private Terminal (FBO)</option>
-                        </select>
-                      </label>
-                      <label class="kfb-field" id="kfbReturnDropoffTailNumberWrap" hidden>
-                        <span>Aircraft Tail Number <em>*</em></span>
-                        <input type="text" name="returnDropoffTailNumber" maxlength="10"
-                               placeholder="E.g. N12345" style="text-transform: uppercase; font-family: ui-monospace, monospace;">
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
                 <!-- Special Instructions -->
                 <h3 class="kfb-section-title" style="margin:24px 0 12px">Special Instructions</h3>
                 <label class="kfb-field">
@@ -530,6 +429,9 @@
             We'll follow up at <b id="kfbSuccessEmail">—</b>.</p>
           <p class="kfb-success-id">Reference: <code id="kfbSuccessId">—</code></p>
 
+          <button type="button" class="kfb-btn kfb-btn-ghost" id="kfbReturnReservationBtn" hidden>Make a Return Reservation</button>
+          <p class="kfb-hint" id="kfbReturnReservationHint" hidden style="margin:6px 0 14px">Need the trip back? We'll fill in your contact details and swap the pickup &amp; drop-off — you choose the new date, time and vehicle.</p>
+
           <button type="button" class="kfb-btn kfb-btn-primary" id="kfbResetBtn">Submit Another Trip</button>
         </section>
 
@@ -548,13 +450,13 @@
   ============================================================
   Vendor scripts.
     1. embed/airports.js        — airport & airline catalogs
-    2. embed/booking-lite1.js    — widget logic, no pricing/payment/accounts (see file header)
+    2. embed/booking-lite2.js    — widget logic, no pricing/payment/accounts (see file header)
     3. embed/booking-map.js     — Google Maps controller (shared with the full widget)
     4. Google Maps SDK LAST — callback=kfbInitMap owned by embed/booking-map.js
   ============================================================
 -->
 <script src="embed/airports.js"></script>
-<script src="embed/booking-lite1.js?v=20261126"></script>
+<script src="embed/booking-lite2.js?v=20261129"></script>
 <script src="embed/booking-map.js?v=20261126"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
 <script src="test-status.js"></script>

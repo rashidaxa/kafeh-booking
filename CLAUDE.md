@@ -19,7 +19,7 @@ relative path would 404 on the client's own domain), `embed/booking.js` injects 
 to the production backend with no config file needed — they're only ever overridden locally, via the
 "LOCAL DEV ONLY" `<script>` block in `test3.html`/`email-booking.html`'s own `<head>`, never by a
 client site. `embed/booking-map.js` (the Google Maps/route controller) is a required dependency of
-`booking.js`/`booking-lite1.js` despite its name not saying so.
+`booking.js`/`booking-lite2.js` despite its name not saying so.
 
 Payments are PayPal Orders v2 REST, redirect checkout, **authorize-then-capture**: the customer approves on
 paypal.com (funds are held, not charged), and an admin explicitly **accepts** (captures) or **rejects**

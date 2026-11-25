@@ -571,34 +571,49 @@
     var TIME_TO_DATE_FIELD = { pickupTime: "pickupDate", returnTime: "returnDate" };
     function openTimeDropdown($input) {
       var current = $input.val();
-      var options = TIME_OPTIONS;
       var dateField = TIME_TO_DATE_FIELD[$input.attr("name")];
-      if (dateField && $('input[name="' + dateField + '"]').val() === todayDateString()) {
-        var nowMin = nowTimeString();
-        options = TIME_OPTIONS.filter(function (o) { return o.value >= nowMin; });
-        // Don't yank away a value the customer already picked just because
-        // a few minutes have ticked by since — only filter for new picks.
-        if (current && !options.some(function (o) { return o.value === current; })) {
-          var existing = TIME_OPTIONS.filter(function (o) { return o.value === current; })[0];
-          if (existing) options = [existing].concat(options);
-        }
-      }
       var $dd = $('<div class="kfb-dt-dropdown" role="listbox"></div>');
-      if (!options.length) {
-        $dd.append('<div class="kfb-dt-empty">No times left today — pick a later date</div>');
+
+      // Exact-minute entry only (e.g. 10:03 PM): hour / minute / AM-PM on one
+      // line, Set below — no predefined 30-minute list.
+      var cur = /^(\d{1,2}):(\d{2})/.exec(current || "");
+      var curH24 = cur ? parseInt(cur[1], 10) : null;
+      var curH12 = curH24 === null ? 12 : (curH24 % 12 === 0 ? 12 : curH24 % 12);
+      var curMin = cur ? parseInt(cur[2], 10) : 0;
+      var curPm  = curH24 !== null && curH24 >= 12;
+      function selOpts(from, to, sel, pad) {
+        var h = "";
+        for (var i = from; i <= to; i++) {
+          h += '<option value="' + i + '"' + (i === sel ? " selected" : "") + ">" + (pad ? String(i).padStart(2, "0") : i) + "</option>";
+        }
+        return h;
       }
-      options.forEach(function (o) {
-        var $item = $('<div class="kfb-dt-option" role="option" data-value="' + o.value + '">' + o.label + "</div>");
-        if (o.value === current) $item.addClass("is-selected");
-        $item.on("click", function () {
-          $input.val(o.value).trigger("change").trigger("input");
-          closeAllTimeDropdowns();
-        });
-        $dd.append($item);
+      var $custom = $(
+        '<div class="kfb-dt-custom">' +
+          '<span class="kfb-dt-custom-label">Exact time</span>' +
+          '<select class="kfb-dt-h" aria-label="Hour">' + selOpts(1, 12, curH12, false) + "</select>" +
+          '<span class="kfb-dt-colon">:</span>' +
+          '<select class="kfb-dt-m" aria-label="Minute">' + selOpts(0, 59, curMin, true) + "</select>" +
+          '<select class="kfb-dt-ap" aria-label="AM or PM"><option value="AM"' + (curPm ? "" : " selected") + '>AM</option><option value="PM"' + (curPm ? " selected" : "") + ">PM</option></select>" +
+          '<button type="button" class="kfb-dt-set">Set</button>' +
+        "</div>"
+      );
+      $custom.on("click", function (e) { e.stopPropagation(); });
+      $custom.find(".kfb-dt-set").on("click", function (e) {
+        e.preventDefault();
+        var h = parseInt($custom.find(".kfb-dt-h").val(), 10) % 12;
+        if ($custom.find(".kfb-dt-ap").val() === "PM") h += 12;
+        var value = String(h).padStart(2, "0") + ":" + String(parseInt($custom.find(".kfb-dt-m").val(), 10)).padStart(2, "0");
+        if (dateField && $('input[name="' + dateField + '"]').val() === todayDateString() && value < nowTimeString()) {
+          toast("That Time Has Already Passed Today.", "error");
+          return;
+        }
+        $input.val(value).trigger("change").trigger("input");
+        closeAllTimeDropdowns();
       });
+      $dd.append($custom);
+
       $input.closest(".kfb-dt-wrap").append($dd);
-      var $sel = $dd.find(".is-selected");
-      if ($sel.length) $dd.scrollTop($sel[0].offsetTop - $dd.height() / 2 + $sel.height() / 2);
     }
     function enhanceDateTimeInputs() {
       // Touch devices (phones/tablets) already open a full native
@@ -1267,11 +1282,76 @@
     function showSuccess(bookingId) {
       $(".kfb-panel, .kfb-stepper, .kfb-actions, .kfb-side-col").hide();
       var $ok = $("#kfbSuccess").show();
+      // Not offered again after a return reservation: it would just swap the trip back.
+      $("#kfbReturnReservationBtn, #kfbReturnReservationHint").prop("hidden", !!state.isReturnReservation);
       $("#kfbSuccessId").text(bookingId || state.bookingId || "—");
       $("#kfbSuccessName").text($('input[name="firstName"]').val() || "rider");
       $("#kfbSuccessEmail").text($('input[name="email"]').val() || "—");
       $("html, body").animate({ scrollTop: 0 }, 200);
     }
+    // ============================================================
+    // RETURN RESERVATION (new submission that mirrors the one just made)
+    // ============================================================
+    // "Make a Return Reservation" on the success screen re-opens the form with ONLY: names, phone and email,
+    // pickup <-> drop-off swapped, stops in reverse order, and the airline that belongs to each swapped airport
+    // address (no flight number or times). Everything else — date/time, vehicle, travellers, bags, child seats,
+    // notes, card, signature, terms — is left blank. Nothing is stored. Built from the form, which is still filled
+    // in on the success screen (this flow has no PayPal redirect).
+    function buildReturnDraftFromForm() {
+      var v = function (n) { return ($('input[name="' + n + '"]').val() || "").trim(); };
+      var stops = [];
+      $("#kfbStopsContainer input[name='stop[]']").each(function () {
+        var t = ($(this).val() || "").trim();
+        if (t) stops.push(t);
+      });
+      stops.reverse();
+      var pType = getLocType("pickup"), dType = getLocType("dropoff");
+      return {
+        pickup: v("dropoff"), pickupLocType: dType, pickupAirline: dType === "Airport" ? v("dropoffAirline") : "",
+        dropoff: v("pickup"), dropoffLocType: pType, dropoffAirline: pType === "Airport" ? v("airline") : "",
+        stops: stops,
+        firstName: v("firstName"), lastName: v("lastName"), phone: v("phone"), email: v("email"), cardHolderName: v("cardHolderName")
+      };
+    }
+
+    function applyReturnDraft(d) {
+      resetAll();
+      $('.kfb-loc-type-btn[data-group="pickup"][data-value="' + d.pickupLocType + '"]').trigger("click");
+      $('input[name="pickup"]').val(d.pickup);
+      $('input[name="airline"]').val(d.pickupAirline);
+      $('.kfb-loc-type-btn[data-group="dropoff"][data-value="' + d.dropoffLocType + '"]').trigger("click");
+      $('input[name="dropoff"]').val(d.dropoff);
+      $('input[name="dropoffAirline"]').val(d.dropoffAirline);
+
+      $("#kfbStopsContainer").empty();
+      stopIndex = 0;
+      d.stops.forEach(function () { addStopRow(); });
+      $("#kfbStopsContainer input[name='stop[]']").each(function (i) { $(this).val(d.stops[i] || ""); });
+
+      $('input[name="firstName"]').val(d.firstName);
+      $('input[name="lastName"]').val(d.lastName);
+      $('input[name="phone"]').val(d.phone);
+      $('input[name="email"]').val(d.email);
+      $('input[name="cardHolderName"]').val(d.cardHolderName);
+
+      // Typed text has no coordinates: hand the addresses to the map controller so the route is drawn.
+      var items = [d.pickup, d.dropoff].concat(d.stops).filter(Boolean).map(function (t) { return { text: t }; });
+      if (typeof window.kfbPresetLocations === "function") window.kfbPresetLocations(items);
+
+      renderVehicles();
+      renderSideSummary();
+      syncAllDtOverlays();
+      gotoStep(1);
+      $('input[name="pickupDate"]').focus();
+    }
+
+    function startReturnReservation() {
+      var draft = buildReturnDraftFromForm();
+      applyReturnDraft(draft);
+      state.isReturnReservation = true; // set after applyReturnDraft(): resetAll() inside it clears the flag
+      toast("Return Reservation Started — Choose Your Date, Time And Vehicle.");
+    }
+
     // ============================================================
     // FLIGHT VALIDATION (v4)
     // ============================================================
@@ -1406,6 +1486,8 @@
     // ============================================================
     function resetAll() {
       state.submitting = false;
+      state.isReturnReservation = false;
+      $("#kfbReturnReservationBtn, #kfbReturnReservationHint").prop("hidden", true);
       state.selectedVehicle = null;
       state.bookingId = null;
       state.editingBookingId = null;
@@ -1537,6 +1619,7 @@
 
       $("#kfbResetBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
       $("#kfbCancelBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
+      $("#kfbReturnReservationBtn").on("click", function (e) { e.preventDefault(); startReturnReservation(); });
       $("#kfbSortVehicles").on("change", renderVehicles);
 
       // Names are always Title Case, whatever was typed (the server does the same when saving and emailing).
