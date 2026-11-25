@@ -9,12 +9,12 @@
   <link rel="stylesheet" href="test.css">
 
   <!-- V3 Widget styles (shared, unchanged — no pricing/payment styling to fork) -->
-  <link rel="stylesheet" href="embed/booking7.css?v=20261030">
+  <link rel="stylesheet" href="embed/booking13.css?v=20261126">
 
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
 
-  <!-- LOCAL DEV ONLY. embed/booking-lite.js defaults to the production
+  <!-- LOCAL DEV ONLY. embed/booking-lite1.js defaults to the production
        backend (grounddispatch.com) when these globals aren't set —
        this page is always hosted there directly (an admin sends the
        customer a direct link; it's never copied onto another site),
@@ -191,10 +191,6 @@
                     <button type="button" class="kfb-loc-type-btn" data-value="Landmark"    data-group="dropoff" role="tab">Landmark</button>
                   </div>
                   <input type="hidden" name="dropoffLocType" value="Search All">
-                  <label class="kfb-check">
-                    <input type="checkbox" id="kfbReturnDifferent" checked>
-                    <span>Return At A Different Location</span>
-                  </label>
                   <label class="kfb-field kfb-dropoff" id="kfbDropoffWrap">
                     <span>Drop-Off Location</span>
                     <input type="text" name="dropoff" id="kfbDropoff" placeholder="Enter Location" required autocomplete="off">
@@ -552,14 +548,14 @@
   ============================================================
   Vendor scripts.
     1. embed/airports.js        — airport & airline catalogs
-    2. embed/booking-lite.js    — widget logic, no pricing/payment/accounts (see file header)
+    2. embed/booking-lite1.js    — widget logic, no pricing/payment/accounts (see file header)
     3. embed/booking-map.js     — Google Maps controller (shared with the full widget)
     4. Google Maps SDK LAST — callback=kfbInitMap owned by embed/booking-map.js
   ============================================================
 -->
 <script src="embed/airports.js"></script>
-<script src="embed/booking-lite.js?v=20260927"></script>
-<script src="embed/booking-map.js"></script>
+<script src="embed/booking-lite1.js?v=20261126"></script>
+<script src="embed/booking-map.js?v=20261126"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
 <script src="test-status.js"></script>
 

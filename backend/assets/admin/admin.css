@@ -172,6 +172,9 @@ body.kfb-admin {
 .kfb-sidebar-foot {
   border-top: 1px solid rgba(255,255,255,.08);
   padding: 14px 20px;
+  /* Pinned to the bottom of the sidebar so Log out is always visible, even when the menu is longer than the screen. */
+  position: sticky; bottom: -18px; margin-top: auto;
+  background: #0b1220;
 }
 .kfb-user { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .kfb-avatar {

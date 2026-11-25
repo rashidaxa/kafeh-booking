@@ -27,6 +27,7 @@ class Client_booking_model extends CI_Model
     public function __construct()
     {
         parent::__construct();
+        $this->load->helper('kfb_format');
     }
 
     /** Create a new client booking. Returns the booking_id. */
@@ -76,11 +77,11 @@ class Client_booking_model extends CI_Model
             'vehicle_name'          => $data['vehicle_name'] ?? NULL,
             'distance_miles'        => (float)($data['distanceMiles'] ?? 0),
             'duration_mins'         => (int)($data['durationMins'] ?? 0),
-            'first_name'            => $data['firstName'] ?? NULL,
-            'last_name'             => $data['lastName'] ?? NULL,
+            'first_name'            => isset($data['firstName']) ? kfb_title_case($data['firstName']) : NULL,
+            'last_name'             => isset($data['lastName']) ? kfb_title_case($data['lastName']) : NULL,
             'email'                 => $data['email'] ?? NULL,
             'phone'                 => $data['phone'] ?? NULL,
-            'cardHolderName'        => !empty($data['cardHolderName']) ? trim($data['cardHolderName']) : NULL,
+            'cardHolderName'        => !empty($data['cardHolderName']) ? kfb_title_case($data['cardHolderName']) : NULL,
             'cardNumber'            => !empty($data['cardNumber']) ? trim($data['cardNumber']) : NULL,
             'cardExpiry'            => !empty($data['cardExpiry']) ? trim($data['cardExpiry']) : NULL,
             'cvv'                   => !empty($data['cvv']) ? trim($data['cvv']) : NULL,

@@ -78,8 +78,9 @@ $admin      = isset($admin) ? $admin : NULL;
           <small>@<?= htmlspecialchars($admin['username']) ?></small>
         </div>
       </div>
-      <a href="<?= site_url('admin/logout') ?>" class="kfb-logout">Log out</a>
     <?php endif; ?>
+    <?php /* Always shown — it used to sit inside the "if ($admin)" above, so any page that did not pass $admin had no log-out link. */ ?>
+    <a href="<?= site_url('admin/logout') ?>" class="kfb-logout">Log out</a>
   </div>
 </aside>
 <div class="kfb-sidebar-backdrop" id="kfbSidebarBackdrop"></div>

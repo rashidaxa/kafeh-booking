@@ -4,7 +4,7 @@
    Owns the Google Map, the pickup/stops/dropoff markers, the
    route line, and the distance/time readout. Despite living
    alongside the widget, this is a required dependency of
-   embed/booking.js (and embed/booking-lite.js) — every page
+   embed/booking.js (and embed/booking-lite1.js) — every page
    that embeds the widget must also load this file.
 
    The embed widget (embed/booking.js) intentionally

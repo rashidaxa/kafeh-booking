@@ -407,11 +407,9 @@
       var pickupType = getLocType("pickup");
       if (!$('input[name="pickup"]').val().trim()) missing.push("Pickup Location");
 
-      // Dropoff: only if "return at different" is on
+      // Drop-off is always required
       var dropoffType = getLocType("dropoff");
-      if ($("#kfbReturnDifferent").is(":checked")) {
-        if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off Location");
-      }
+      if (!$('input[name="dropoff"]').val().trim()) missing.push("Drop-off Location");
 
       if (!$('input[name="passengers"]').val() || parseInt($('input[name="passengers"]').val(), 10) < 1) {
         missing.push("Travellers");
@@ -428,7 +426,7 @@
         if (!$('input[name="arrivalTime"]').val()) missing.push("Arrival Time");
       }
       // If dropoff is Airport AND "return at different" is on, require dropoff airline/flight/time
-      if ($("#kfbReturnDifferent").is(":checked") && dropoffType === "Airport") {
+      if (dropoffType === "Airport") {
         if (!$('input[name="dropoffAirline"]').val().trim()) missing.push("Drop-off Airline");
         if (!$('input[name="dropoffFlightNumber"]').val().trim()) missing.push("Drop-off Flight #");
         if (!$('input[name="dropoffArrivalTime"]').val()) missing.push("Drop-off Departure Time");
@@ -442,8 +440,7 @@
             isPastDateTime($('input[name="returnDate"]').val(), $('input[name="returnTime"]').val())) {
           missing.push("Return Date/Time (Can't Be In The Past)");
         }
-        var returnDifferent = $("#kfbReturnDifferent").is(":checked");
-        var returnPickupIsAirport = (returnDifferent ? dropoffType : pickupType) === "Airport";
+        var returnPickupIsAirport = dropoffType === "Airport";
         if (returnPickupIsAirport) {
           if (!$('input[name="returnAirline"]').val().trim()) missing.push("Return Pickup Airline");
           if (!$('input[name="returnFlightNumber"]').val().trim()) missing.push("Return Pickup Flight #");
@@ -993,7 +990,7 @@
           : "";
         var imgHtml = imgSrc
           ? '<img src="' + imgSrc + '" alt="' + escapeHtml(v.name) + '" loading="lazy">'
-          : '<span class="kfb-vehicle-emoji">' + escapeHtml(v.emoji || "🚖") + '</span>';
+          : ""; // no image uploaded: an empty box, deliberately no emoji / placeholder
         var $card = $(
           '<div class="kfb-vehicle-card ' + (selected ? "is-selected" : "") + '" data-id="' + escapeHtml(v.id) + '">' +
             '<div class="kfb-vehicle-image">' + imgHtml + '</div>' +
@@ -1030,11 +1027,7 @@
       $("#kfbSumService").text(selectedServiceType() || "—");
       $("#kfbSumDistance").text(fmtMiles(state.distanceMiles) + " mi · " + fmtMins(state.durationMins) + " min");
       $("#kfbSumPickup").text($('input[name="pickup"]').val() || "—");
-      $("#kfbSumDropoff").text(
-        $('#kfbReturnDifferent').is(":checked")
-          ? ($('input[name="dropoff"]').val() || "—")
-          : "Same as pickup"
-      );
+      $("#kfbSumDropoff").text($('input[name="dropoff"]').val() || "—");
 
       // Stops
       var stops = [];
@@ -1114,9 +1107,7 @@
       var pickupType = getLocType("pickup");
       var pickupValue = $('input[name="pickup"]').val();
       var dropoffType = getLocType("dropoff");
-      var dropoffValue = $('#kfbReturnDifferent').is(":checked")
-        ? $('input[name="dropoff"]').val()
-        : pickupValue;
+      var dropoffValue = $('input[name="dropoff"]').val();
 
       var payload = {
         service:         selectedServiceType(),
@@ -1130,7 +1121,7 @@
         pickupTypeDetail: state.pickupTypeDetail,
         tailNumber:      state.tailNumber || null,
         dropoff:         dropoffValue,
-        dropoffType:     $('#kfbReturnDifferent').is(":checked") ? dropoffType : pickupType,
+        dropoffType:     dropoffType,
         dropoffAirline:        $('input[name="dropoffAirline"]').val()       || null,
         dropoffFlightNumber:   $('input[name="dropoffFlightNumber"]').val()  || null,
         dropoffArrivalTime:    $('input[name="dropoffArrivalTime"]').val()   || null,
@@ -1201,6 +1192,8 @@
      * No PayPal, no pricing — the price was already agreed by phone.
      */
     function submitBooking() {
+      // One submission at a time: a second click while the first request is running would create a duplicate.
+      if (state.submitting) return;
       var v = state.selectedVehicle;
       if (!v) { toast("Choose A Vehicle First.", "error"); return; }
 
@@ -1252,6 +1245,7 @@
       }
 
       var $btn = $("#kfbBookNowBtn, #kfbBookNowBtnMobile");
+      state.submitting = true;
       $btn.prop("disabled", true);
       $("#kfbPaymentStatus").show().find("p").text("Submitting your trip details…");
 
@@ -1263,6 +1257,7 @@
         })
         .catch(function (err) {
           $("#kfbPaymentStatus").hide();
+          state.submitting = false;
           $btn.prop("disabled", false);
           var msg = (err && err.responseJSON && err.responseJSON.error) || (err && err.message) || "Could Not Submit Your Details.";
           toast(msg, "error");
@@ -1323,8 +1318,7 @@
     function updateReturnTripAirportBlocks() {
       if (!state.isReturnTrip) return;
       var pickupIsAirport = getLocType("pickup") === "Airport";
-      var returnDifferent = $("#kfbReturnDifferent").is(":checked");
-      var dropoffIsAirport = (returnDifferent ? getLocType("dropoff") : getLocType("pickup")) === "Airport";
+      var dropoffIsAirport = getLocType("dropoff") === "Airport";
       // Return leg pickup = original dropoff; return leg dropoff = original pickup.
       $("#kfbReturnPickupFlightBlock").toggle(dropoffIsAirport);
       $("#kfbReturnDropoffFlightBlock").toggle(pickupIsAirport);
@@ -1411,6 +1405,7 @@
     // RESET FORM (v4)
     // ============================================================
     function resetAll() {
+      state.submitting = false;
       state.selectedVehicle = null;
       state.bookingId = null;
       state.editingBookingId = null;
@@ -1440,7 +1435,6 @@
       $("#kfbChildSeatsContainer").empty();
       $("#kfbAddonList").empty();
       $("#kfbSignatureClear").trigger("click"); // wipes the drawn ink + state.signatureData
-      $("#kfbReturnDifferent").prop("checked", true).trigger("change");
       $('input[name="returnDate"], input[name="returnTime"], input[name="tailNumber"], input[name="dropoffTailNumber"], input[name="returnTailNumber"], input[name="returnDropoffTailNumber"]').val("");
       $(".kfb-airport-extras").hide();
       $("#kfbTailNumberWrap").attr("hidden", true);
@@ -1471,7 +1465,6 @@
     // WIRE IT ALL UP
     // ============================================================
     $(function () {
-      $("#kfbReturnDifferent").prop("checked", true);
       $('input[name="service"][value="Transfer"]').prop("checked", true);
       $(".kfb-service-pill[data-service='Transfer']").addClass("is-active");
 
@@ -1532,12 +1525,6 @@
       makeStepper("#kfbStepperPassengers", function () { renderVehicles(); recalcSelectedVehicle(); });
       makeStepper("#kfbStepperBags");
 
-      $("#kfbReturnDifferent").on("change", function () {
-        var on = $(this).is(":checked");
-        if (on) $("#kfbDropoffWrap").slideDown(120);
-        else    $("#kfbDropoffWrap").slideUp(120);
-        updateReturnTripAirportBlocks();
-      });
 
       window.addEventListener("kfb:route-updated", function () {
         syncRouteFromMap();
@@ -1551,6 +1538,16 @@
       $("#kfbResetBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
       $("#kfbCancelBtn").on("click", function (e) { e.preventDefault(); resetAll(); });
       $("#kfbSortVehicles").on("change", renderVehicles);
+
+      // Names are always Title Case, whatever was typed (the server does the same when saving and emailing).
+      function titleCaseName(v) {
+        v = String(v || "").replace(/\s+/g, " ").trim().toLowerCase();
+        return v.replace(/(^|\s)(\p{L})/gu, function (m, a, b) { return a + b.toUpperCase(); });
+      }
+      $(document).on("blur change", 'input[name="firstName"], input[name="lastName"], input[name="cardHolderName"]', function () {
+        var fixed = titleCaseName($(this).val());
+        if (fixed !== $(this).val()) $(this).val(fixed).trigger("input");
+      });
 
       // Live recompute summary on contact-info edits
       $(document).on("input", 'input[name="firstName"], input[name="lastName"], input[name="email"], input[name="phone"]', renderSideSummary);
