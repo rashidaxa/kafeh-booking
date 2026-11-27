@@ -13,7 +13,7 @@ booking/
 ├── embed/                                 # Everything a client site's snippet points at (by absolute
 │   │                                       #   URL — see "Embedding" below), served from grounddispatch.com
 │   ├── booking.css / .js                  # widget styles + logic (booking.js injects its own <link> to booking.css)
-│   ├── booking-lite2.js                    # no-payment "Email Bookings" fork (email-booking.html)
+│   ├── booking-lite3.js                    # no-payment "Email Bookings" fork (email-booking.html)
 │   ├── airports.js                        # Airport autocomplete data/helper
 │   └── booking-map.js                     # Google Maps controller — REQUIRED, not optional
 │
@@ -96,7 +96,7 @@ No build step, no server required. Works on `file://` as long as your browser al
 
 ### 2. Wire it up to the backend
 
-`embed/booking.js` / `embed/booking-lite2.js` default `window.API` / `window.UPLOADS` to the production
+`embed/booking.js` / `embed/booking-lite3.js` default `window.API` / `window.UPLOADS` to the production
 backend (`https://grounddispatch.com/booking/backend/...`) — every real deployment shares that one
 backend, so there's no per-site config file to edit. For **local** testing against your own XAMPP backend
 instead, `test3.html` (and `email-booking.html`) each set an override in their own `<head>`, in a
@@ -155,7 +155,7 @@ A few things that make this work:
 - **Absolute URLs, always.** The snippet is pasted onto someone else's domain, so a relative path like
   `embed/booking.css` would resolve against *their* site and 404 — every asset reference has to be the
   full `https://grounddispatch.com/booking/...` URL.
-- **No config file.** `embed/booking.js` / `embed/booking-lite2.js` default `window.API` / `window.UPLOADS`
+- **No config file.** `embed/booking.js` / `embed/booking-lite3.js` default `window.API` / `window.UPLOADS`
   to the production backend — every client site shares that one backend, so there's nothing to edit per
   site. (Internally, `test3.html` and `email-booking.html` override these to localhost for local
   testing — see their own `<head>`, marked `LOCAL DEV ONLY` — but a client site sets neither.)

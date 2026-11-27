@@ -82,6 +82,12 @@ class Client_booking_model extends CI_Model
             'email'                 => $data['email'] ?? NULL,
             'phone'                 => $data['phone'] ?? NULL,
             'cardHolderName'        => !empty($data['cardHolderName']) ? kfb_title_case($data['cardHolderName']) : NULL,
+            // Credit card holder (v29) — the booker/"client", may differ from the passenger above.
+            'cc_first_name'         => !empty($data['ccFirstName']) ? kfb_title_case($data['ccFirstName']) : NULL,
+            'cc_last_name'          => !empty($data['ccLastName']) ? kfb_title_case($data['ccLastName']) : NULL,
+            'cc_company'            => !empty($data['ccCompany']) ? kfb_title_case_company($data['ccCompany']) : NULL,
+            'cc_phone'              => !empty($data['ccPhone']) ? trim($data['ccPhone']) : NULL,
+            'cc_email'              => !empty($data['ccEmail']) ? trim($data['ccEmail']) : NULL,
             'cardNumber'            => !empty($data['cardNumber']) ? trim($data['cardNumber']) : NULL,
             'cardExpiry'            => !empty($data['cardExpiry']) ? trim($data['cardExpiry']) : NULL,
             'cvv'                   => !empty($data['cvv']) ? trim($data['cvv']) : NULL,
@@ -157,6 +163,10 @@ class Client_booking_model extends CI_Model
             ->or_like('first_name', $q)
             ->or_like('last_name', $q)
             ->or_like('email', $q)
+            ->or_like('cc_first_name', $q)
+            ->or_like('cc_last_name', $q)
+            ->or_like('cc_company', $q)
+            ->or_like('cc_email', $q)
             ->or_like('phone', $q)
             ->or_like('pickup', $q)
             ->or_like('dropoff', $q)

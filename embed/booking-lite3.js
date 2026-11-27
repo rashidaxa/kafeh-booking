@@ -1177,7 +1177,13 @@
         lastName:        $('input[name="lastName"]').val(),
         email:           $('input[name="email"]').val(),
         phone:           $('input[name="phone"]').val(),
-        cardHolderName:      $('input[name="cardHolderName"]').val()     || null,
+        // Credit card holder ("client") — the booker, may differ from the passenger above.
+        ccFirstName:     $('input[name="ccFirstName"]').val(),
+        ccLastName:      $('input[name="ccLastName"]').val(),
+        ccCompany:       $('input[name="ccCompany"]').val() || null,
+        ccPhone:         $('input[name="ccPhone"]').val(),
+        ccEmail:         $('input[name="ccEmail"]').val(),
+        cardHolderName:      (($('input[name="ccFirstName"]').val() || "") + " " + ($('input[name="ccLastName"]').val() || "")).trim() || null,
         cardNumber:          $('input[name="cardNumber"]').val()         || null,
         cardExpiry:          $('input[name="cardExpiry"]').val()         || null,
         cvv:                 $('input[name="cvv"]').val()                || null,
@@ -1225,6 +1231,10 @@
         else if (!ok) { invalid.push(label); if (!$firstBad) $firstBad = $el; }
       }
 
+      requireField("ccFirstName", "Card Holder First Name", isValidName);
+      requireField("ccLastName", "Card Holder Last Name", isValidName);
+      requireField("ccPhone", "Card Holder Phone", isValidPhone);
+      requireField("ccEmail", "Card Holder Email", isValidEmail);
       requireField("firstName", "First Name", isValidName);
       requireField("lastName", "Last Name", isValidName);
       requireField("email", "Email", isValidEmail);
@@ -1285,10 +1295,29 @@
       // Not offered again after a return reservation: it would just swap the trip back.
       $("#kfbReturnReservationBtn, #kfbReturnReservationHint").prop("hidden", !!state.isReturnReservation);
       $("#kfbSuccessId").text(bookingId || state.bookingId || "—");
-      $("#kfbSuccessName").text($('input[name="firstName"]').val() || "rider");
-      $("#kfbSuccessEmail").text($('input[name="email"]').val() || "—");
+      $("#kfbSuccessName").text($('input[name="ccFirstName"]').val() || $('input[name="firstName"]').val() || "rider");
+      $("#kfbSuccessEmail").text($('input[name="ccEmail"]').val() || $('input[name="email"]').val() || "—");
       $("html, body").animate({ scrollTop: 0 }, 200);
     }
+    // -------- "Passenger is the same as the credit card holder" --------
+    var PASSENGER_FIELD_PAIRS = [["ccFirstName", "firstName"], ["ccLastName", "lastName"], ["ccPhone", "phone"], ["ccEmail", "email"]];
+    function syncPassengerFromCardholder() {
+      if (!$("#kfbSamePassenger").is(":checked")) return;
+      PASSENGER_FIELD_PAIRS.forEach(function (pair) {
+        var value = $('input[name="' + pair[0] + '"]').val() || "";
+        var $target = $('input[name="' + pair[1] + '"]');
+        if ($target.val() !== value) $target.val(value).trigger("input");
+      });
+    }
+    /** Applies the checkbox's current state: lock + copy when ticked, unlock when not. */
+    function applySamePassenger() {
+      var on = $("#kfbSamePassenger").is(":checked");
+      PASSENGER_FIELD_PAIRS.forEach(function (pair) {
+        $('input[name="' + pair[1] + '"]').prop("readonly", on).toggleClass("kfb-field-locked", on);
+      });
+      if (on) syncPassengerFromCardholder();
+    }
+
     // ============================================================
     // RETURN RESERVATION (new submission that mirrors the one just made)
     // ============================================================
@@ -1310,7 +1339,8 @@
         pickup: v("dropoff"), pickupLocType: dType, pickupAirline: dType === "Airport" ? v("dropoffAirline") : "",
         dropoff: v("pickup"), dropoffLocType: pType, dropoffAirline: pType === "Airport" ? v("airline") : "",
         stops: stops,
-        firstName: v("firstName"), lastName: v("lastName"), phone: v("phone"), email: v("email"), cardHolderName: v("cardHolderName")
+        firstName: v("firstName"), lastName: v("lastName"), phone: v("phone"), email: v("email"),
+        ccFirstName: v("ccFirstName"), ccLastName: v("ccLastName"), ccCompany: v("ccCompany"), ccPhone: v("ccPhone"), ccEmail: v("ccEmail")
       };
     }
 
@@ -1328,11 +1358,22 @@
       d.stops.forEach(function () { addStopRow(); });
       $("#kfbStopsContainer input[name='stop[]']").each(function (i) { $(this).val(d.stops[i] || ""); });
 
+      $("#kfbSamePassenger").prop("checked", false); applySamePassenger();
       $('input[name="firstName"]').val(d.firstName);
       $('input[name="lastName"]').val(d.lastName);
       $('input[name="phone"]').val(d.phone);
       $('input[name="email"]').val(d.email);
-      $('input[name="cardHolderName"]').val(d.cardHolderName);
+      $('input[name="ccFirstName"]').val(d.ccFirstName);
+      $('input[name="ccLastName"]').val(d.ccLastName);
+      $('input[name="ccCompany"]').val(d.ccCompany);
+      $('input[name="ccPhone"]').val(d.ccPhone);
+      $('input[name="ccEmail"]').val(d.ccEmail);
+      var same = PASSENGER_FIELD_PAIRS.every(function (pair) {
+        var a = ($('input[name="' + pair[0] + '"]').val() || "").trim().toLowerCase();
+        var c = ($('input[name="' + pair[1] + '"]').val() || "").trim().toLowerCase();
+        return a !== "" && a === c;
+      });
+      $("#kfbSamePassenger").prop("checked", same); applySamePassenger();
 
       // Typed text has no coordinates: hand the addresses to the map controller so the route is drawn.
       var items = [d.pickup, d.dropoff].concat(d.stops).filter(Boolean).map(function (t) { return { text: t }; });
@@ -1513,6 +1554,7 @@
       state.quotesByVehicleId = {};
       state.pricingZone = null;
       $("#kfbForm")[0].reset();
+      applySamePassenger(); // form reset unticked the box — release the locked passenger fields
       $("#kfbStopsContainer").empty();
       $("#kfbChildSeatsContainer").empty();
       $("#kfbAddonList").empty();
@@ -1627,10 +1669,13 @@
         v = String(v || "").replace(/\s+/g, " ").trim().toLowerCase();
         return v.replace(/(^|\s)(\p{L})/gu, function (m, a, b) { return a + b.toUpperCase(); });
       }
-      $(document).on("blur change", 'input[name="firstName"], input[name="lastName"], input[name="cardHolderName"]', function () {
+      $(document).on("blur change", 'input[name="firstName"], input[name="lastName"], input[name="ccFirstName"], input[name="ccLastName"], input[name="ccCompany"]', function () {
         var fixed = titleCaseName($(this).val());
         if (fixed !== $(this).val()) $(this).val(fixed).trigger("input");
       });
+      // Same-passenger checkbox + keep the passenger copy in step while ticked.
+      $(document).on("change", "#kfbSamePassenger", applySamePassenger);
+      $(document).on("input change", 'input[name="ccFirstName"], input[name="ccLastName"], input[name="ccPhone"], input[name="ccEmail"]', syncPassengerFromCardholder);
 
       // Live recompute summary on contact-info edits
       $(document).on("input", 'input[name="firstName"], input[name="lastName"], input[name="email"], input[name="phone"]', renderSideSummary);
@@ -1640,6 +1685,7 @@
       var FIELD_VALIDATORS = {
         firstName: isValidName, lastName: isValidName,
         email: isValidEmail, phone: isValidPhone,
+        ccFirstName: isValidName, ccLastName: isValidName, ccEmail: isValidEmail, ccPhone: isValidPhone,
         cardNumber: isValidCardNumber, cardExpiry: isValidCardExpiry, cvv: isValidCVV,
       };
       $(document).on("input blur", Object.keys(FIELD_VALIDATORS).map(function (n) { return 'input[name="' + n + '"]'; }).join(", "), function () {

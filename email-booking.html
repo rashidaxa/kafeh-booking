@@ -14,7 +14,7 @@
   <!-- jQuery — required by the widget. -->
   <script src="vendor/jquery-3.7.1.min.js"></script>
 
-  <!-- LOCAL DEV ONLY. embed/booking-lite2.js defaults to the production
+  <!-- LOCAL DEV ONLY. embed/booking-lite3.js defaults to the production
        backend (grounddispatch.com) when these globals aren't set —
        this page is always hosted there directly (an admin sends the
        customer a direct link; it's never copied onto another site),
@@ -301,8 +301,22 @@
                 </div>
                 <p class="kfb-panel-sub">Your rate has already been agreed by phone — just confirm your details below.</p>
 
+                <!-- Credit Card Holder ("client") — same fields as the main booking page -->
+                <h3 class="kfb-section-title" style="margin:6px 0 4px">Credit Card Holder Name</h3>
+                <p class="kfb-field-hint" style="margin:0 0 12px">Enter the name on the credit card used for this reservation.</p>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>First Name *</span><input type="text" name="ccFirstName" autocomplete="off" required></label>
+                  <label class="kfb-field"><span>Last Name *</span><input type="text" name="ccLastName" autocomplete="off" required></label>
+                </div>
+                <label class="kfb-field"><span>Company Name</span><input type="text" name="ccCompany" autocomplete="off"></label>
+                <div class="kfb-field-row-2">
+                  <label class="kfb-field"><span>Phone *</span><input type="tel" name="ccPhone" placeholder="+1 555 000 0000" autocomplete="off" required></label>
+                  <label class="kfb-field"><span>Email *</span><input type="email" name="ccEmail" autocomplete="off" required></label>
+                </div>
+
                 <!-- Passenger Info -->
-                <h3 class="kfb-section-title" style="margin:6px 0 12px">Passenger Info</h3>
+                <h3 class="kfb-section-title" style="margin:24px 0 12px">Passenger Info</h3>
+                <label class="kfb-check kfb-same-passenger"><input type="checkbox" id="kfbSamePassenger"> Passenger is the same as the credit card holder</label>
                 <div class="kfb-field-row-2">
                   <label class="kfb-field"><span>First Name *</span><input type="text" name="firstName" required></label>
                   <label class="kfb-field"><span>Last Name *</span><input type="text" name="lastName" required></label>
@@ -325,11 +339,10 @@
                   Your rate has already been agreed by phone — these details are kept on file only; nothing is charged from this page.
                 </p>
                 <div class="kfb-field-row-2">
-                  <label class="kfb-field"><span>Enter Full Name</span><input type="text" name="cardHolderName" placeholder="If Different From Passenger"></label>
                   <label class="kfb-field"><span>Card Number</span><input type="text" name="cardNumber" placeholder="Credit Card Number" inputmode="numeric" autocomplete="cc-number" maxlength="23"></label>
+                  <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
                 </div>
                 <div class="kfb-field-row-2">
-                  <label class="kfb-field"><span>Expiration Date</span><input type="text" name="cardExpiry" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5"></label>
                   <label class="kfb-field"><span>Security Code</span><input type="text" name="cvv" placeholder="Security Code" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
                 </div>
                 <label class="kfb-field">
@@ -450,13 +463,13 @@
   ============================================================
   Vendor scripts.
     1. embed/airports.js        — airport & airline catalogs
-    2. embed/booking-lite2.js    — widget logic, no pricing/payment/accounts (see file header)
+    2. embed/booking-lite3.js    — widget logic, no pricing/payment/accounts (see file header)
     3. embed/booking-map.js     — Google Maps controller (shared with the full widget)
     4. Google Maps SDK LAST — callback=kfbInitMap owned by embed/booking-map.js
   ============================================================
 -->
 <script src="embed/airports.js"></script>
-<script src="embed/booking-lite2.js?v=20261129"></script>
+<script src="embed/booking-lite3.js?v=20261130"></script>
 <script src="embed/booking-map.js?v=20261126"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAf6YNuUn90G6O-ru2o-RNeSV8QL7aZ3yI&amp;libraries=places&amp;callback=kfbInitMap" async defer></script>
 <script src="test-status.js"></script>

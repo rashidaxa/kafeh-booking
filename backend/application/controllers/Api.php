@@ -1265,6 +1265,11 @@ class Api extends CI_Controller
         if (!filter_var($raw['email'], FILTER_VALIDATE_EMAIL)) {
             return ['Invalid email address', 422];
         }
+        // Card holder details (v29) are optional here so an older cached page that doesn't send them still works,
+        // but when given, the email must be valid.
+        if (!empty($raw['ccEmail']) && !filter_var($raw['ccEmail'], FILTER_VALIDATE_EMAIL)) {
+            return ['Invalid card holder email address', 422];
+        }
         return NULL;
     }
 

@@ -57,8 +57,14 @@ if (!function_exists('kfb_client_bookings_page_url')) {
             <tr>
               <td><code class="kfb-mono"><?= htmlspecialchars($r['booking_id']) ?></code></td>
               <td>
-                <?= htmlspecialchars(kfb_title_case(trim($r['first_name'] . ' ' . $r['last_name']))) ?: '—' ?>
-                <br><small class="kfb-hint"><?= htmlspecialchars($r['email']) ?></small>
+                <?php $ccName = kfb_title_case(trim(($r['cc_first_name'] ?? '') . ' ' . ($r['cc_last_name'] ?? ''))); ?>
+                <?php if ($ccName !== ''): ?>
+                  <?= htmlspecialchars($ccName . (!empty($r['cc_company']) ? ' | ' . kfb_title_case_company($r['cc_company']) : '')) ?>
+                  <br><small class="kfb-hint">Passenger: <?= htmlspecialchars(kfb_title_case(trim($r['first_name'] . ' ' . $r['last_name']))) ?: '—' ?> · <?= htmlspecialchars($r['cc_email'] ?: $r['email']) ?></small>
+                <?php else: ?>
+                  <?= htmlspecialchars(kfb_title_case(trim($r['first_name'] . ' ' . $r['last_name']))) ?: '—' ?>
+                  <br><small class="kfb-hint"><?= htmlspecialchars($r['email']) ?></small>
+                <?php endif; ?>
               </td>
               <td><?= htmlspecialchars($r['company_name'] ?? '—') ?></td>
               <td><?= htmlspecialchars(kfb_date($r['pickup_date'])) ?> <small class="kfb-hint"><?= htmlspecialchars(kfb_hm($r['pickup_time'])) ?></small></td>
